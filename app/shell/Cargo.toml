@@ -1,0 +1,31 @@
+[package]
+name = "letters-shell"
+description = "the desktop shell: windows, file opening and the bridge between the ui and the pdf engine"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+# the shell has no unit tests of its own: everything testable lives in
+# letters-shell-core, which can run without a window.
+# the _lib suffix keeps the library name from clashing with the binary name on windows
+name = "letters_shell_lib"
+test = false
+doctest = false
+
+[[bin]]
+name = "letters"
+path = "src/main.rs"
+test = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+letters-pdf = { path = "../../core/pdf" }
+letters-shell-core = { path = "../shell-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"

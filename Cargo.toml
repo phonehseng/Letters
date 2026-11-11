@@ -1,11 +1,16 @@
 [workspace]
 resolver = "2"
-members = ["core/pdf"]
+members = ["core/pdf", "app/shell-core", "app/shell"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 publish = false
+
+# dependencies are optimised even in debug builds: png compression and
+# similar inner loops are far too slow otherwise, and they rarely need debugging
+[profile.dev.package."*"]
+opt-level = 2
 
 # small, fast release builds: the app should start quickly and stay light
 [profile.release]
