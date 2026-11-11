@@ -51,7 +51,9 @@ Opens PDFs and renders pages as PNG tiles.
 | `geometry.rs` | the arithmetic of cutting a page into 512 pixel tiles. no PDF types, fully unit tested |
 | `cache.rs` | a least-recently-used cache with a hard byte limit |
 | `queue.rs` | the waiting line for tile requests: newest first, oldest dropped when too long |
-| `engine.rs` | the only file that calls PDFium: open, page sizes, render one tile |
+| `engine.rs` | the only file that calls PDFium: open, page sizes, render one tile, read the outline, find text on a page |
+| `outline.rs` | the shape of an outline entry and the limits that keep a damaged outline from looping |
+| `search.rs` | matching a query against a page's characters, snippets, and turning a match into rectangles |
 | `worker.rs` | the thread that owns the engine, the queue and the cache, and the handle other code uses to talk to it |
 | `error.rs` | every failure, worded for the person using the app |
 
@@ -70,15 +72,19 @@ Decisions worth knowing:
   newest is what is on screen now, so it is served first, and requests beyond
   96 waiting are answered with "skipped" (the interface asks again if the tile
   is still visible).
+- **Search goes a slice at a time.** A search is sent to the worker 20 pages
+  at a time, so tiles are still drawn in between and scrolling does not freeze
+  while a long document is searched. Each page's text is dropped before the
+  next is read.
 - **Scale is an integer.** Tiles are identified by scale in thousandths of a
   pixel per point so the key can be compared exactly.
 
 ### `app/shell-core` (crate `letters-shell-core`)
 
 The parts of the shell that need no window, kept apart so they can be unit
-tested: the recent files list (`recents.rs`), reading tile and thumbnail
-addresses (`address.rs`), and finding a file on the command line
-(`startup.rs`).
+tested: the recent files list (`recents.rs`), pinned folders (`pinned.rs`),
+reading tile and thumbnail addresses (`address.rs`), and finding a file on the
+command line (`startup.rs`).
 
 ### `app/shell` (crate `letters-shell`, program `letters`)
 
@@ -91,6 +97,7 @@ The desktop program. Thin glue, no logic of its own worth testing.
 | `commands.rs` | the functions the interface can call |
 | `tile_protocol.rs` | serves tiles and thumbnails to `<img>` tags over a private `tile://` address |
 | `windows.rs` | creates windows |
+| `menu.rs` | the macOS menu bar. each item sends a `menu-command` event to the window in front |
 | `engine_location.rs` | finds the PDFium library (installed app, next to the program, or `vendor/pdfium`) |
 
 Tiles travel as raw image bytes over the `tile://` address, not as JSON
@@ -100,21 +107,34 @@ unbounded cache.
 
 ### `app/ui`
 
-| File | Job |
+Logic lives in plain TypeScript modules with unit tests; components stay thin.
+
+| Module | Job |
 |---|---|
-| `lib/layout.ts` | where pages sit, which are visible, which tiles they need, zoom maths. pure and unit tested |
+| `lib/layout.ts` | where pages sit (one column or pairs), which are visible, which tiles they need, zoom and scroll maths |
+| `lib/commands.ts` | the one list of commands. keyboard shortcuts and menu events both go through its dispatcher, so they cannot drift apart |
+| `lib/search.ts` | moving between matches, the count text, highlight boxes, and running only the newest query |
+| `lib/thumbnails.ts`, `lib/outline.ts`, `lib/folders.ts`, `lib/sidebar.ts`, `lib/toolbar.ts` | the rules behind the sidebar, the outline's current section, folder filtering, and what the toolbar drops on a narrow window |
 | `lib/api.ts` | every call into the shell, typed |
-| `lib/tools.ts` | the label, tooltip and explanation of every tool |
-| `lib/format.ts` | friendly words for times and counts, search matching |
-| `lib/Viewer.svelte` | the scrolling document and its floating toolbar |
-| `lib/Home.svelte` | the Recents screen |
+| `lib/tools.ts` | the label, tooltip, shortcut and explanation of every tool |
+| `lib/format.ts`, `lib/keyboard.ts`, `lib/tileRetry.ts`, `lib/dom.ts` | small helpers |
+
+| Component | Job |
+|---|---|
+| `App.svelte` | one window: Recents or a document; the single keyboard and menu listener |
+| `lib/Viewer.svelte` | the viewer's state and wiring |
+| `lib/ViewerToolbar.svelte`, `lib/ViewMenu.svelte`, `lib/FindBar.svelte` | the floating toolbar, its View pull-down and the find capsule |
+| `lib/PageView.svelte`, `lib/SearchHighlights.svelte` | one page with its tiles, and the match highlights over it |
+| `lib/Sidebar.svelte`, `lib/Thumbnails.svelte`, `lib/Outline.svelte` | the left sidebar and its two modes |
+| `lib/Home.svelte`, `lib/FolderList.svelte` | the Recents screen and its pinned folders |
 | `lib/HelpPanel.svelte` | the Explain side panel |
 | `lib/ToolButton.svelte`, `lib/Icon.svelte` | toolbar buttons and icons |
 | `app.css` | colours, type, shapes: the design tokens (see `docs/DESIGN.md`) |
 
 The viewer keeps only the pages near the screen in the page at all, and for
-each of those only the tiles in view. `layout.ts` must agree with
-`geometry.rs` about page pixel sizes; both have tests for the same cases.
+each of those only the tiles in view. The thumbnail list does the same.
+`layout.ts` must agree with `geometry.rs` about page pixel sizes; both have
+tests for the same cases.
 
 ## How a tile gets on screen
 

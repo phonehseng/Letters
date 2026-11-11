@@ -64,8 +64,8 @@ from the background. So legibility wins over glassiness here too.
 | Two layers | The page scrolls under a floating toolbar. Only the toolbar groups and the side panel use the glass material; nothing in the page area does. A soft fade at the top keeps the toolbar readable (Apple's "scroll edge effect"). |
 | Hierarchy from layout | The document name sits at the leading edge in bold, with the page number under it in a quieter colour. No boxes or divider lines around toolbar areas: spacing separates them. |
 | One accent | Toolbar symbols are monochrome. The accent appears on the "Open a PDF" tile, on pressed toggles (Night Mode, Explain), and on focus rings. |
-| Show less | The toolbar holds eight actions. Explanations live in the Explain panel, closed by default. Later stages add an inspector on the right that changes with the selection, as Pages does, instead of a ribbon. |
-| Expected places | Leading: back to Recents, then the title. Centre: zoom. Trailing: Night Mode, New Window, then Explain (it opens a side panel, and inspector buttons go on the trailing edge). |
+| Show less | The toolbar holds about nine actions in three groups. Night Mode and Two Pages sit in one View pull-down, as in Preview and Pages. The sidebar and the Explain panel are closed by default. Later stages add an inspector on the right that changes with the selection, as Pages does, instead of a ribbon. |
+| Expected places | Leading: the sidebar button, back to Recents, then the title. Centre: zoom. Trailing: Find, View, New Window, then Explain (it opens a side panel, and inspector buttons go on the trailing edge). On a narrow window items leave in a fixed order, least important first (`app/ui/src/lib/toolbar.ts`). |
 | Type scale | The macOS text styles, in rem so they scale with the system text size: large title 26/32, title 17/22, headline 13 bold, body 13/16, subheadline 11/14, footnote 10/13. Nothing is smaller than 10. Letter spacing follows Apple's tracking table. |
 | Nested shapes | Toolbar groups have a 14px radius and 4px padding, so buttons inside have a 10px radius. The same sum is used wherever shapes nest. |
 | Words | All labels and tooltips live in `app/ui/src/lib/tools.ts`. Title case verbs, "Open…" with an ellipsis, errors that say what to do. |
@@ -89,7 +89,9 @@ from the background. So legibility wins over glassiness here too.
 
 ### Not done yet
 
-- A native menu bar with every command (needed for a real Mac feel).
+- The macOS menu bar with every command is written but has never been run on
+  a Mac. Windows has no menu bar on purpose: a permanent bar inside the window
+  would box the document in, so the same commands are keyboard shortcuts there.
 - Toolbar customisation.
 - Full screen with the toolbar hidden.
 
