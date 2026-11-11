@@ -1,0 +1,11 @@
+[package]
+name = "letters-pdf"
+description = "opens pdf files and renders pages as small tiles with a bounded cache"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+pdfium-render = { version = "0.9", default-features = false, features = ["pdfium_latest"] }
+png = "0.18"
+thiserror = "2"
