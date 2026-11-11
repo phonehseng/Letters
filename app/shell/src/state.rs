@@ -8,6 +8,7 @@ use letters_pdf::{DocumentId, RenderWorker};
 use tauri::{AppHandle, Manager};
 
 use crate::engine_location::find_pdfium_dir;
+use letters_shell_core::pinned::PinnedFolders;
 use letters_shell_core::recents::RecentFiles;
 
 /// the most memory finished tiles may use, across every window.
@@ -27,6 +28,7 @@ pub struct AppState {
     /// a file a new window should open as soon as its ui is ready
     startup_files: Mutex<HashMap<String, PathBuf>>,
     pub recents: Mutex<RecentFiles>,
+    pub pinned_folders: Mutex<PinnedFolders>,
     pub thumbnail_dir: PathBuf,
 }
 
@@ -41,6 +43,7 @@ impl AppState {
             documents_by_window: Mutex::new(HashMap::new()),
             startup_files: Mutex::new(HashMap::new()),
             recents: Mutex::new(RecentFiles::load(data_dir.join("recent-files.json"))),
+            pinned_folders: Mutex::new(PinnedFolders::load(data_dir.join("pinned-folders.json"))),
             thumbnail_dir: cache_dir.join("thumbnails"),
         }
     }

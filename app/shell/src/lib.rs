@@ -6,6 +6,7 @@
 
 mod commands;
 mod engine_location;
+mod menu;
 mod state;
 mod tile_protocol;
 mod windows;
@@ -17,7 +18,7 @@ use letters_shell_core::startup::file_argument;
 use crate::state::AppState;
 
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // must be the first plugin: when the app is already running it hands
         // the new file to the running copy and exits straight away
         .plugin(tauri_plugin_single_instance::init(
@@ -35,7 +36,19 @@ pub fn run() {
             commands::recent_files,
             commands::forget_recent_file,
             commands::engine_stats,
-        ])
+            commands::document_outline,
+            commands::search_text,
+            commands::pinned_folders,
+            commands::pin_folder,
+            commands::unpin_folder,
+        ]);
+
+    // a menu bar only on macos: on windows it would sit inside every
+    // window (see menu.rs)
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(menu::build).on_menu_event(menu::handle_event);
+
+    let app = builder
         .setup(|app| {
             let handle = app.handle();
             app.manage(AppState::start(handle));

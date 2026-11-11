@@ -6,12 +6,16 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use letters_pdf::{DocumentId, DocumentInfo, PageSize, PdfError, RenderWorker, TileKey};
+use letters_pdf::{
+    DocumentId, DocumentInfo, OutlineItem, PageSize, PdfError, RenderWorker, SearchMatch,
+    SearchResults, TextRect, TileKey,
+};
 use serde::Serialize;
 use tauri::{AppHandle, State, Window};
 
 use crate::state::AppState;
 use crate::windows;
+use letters_shell_core::pinned::{describe_folders, PinnedFolder};
 use letters_shell_core::recents::{thumbnail_name, RecentFile};
 
 /// thumbnails on the home screen are drawn about this wide.
@@ -69,6 +73,42 @@ pub struct EngineStats {
     open_documents: usize,
     cached_tiles: usize,
     cached_bytes: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutlineItemDto {
+    title: String,
+    /// zero based
+    page: u32,
+    /// 0 for top level entries
+    level: u32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResultsDto {
+    matches: Vec<SearchMatchDto>,
+    /// true when the search stopped at 500 matches and there were more
+    truncated: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchMatchDto {
+    /// zero based
+    page: u32,
+    rects: Vec<RectDto>,
+    snippet: String,
+}
+
+/// a rectangle in points from the page's top left corner, y downward.
+#[derive(Serialize)]
+pub struct RectDto {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
 }
 
 #[tauri::command(async)]
@@ -146,6 +186,83 @@ pub fn engine_stats(state: State<AppState>) -> Result<EngineStats, CommandError>
         cached_tiles: stats.cached_tiles,
         cached_bytes: stats.cached_bytes,
     })
+}
+
+/// the document's table of contents, flattened in reading order.
+/// empty when the pdf has none.
+#[tauri::command(async)]
+pub fn document_outline(
+    state: State<AppState>,
+    id: u64,
+) -> Result<Vec<OutlineItemDto>, CommandError> {
+    let worker = state.worker().map_err(engine_unavailable)?;
+    let outline = worker.outline(DocumentId(id))?;
+    Ok(outline.into_iter().map(outline_item_dto).collect())
+}
+
+/// every place `query` appears in the document, ignoring case.
+#[tauri::command(async)]
+pub fn search_text(
+    state: State<AppState>,
+    id: u64,
+    query: String,
+) -> Result<SearchResultsDto, CommandError> {
+    let worker = state.worker().map_err(engine_unavailable)?;
+    let results = worker.search(DocumentId(id), &query)?;
+    Ok(search_results_dto(results))
+}
+
+/// the pinned folders with the pdfs in each, read fresh from disk.
+#[tauri::command(async)]
+pub fn pinned_folders(state: State<AppState>) -> Vec<PinnedFolder> {
+    // copy the paths and let go of the lock before reading the disk,
+    // which can be slow for a network folder
+    let paths = state.pinned_folders.lock().unwrap().paths().to_vec();
+    describe_folders(&paths)
+}
+
+#[tauri::command(async)]
+pub fn pin_folder(state: State<AppState>, path: String) -> Vec<PinnedFolder> {
+    state.pinned_folders.lock().unwrap().pin(&path);
+    pinned_folders(state)
+}
+
+#[tauri::command(async)]
+pub fn unpin_folder(state: State<AppState>, path: String) -> Vec<PinnedFolder> {
+    state.pinned_folders.lock().unwrap().unpin(&path);
+    pinned_folders(state)
+}
+
+fn outline_item_dto(item: OutlineItem) -> OutlineItemDto {
+    OutlineItemDto {
+        title: item.title,
+        page: item.page,
+        level: item.level,
+    }
+}
+
+fn search_results_dto(results: SearchResults) -> SearchResultsDto {
+    SearchResultsDto {
+        matches: results.matches.into_iter().map(search_match_dto).collect(),
+        truncated: results.truncated,
+    }
+}
+
+fn search_match_dto(found: SearchMatch) -> SearchMatchDto {
+    SearchMatchDto {
+        page: found.page,
+        rects: found.rects.iter().map(rect_dto).collect(),
+        snippet: found.snippet,
+    }
+}
+
+fn rect_dto(rect: &TextRect) -> RectDto {
+    RectDto {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+    }
 }
 
 fn page_dto(size: &PageSize) -> PageDto {
