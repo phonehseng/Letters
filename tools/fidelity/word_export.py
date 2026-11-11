@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import subprocess
 import time
+from collections.abc import Callable
 
 import pythoncom
 import win32com.client
@@ -21,6 +22,21 @@ WD_EXPORT_DOCUMENT_CONTENT = 0
 WD_EXPORT_CREATE_NO_BOOKMARKS = 0
 WD_DO_NOT_SAVE_CHANGES = 0
 WD_ALERTS_NONE = 0
+WD_FORMAT_PDF = 17
+
+DEFAULT_EXPORT_ARGUMENTS = {
+    "ExportFormat": WD_EXPORT_FORMAT_PDF,
+    "OpenAfterExport": False,
+    "OptimizeFor": WD_EXPORT_OPTIMIZE_FOR_PRINT,
+    "Range": WD_EXPORT_ALL_DOCUMENT,
+    "Item": WD_EXPORT_DOCUMENT_CONTENT,
+    "IncludeDocProps": False,
+    "KeepIRM": True,
+    "CreateBookmarks": WD_EXPORT_CREATE_NO_BOOKMARKS,
+    "DocStructureTags": False,
+    "BitmapMissingFonts": True,
+    "UseISO19005_1": False,
+}
 
 
 class WordAutomationError(RuntimeError):
@@ -66,9 +82,20 @@ def _wait_for_exit(process_ids: set[int], timeout_seconds: float = 15.0) -> set[
     return process_ids & _word_process_ids()
 
 
-def export_docx_to_pdf(docx_path: str, pdf_path: str) -> dict:
+def export_docx_to_pdf(
+    docx_path: str,
+    pdf_path: str,
+    *,
+    export_overrides: dict | None = None,
+    use_save_as: bool = False,
+    prepare: Callable | None = None,
+) -> dict:
     """open the docx read-only, export it as pdf and close everything we opened.
 
+    export_overrides replaces ExportAsFixedFormat arguments, use_save_as writes
+    the pdf with SaveAs2 instead, and prepare(word, document) may adjust the open
+    document (never word's application options: those are saved to the user's
+    profile when word quits) and return notes for the report.
     returns timings and the word version so reports say what produced them."""
     docx_path = os.path.abspath(docx_path)
     pdf_path = os.path.abspath(pdf_path)
@@ -98,24 +125,17 @@ def export_docx_to_pdf(docx_path: str, pdf_path: str) -> dict:
         document.Repaginate()
         timings["open_s"] = time.perf_counter() - t0
 
+        notes = prepare(word, document) if prepare is not None else None
+
         t0 = time.perf_counter()
-        document.ExportAsFixedFormat(
-            OutputFileName=pdf_path,
-            ExportFormat=WD_EXPORT_FORMAT_PDF,
-            OpenAfterExport=False,
-            OptimizeFor=WD_EXPORT_OPTIMIZE_FOR_PRINT,
-            Range=WD_EXPORT_ALL_DOCUMENT,
-            Item=WD_EXPORT_DOCUMENT_CONTENT,
-            IncludeDocProps=False,
-            KeepIRM=True,
-            CreateBookmarks=WD_EXPORT_CREATE_NO_BOOKMARKS,
-            DocStructureTags=False,
-            BitmapMissingFonts=True,
-            UseISO19005_1=False,
-        )
+        if use_save_as:
+            document.SaveAs2(FileName=pdf_path, FileFormat=WD_FORMAT_PDF, AddToRecentFiles=False)
+        else:
+            arguments = dict(DEFAULT_EXPORT_ARGUMENTS, **(export_overrides or {}))
+            document.ExportAsFixedFormat(OutputFileName=pdf_path, **arguments)
         timings["export_s"] = time.perf_counter() - t0
         page_count = document.ComputeStatistics(2)  # wdStatisticPages
-        return {"word_version": version, "word_pages": page_count, "timings": timings}
+        return {"word_version": version, "word_pages": page_count, "timings": timings, "notes": notes}
     finally:
         if document is not None:
             try:

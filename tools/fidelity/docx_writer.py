@@ -214,14 +214,17 @@ def _styles_xml(family: str, size_pt: float) -> str:
     )
 
 
-def _settings_xml(embed_fonts: bool) -> str:
+def _settings_xml(embed_fonts: bool, compatibility_mode: int = 15, extra_compat_xml: str = "") -> str:
+    """document settings. extra_compat_xml holds legacy w:compat flags such as
+    <w:usePrinterMetrics/>, which the schema wants before the compatSetting entries."""
     embed = "<w:embedTrueTypeFonts/>" if embed_fonts else ""
     return (
         f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings {NAMESPACES}>'
         f'{embed}<w:defaultTabStop w:val="720"/><w:autoHyphenation w:val="false"/>'
         '<w:characterSpacingControl w:val="doNotCompress"/>'
-        "<w:compat>"
-        '<w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>'
+        f"<w:compat>{extra_compat_xml}"
+        '<w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" '
+        f'w:val="{compatibility_mode}"/>'
         "</w:compat></w:settings>"
     )
 
@@ -304,6 +307,8 @@ def write_docx(
     page_width_pt: float = 612,
     page_height_pt: float = 792,
     embed_flag: bool | None = None,
+    compatibility_mode: int = 15,
+    extra_compat_xml: str = "",
 ) -> str:
     """write the package. body_xml is a run of w:p elements, the section is added here.
 
@@ -326,7 +331,7 @@ def write_docx(
         package.writestr("word/document.xml", document)
         package.writestr("word/_rels/document.xml.rels", DOCUMENT_RELS)
         package.writestr("word/styles.xml", _styles_xml(family, default_size_pt))
-        package.writestr("word/settings.xml", _settings_xml(embed_flag))
+        package.writestr("word/settings.xml", _settings_xml(embed_flag, compatibility_mode, extra_compat_xml))
         package.writestr("word/fontTable.xml", font_table)
         if embedded:
             package.writestr("word/_rels/fontTable.xml.rels", font_rels)

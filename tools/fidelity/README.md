@@ -39,7 +39,23 @@ Run all of them from `C:\Letters\tools\fidelity`. Output goes to `out\` (ignored
 | `e3_advance_widths.py` | E3: char spacing via per-char `w:spacing` vs rewritten `hmtx` | about 45 s |
 | `e3_spacing_probe.py` | how Word turns a font advance plus `w:spacing` into pen positions | about 6 s |
 | `word_pdf_grid.py some.word.pdf ...` | the coordinate grid in a PDF that Word exported | under 1 s |
+| `e5_model_probe.py` | does Word follow `grid_model.py`'s floor rule? (random whole-pixel targets at 9, 10.5 and 12 pt) | about 20 s |
+| `e5_grid_snap.py` | E5: grid fonts, calibrated frames and predicted spacing on the E2 and E3 test sets | about 60 s |
+| `e6_grid_source.py` | E6: does any document-side setting change the grid? (about 30 variants) | about 3 min |
+| `e7_odd_sizes.py` | E7: PDF sizes a docx cannot store (10.3, 11.27, 7.9 pt) | about 20 s |
+| `e8_vertical.py` | E8: the vertical grid, and whether font sizes move baselines | about 6 s |
+| `e9_word_frames.py` | E9: one frame per word on the E2 set (needs an `e5_grid_snap.py` run first) | about 35 s |
 | `test_units.py` | unit tests for the parts that do not need Word (`python -m unittest test_units -v`) | under 1 s |
+
+The round 2 helper modules are:
+
+- `grid_model.py`: the pixel model and the spacing calculation. It is pure and unit tested.
+- `frame_calibration.py`: picks frame twips by measurement.
+- `grid_probe.py`: the grid-detection page used by E6.
+- `font_prep.make_grid_font`: builds whole-pixel advances, with optional outline scaling.
+
+From round 2 on, the scripts live in the worktree `C:\Letters-fidelity\tools\fidelity`. They reuse the
+existing venv: `C:\Letters\tools\fidelity\.venv\Scripts\python.exe <script>`.
 
 A harness run prints a block like this and writes `<name>.report.json` and `<name>.heatmap_pageN.png`:
 
@@ -151,7 +167,7 @@ value applies to both sizes.
   response.
 - TrueType hinting makes no difference.
 
-## conclusion so far
+### round 1 conclusion (superseded by round 2 below)
 
 None of the methods got all glyphs within 0.025 pt. The best measured result is frames with
 calibrated baseline offsets: line starts within 0.086 pt (mean 0.030), but glyphs inside a
@@ -159,6 +175,184 @@ line drift by up to 0.21 pt. Even the natural advances of the font, with no spac
 drift by up to 0.25 pt at 12 pt. That error comes from Word's layout, not from the DOCX.
 Frames are recommended over text boxes, which come close but no better, and over paragraphs,
 whose dy bias is 0.09 pt.
+
+## round 2: working with the 1/600 inch grid (2026-11-11, same machine and Word build)
+
+### the model of Word, as measured
+
+- **Inside a line:** pen positions are whole 1/600 inch pixels (0.12 pt).
+  - If every glyph advance is a whole number of pixels (a grid font), then after n glyphs the
+    pen sits at `floor(sum of advances + sum of w:spacing twips x 5/12)` pixels from the line start.
+  - `e5_model_probe.py` sets random whole-pixel targets at 9, 10.5 and 12 pt. When the spacing
+    aims a quarter pixel above each target, Word's layout lands on every target pixel.
+  - The first attempt aimed at the pixel centre. It broke the floor rule once, at an exact
+    half pixel. Aiming at a quarter pixel above keeps floor and round in agreement.
+  - What remains is the PDF writer: Tc with 2 decimals, and TJ in 1/1000 em. Measured residual
+    from the whole pixel: at most 0.026 pt at 12 pt and 0.056 pt at 9/10.5 pt (from a one-off
+    decomposition of the `e5_grid_snap` output, not a committed script). Over 9,669 glyphs checked there were 0 layout pixel misses.
+- **Twips and pixels:** a twip is 5/12 pixel. Twips and pixels coincide only every 12 twips
+  (0.6 pt = 5 pixels). Spacing is not rounded to the grid per character; Word accumulates it
+  exactly and floors the pen.
+- **Frame x and y:** both land on the pixel grid, by a deterministic rule that depends only
+  on the twip value (not on the other axis). The rule is not a plain floor or round of
+  `twips x 5/12`; the same remainder mod 12 gives different results at different positions.
+  So frames are placed by calibration: `frame_calibration.py` tries 9 neighbouring twip
+  values per line on a separate document and keeps the best one.
+- **Pixel phase:** PDF coordinates land at a pixel phase of 0 or +0.024 pt depending on the
+  region of the page (0 below about 50 pt, +0.024 beyond). Above 100 pt the PDF prints only 5
+  significant digits, which adds up to 0.005 pt of rounding.
+- **Font size:** Word stores half points but draws glyphs at whole pixels per em:
+  10.5 -> 10.56, 11.5 -> 11.52, 8 -> 8.04, 14 -> 14.04. Layout still uses the stored size.
+
+### E5 grid-snapped advances: per-line frames, pt
+
+Recipe, applied per line:
+
+1. Use one grid font per font size. Its `hmtx` advances are whole pixels at that size: units
+   per em = 50 x half points, 12 units per pixel.
+2. Choose the frame x/y twips by calibration.
+3. Give each glyph a target: the pixel nearest its source x, counted from the line start
+   Word really produced.
+4. Set per-character `w:spacing` from `grid_model.spacing_for_pixel_targets`.
+
+The "floor" row is arithmetic: the distance from each source glyph to the nearest pixel of its
+line. No grid-bound method can do better.
+
+| set | variant | max | mean | p99 | <= 0.025 | <= 0.06 | \|dx\| max / mean | \|dy\| max / mean |
+|---|---|---|---|---|---|---|---|---|
+| E3 (12 pt, 4 groups) | floor (x only) | 0.060 | 0.031 | 0.060 | | | | |
+| E3 | calibrated frames, plain font | 23.7 (charSpace lines) | 4.17 | 20.5 | 2.6% | 9.5% | 23.7 / 4.16 | 0.060 / 0.030 |
+| E3 | **grid snap** | **0.110** | **0.050** | **0.098** | 12.0% | 68.6% | 0.104 / 0.035 | 0.060 / 0.030 |
+| E2 (9 + 10.5 pt, 3 pages) | floor (x only) | 0.060 | 0.030 | 0.059 | | | | |
+| E2 | calibrated frames, plain font | 0.227 | 0.064 | 0.171 | 8.8% | 52.3% | 0.227 / 0.050 | 0.060 / 0.030 |
+| E2 | **grid snap** | **0.119** | **0.048** | **0.090** | 13.1% | 73.0% | 0.108 / 0.032 | 0.060 / 0.030 |
+
+E3 grid snap, max / mean |dx| per group:
+
+| group | max / mean \|dx\| |
+|---|---|
+| natural | 0.096 / 0.034 |
+| charSpace | 0.104 / 0.034 |
+| scaled | 0.099 / 0.036 |
+| jitter | 0.087 / 0.035 |
+
+Error no longer builds up along a line. Drift along a line is at most 0.082â€“0.090 pt at 12 pt,
+compared with 0.26 pt before.
+
+Cost:
+
+- **Fonts:** one embedded font variant per size, about 96 KB each for this font, uncompressed
+  before zip. Subsetting it was not tried.
+- **Runs:** one run per character.
+- **docx size, E2 set:** 150 KB with grid snap, 65 KB plain.
+- **Word time:** export time is unchanged (about 5â€“6 s per harness run).
+
+### E6 where the grid comes from
+
+Every variant below gave the same result: line starts on the 0.12 pt grid, pen steps on
+0.12 pt, the same x errors (-0.086..+0.034 pt for the sweep) and the same baselines.
+
+- **compat settings:** compatibilityMode 11, 12, 14 and 15; `w:usePrinterMetrics` in mode 15
+  and in mode 11; `w:doNotUseHTMLParagraphAutoSpacing`.
+- **ExportAsFixedFormat:** OptimizeFor screen; UseISO19005_1 (PDF/A); BitmapMissingFonts off.
+- **Save path:** SaveAs2 with wdFormatPDF instead of ExportAsFixedFormat.
+- **`Document.Compatibility(...)` toggled on the open, read-only document:**
+  - `wdUsePrinterMetrics`, `wdTruncateFontHeight`, `wdNoLeading`, `wdSubFontBySize`: Word
+    refuses them in mode 15 ("out of range for this file format"). In mode 11 they are
+    accepted but change nothing.
+  - `wdSpacingInWholePoints` (mode 11 only): only drops `w:spacing` below 1 pt; the grid stays.
+  - `wdExactOnTop`: only moves the baseline (9.6 -> 11.4 pt below the top of a 12 pt line); the
+    grid stays.
+  - `wdDontUseHTMLParagraphAutoSpacing`: no change.
+  - `wdWPSpace` does not exist in this build's enum.
+- **Font size 6, 9, 10.5, 12, 24, 48 pt:** the grid is constant in points (0.12 pt). Only the
+  PDF writer's own noise grows with size, because it works in 1/1000 em.
+- **Read only, not changed:**
+  - Default printer: "Microsoft Print to PDF", 600 x 600 dpi.
+  - `ActivePrinter`: "Microsoft Print to PDF".
+  - `Options.UseSubPixelPositioning`: True. `UseCharacterUnit`: False.
+
+So nothing on the document side moves the grid. Whether the printer driver's resolution
+causes it is untested: changing the default printer is a system setting. Changing Word's
+application options was not tried either, because Word saves them to the user's profile.
+
+### E7 sizes a docx cannot store
+
+The test set has 40 lines at 10.3, 11.27, 7.9 and 10.5 pt, with calibrated frames.
+
+The grid font was built at the nearest half-point size. Its outlines and metrics were scaled
+by pdf size / drawn size (for example 10.3 / 10.56).
+
+| variant | max | mean | p99 | glyph size drawn, 7.9 / 10.3 / 10.5 / 11.27 pt |
+|---|---|---|---|---|
+| nearest half point, plain font | 4.79 | 1.25 | 4.24 | 8.04 / 10.56 / 10.56 / 11.52 (up to +0.26 pt) |
+| grid font scaled to pdf size + grid snap | **0.120** | **0.048** | **0.094** | 7.901 / 10.292 / 10.509 / 11.267 (within 0.01 pt) |
+
+Glyph size is measured from the median of matched ink-box heights. Odd sizes behave exactly
+like storable ones once the font is scaled. The scaling also removes the 10.56-for-10.5 size
+error that plain fonts have.
+
+### E8 vertical
+
+- **The grid:**
+  - Baselines also land on the 0.12 pt pixel grid, with the same 0 / +0.024 pt phase effect.
+  - A sweep of frame y in 1-twip sub-steps gave top-to-baseline distances of 10.82â€“11.02 pt:
+    a 0.20 pt spread from rounding alone.
+- **Calibrated frame y:** |dy| at most 0.060 pt (exactly half a pixel), mean 0.030 pt, on all
+  three sets (E3, E2, E7). Uncalibrated it was 0.110 / 0.039 in round 1.
+- **Font sizes, same frame top:** with exact line height, the 9 pt baseline was 10.94 pt
+  below the top in all three cases:
+  - alone;
+  - next to a 14 pt frame;
+  - sharing its line with 14 pt runs.
+
+  Exact line spacing puts the baseline at a fixed share of the line height, whatever the size.
+- **"At least" line height:** a 14 pt run in the same line pushes the 9 pt baseline from
+  10.49 to 13.27 pt. Use exact line height.
+
+### E9 one frame per word (fallback, not needed)
+
+Test conditions: the E2 set, word frames at the word's source x (rounded twips, no
+calibration and no grid font), on the line's calibrated y.
+
+- **Accuracy:** max 0.249, mean 0.066, p99 0.185 pt. That is worse than per-line grid snapping
+  (0.119 / 0.048), because rounding each word's start to twips without calibration costs more
+  than drift inside a word.
+- **docx size:** 82 KB (1,500 frames).
+- **Word timings:** opening takes 0.66 s; export takes 2.27 s against 1.18 s for the per-line
+  E5 document.
+- **Editing:** Word sees 1,502 paragraphs, one word each, joined by paragraph marks. A
+  three-word phrase search fails. The per-line document (302 paragraphs) finds it.
+
+## what this means for the converter
+
+- **Best measured glyph error through Word on this machine:** max 0.110â€“0.120 pt,
+  mean 0.048â€“0.050 pt, p99 0.090â€“0.098 pt, combining x and y.
+  - x alone: max 0.104â€“0.109, mean 0.032â€“0.035.
+  - y alone: max 0.060, mean 0.030.
+  - The arithmetic floor on the 1/600 inch grid is 0.06 max / 0.03 mean per axis. The rest of
+    the gap is the PDF writer's rounding.
+- **0.025 pt for every glyph is not reachable through Word's PDF export.** Only 12â€“13% of
+  glyphs are within it. 69â€“73% are within 0.06 pt.
+- **Recipe:**
+  - One absolutely positioned frame per line, with exact line height.
+  - An embedded TrueType grid font per (pdf size): stored at the nearest half point, outlines
+    scaled to the pdf size, every advance a whole 1/600 inch pixel at the stored size.
+  - One run per character, with `w:spacing` from `grid_model.spacing_for_pixel_targets`:
+    each glyph's pixel target counted from the real line start, aimed a quarter pixel above.
+  - Frame x/y twips from a calibration table of Word's twips-to-pixel mapping. It depends only
+    on the twip value, so it could be built once per Word build instead of per document. That
+    has not been tried.
+  - Kerning and ligatures off; CFF fonts converted to TrueType first (E1).
+- **Still unknown:**
+  - Whether the grid follows the printer or the display. It was not tested, because that
+    would need a system setting changed.
+  - Whether what Word shows on screen or prints matches its PDF (E4).
+  - The exact twips-to-pixel rule.
+  - Whether the calibration table holds across Word builds and machines.
+  - Other fonts, and rotated text.
+  - Whether phrase search, editing and reflow still feel sane with one run per character.
+    Search across runs worked; reflow when a user edits a line was not tested.
 
 ## measurement pitfalls found on the way
 
@@ -174,7 +368,8 @@ whose dy bias is 0.09 pt.
 ## not verified
 
 - Whether Word's PDF export matches what Word shows on screen or prints (E4, out of scope).
-- Whether the 1/600 in behaviour depends on the default printer.
+- Whether the 1/600 in behaviour depends on the default printer. E6 shows that no
+  document-side setting changes it. The printer itself was not changed.
 - Other fonts, sizes, Word builds, or a machine without "Microsoft Print to PDF" as the
   default printer.
 - The CFF case has no CFF source PDF, because reportlab cannot write CFF. Its glyph deltas

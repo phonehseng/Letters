@@ -13,6 +13,8 @@ from fontTools import subset as font_subset
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.scaleUpem import scale_upem
 
+from grid_model import UNITS_PER_PIXEL, drawn_font_size, snap_advance_units, snapped_units_per_em
+
 FONT_REGISTRY_KEYS = [
     (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"),
     (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"),
@@ -117,6 +119,63 @@ def make_unhinted_font(source_path: str, target_path: str, family: str) -> str:
     rename_family(font, family)
     font.save(target_path)
     return target_path
+
+
+def make_grid_font(
+    source_path: str,
+    target_path: str,
+    family: str,
+    word_size_pt: float,
+    pdf_size_pt: float | None = None,
+    units_per_pixel: int = UNITS_PER_PIXEL,
+) -> dict:
+    """a font whose every advance is a whole 1/600 inch pixel at word_size_pt.
+
+    with pdf_size_pt set, outlines and metrics are also scaled by pdf/word size,
+    so text set at a size word can store (half points) looks like the pdf's odd
+    size. one variant is needed per (word size, pdf size) pair, that is the cost.
+    returns the units per em and how far the effective size is from pdf_size_pt."""
+    pdf_size_pt = pdf_size_pt or word_size_pt
+    units_per_em = snapped_units_per_em(word_size_pt, units_per_pixel)
+    # word lays out at the stored size but draws glyphs at the size it writes
+    # into the pdf (whole pixels per em, 10.5 pt is drawn at 10.56), so outlines
+    # are scaled against the drawn size
+    drawn_size_pt = drawn_font_size(word_size_pt)
+    outline_units_per_em = round(units_per_em * pdf_size_pt / drawn_size_pt)
+    font = TTFont(source_path)
+    # scale outlines and metrics to the outline em, then relabel the em so word
+    # draws them at pdf size while the em stays a whole number of pixels
+    scale_upem(font, outline_units_per_em)
+    font["head"].unitsPerEm = units_per_em
+    hmtx = font["hmtx"]
+    for glyph, (advance, left_side_bearing) in list(hmtx.metrics.items()):
+        hmtx[glyph] = (snap_advance_units(advance, units_per_pixel), left_side_bearing)
+    for table in ("GPOS", "kern", "hdmx", "LTSH", "VDMX"):
+        if table in font:
+            del font[table]
+    font["hhea"].advanceWidthMax = max(width for width, _ in hmtx.metrics.values())
+    rename_family(font, family)
+    font.save(target_path)
+    effective_size = drawn_size_pt * outline_units_per_em / units_per_em
+    return {
+        "units_per_em": units_per_em,
+        "effective_size_pt": effective_size,
+        "size_error_pt": effective_size - pdf_size_pt,
+    }
+
+
+def advance_pixels(font_path: str, text: str, units_per_pixel: int = UNITS_PER_PIXEL) -> list[int]:
+    """whole-pixel advances of a grid font, one per char of text."""
+    font = TTFont(font_path)
+    cmap = font.getBestCmap()
+    hmtx = font["hmtx"]
+    pixels = []
+    for char in text:
+        units = hmtx[cmap[ord(char)]][0]
+        if units % units_per_pixel:
+            raise ValueError(f"{char!r} advance {units} is not a whole pixel")
+        pixels.append(units // units_per_pixel)
+    return pixels
 
 
 def glyph_advance_units(font: TTFont, char: str) -> int:
