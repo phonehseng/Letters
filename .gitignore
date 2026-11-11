@@ -1,0 +1,15 @@
+# build output
+/target/
+node_modules/
+/app/ui/build/
+/app/ui/.svelte-kit/
+/app/shell/gen/schemas/
+
+# downloaded by tools/fetch-pdfium, never committed
+/vendor/
+
+# local files
+.DS_Store
+*.log
+.env
+.env.*
