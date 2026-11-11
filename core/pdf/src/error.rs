@@ -2,36 +2,37 @@ use thiserror::Error;
 
 /// everything that can go wrong when opening or rendering a pdf.
 ///
-/// messages are written for the person using the app, because the ui
-/// shows them as they are.
+/// the ui shows these messages as they are, so they are written for the
+/// person using the app: a plain sentence, no blame, and where possible
+/// what to do next.
 #[derive(Debug, Error, Clone, PartialEq)]
 pub enum PdfError {
-    #[error("the pdf engine could not be loaded: {0}")]
+    #[error("Letters can’t show PDFs because part of the app is missing. Install Letters again to fix this. ({0})")]
     EngineUnavailable(String),
 
-    #[error("this file could not be opened: {0}")]
+    #[error("This file can’t be opened. {0}")]
     CannotOpen(String),
 
-    #[error("this pdf is locked with a password")]
+    #[error("This PDF is locked with a password.")]
     PasswordRequired,
 
-    #[error("this document is no longer open")]
+    #[error("This document is no longer open.")]
     UnknownDocument,
 
-    #[error("page {0} does not exist in this document")]
+    #[error("Page {0} doesn’t exist in this document.")]
     UnknownPage(u32),
 
-    #[error("that part of the page does not exist")]
+    #[error("That part of the page doesn’t exist.")]
     UnknownTile,
 
-    #[error("the page could not be drawn: {0}")]
+    #[error("This page can’t be shown. Close the document and open it again. ({0})")]
     RenderFailed(String),
 
     /// the request waited so long that newer ones took its place.
     /// asking again is fine.
-    #[error("this part of the page was skipped because newer ones were asked for")]
+    #[error("This part of the page was skipped. It will be drawn when asked for again.")]
     Superseded,
 
-    #[error("the pdf engine stopped unexpectedly")]
+    #[error("Letters stopped showing PDFs unexpectedly. Quit Letters and open it again.")]
     WorkerStopped,
 }

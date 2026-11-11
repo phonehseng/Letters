@@ -121,7 +121,7 @@ fn describe_open_error(error: PdfiumError) -> PdfError {
             PdfError::PasswordRequired
         }
         PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::FormatError) => {
-            PdfError::CannotOpen("it is not a pdf, or the file is damaged".into())
+            PdfError::CannotOpen("It isn’t a PDF, or the file is damaged.".into())
         }
         PdfiumError::IoError(io_error) => PdfError::CannotOpen(io_error.to_string()),
         other => PdfError::CannotOpen(format!("{other:?}")),
