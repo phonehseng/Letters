@@ -6,17 +6,24 @@
 //! - finished tiles live in one cache with a fixed byte budget
 //! - one worker thread owns the pdf library, so every window shares
 //!   the same engine and the same cache
+//!
+//! it also reads a document's outline (its table of contents) and
+//! searches its text.
 
 mod cache;
 mod engine;
 mod error;
 mod geometry;
+mod outline;
 mod queue;
+mod search;
 mod worker;
 
 pub use cache::TileCache;
 pub use error::PdfError;
 pub use geometry::{page_pixel_size, tile_rect, PageSize, PixelRect, TileKey, TILE_SIZE};
+pub use outline::OutlineItem;
+pub use search::{SearchMatch, SearchResults, TextRect, MAX_SEARCH_MATCHES};
 pub use worker::{DocumentInfo, RenderWorker, WorkerStats};
 
 /// identifies one open document inside the worker.

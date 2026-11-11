@@ -12,7 +12,9 @@ use std::thread;
 use crate::cache::{TileBytes, TileCache};
 use crate::engine::PdfEngine;
 use crate::geometry::{PageSize, TileKey};
+use crate::outline::OutlineItem;
 use crate::queue::NewestFirstQueue;
+use crate::search::{SearchMatch, SearchQuery, SearchResults, MAX_SEARCH_MATCHES};
 use crate::{DocumentId, PdfError};
 
 /// what the viewer needs to know about a freshly opened document.
@@ -60,7 +62,36 @@ enum Request {
     Stats {
         reply: Reply<WorkerStats>,
     },
+    Outline {
+        id: DocumentId,
+        reply: Reply<Vec<OutlineItem>>,
+    },
+    /// searches one slice of pages (see `RenderWorker::search`)
+    SearchSlice {
+        id: DocumentId,
+        query: SearchQuery,
+        first_page: u32,
+        limit: usize,
+        reply: Reply<SearchSlice>,
+    },
 }
+
+/// what one slice of a search found, and where the next slice starts.
+struct SearchSlice {
+    matches: Vec<SearchMatch>,
+    /// none when the slice reached the last page
+    next_page: Option<u32>,
+}
+
+/// how many pages one search request reads before letting tiles through.
+///
+/// the worker does one thing at a time, so a search of a whole 500 page
+/// document in one go would hold up every tile for as long as it takes
+/// (seconds on a long file), and scrolling would freeze. searching 20
+/// pages at a time takes a few tens of milliseconds, and between slices
+/// the worker draws waiting tiles, so the page keeps filling in while
+/// the search runs.
+const PAGES_PER_SEARCH_SLICE: u32 = 20;
 
 /// the handle the rest of the app uses. cloning it is cheap, and every
 /// clone talks to the same thread.
@@ -120,6 +151,45 @@ impl RenderWorker {
         self.ask(|reply| Request::Stats { reply })
     }
 
+    /// the document's table of contents, flattened in reading order.
+    /// empty when the pdf has none.
+    pub fn outline(&self, id: DocumentId) -> Result<Vec<OutlineItem>, PdfError> {
+        self.ask(|reply| Request::Outline { id, reply })
+    }
+
+    /// finds every place `text` appears, ignoring case, page by page.
+    ///
+    /// the search is sent to the worker in slices of pages, waiting for
+    /// each answer before sending the next, so tile requests from the
+    /// windows are served in between (see `PAGES_PER_SEARCH_SLICE`).
+    pub fn search(&self, id: DocumentId, text: &str) -> Result<SearchResults, PdfError> {
+        let Some(query) = SearchQuery::new(text) else {
+            return Ok(SearchResults::default());
+        };
+        let mut matches = Vec::new();
+        let mut next_page = Some(0);
+        while let Some(first_page) = next_page {
+            // one match more than the limit is gathered, so "there were
+            // more" can be told apart from "there were exactly 500"
+            if matches.len() > MAX_SEARCH_MATCHES {
+                break;
+            }
+            let limit = MAX_SEARCH_MATCHES + 1 - matches.len();
+            let slice = self.ask(|reply| Request::SearchSlice {
+                id,
+                query: query.clone(),
+                first_page,
+                limit,
+                reply,
+            })?;
+            matches.extend(slice.matches);
+            next_page = slice.next_page;
+        }
+        let truncated = matches.len() > MAX_SEARCH_MATCHES;
+        matches.truncate(MAX_SEARCH_MATCHES);
+        Ok(SearchResults { matches, truncated })
+    }
+
     /// sends a request and waits for its answer.
     fn ask<T>(&self, build: impl FnOnce(Reply<T>) -> Request) -> Result<T, PdfError> {
         let (reply, answer) = mpsc::channel();
@@ -146,7 +216,8 @@ struct WaitingTile {
 
 /// the worker thread's loop. it ends when every handle has been dropped.
 ///
-/// opening, closing and stats are quick and handled as they arrive.
+/// opening, closing, stats, the outline and one slice of a search are
+/// quick and handled as they arrive.
 /// tiles are slow, so they wait in a newest-first queue (see queue.rs)
 /// and are drawn one at a time between checks of the inbox.
 fn serve_requests(mut engine: PdfEngine, mut cache: TileCache, inbox: Receiver<Request>) {
@@ -206,7 +277,35 @@ fn accept(
                 cached_bytes: cache.used_bytes(),
             }));
         }
+        Request::Outline { id, reply } => {
+            let _ = reply.send(engine.outline(id));
+        }
+        Request::SearchSlice {
+            id,
+            query,
+            first_page,
+            limit,
+            reply,
+        } => {
+            let _ = reply.send(search_slice(engine, id, &query, first_page, limit));
+        }
     }
+}
+
+fn search_slice(
+    engine: &PdfEngine,
+    id: DocumentId,
+    query: &SearchQuery,
+    first_page: u32,
+    limit: usize,
+) -> Result<SearchSlice, PdfError> {
+    let page_count = engine.page_count(id)?;
+    let end = first_page
+        .saturating_add(PAGES_PER_SEARCH_SLICE)
+        .min(page_count);
+    let matches = engine.search_pages(id, query, first_page..end, limit)?;
+    let next_page = (end < page_count).then_some(end);
+    Ok(SearchSlice { matches, next_page })
 }
 
 fn cached_or_rendered(

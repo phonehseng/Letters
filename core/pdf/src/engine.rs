@@ -4,12 +4,15 @@
 //! engine is owned by a single worker thread (see worker.rs) and never
 //! shared directly.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 use std::path::Path;
 
 use pdfium_render::prelude::*;
 
 use crate::geometry::{page_pixel_size, tile_rect, PageSize, PixelRect, TileKey};
+use crate::outline::{OutlineItem, MAX_OUTLINE_DEPTH, MAX_OUTLINE_ITEMS};
+use crate::search::{find_matches, snippet, CharRange, SearchMatch, SearchQuery, TextRect};
 use crate::{DocumentId, PdfError};
 
 struct OpenDocument {
@@ -92,12 +95,62 @@ impl PdfEngine {
         self.documents.len()
     }
 
+    pub fn page_count(&self, id: DocumentId) -> Result<u32, PdfError> {
+        Ok(self.document(id)?.page_sizes.len() as u32)
+    }
+
+    /// the document's table of contents, flattened in reading order.
+    pub fn outline(&self, id: DocumentId) -> Result<Vec<OutlineItem>, PdfError> {
+        let open = self.document(id)?;
+        let mut outline = OutlineReader {
+            page_count: open.page_sizes.len(),
+            items: Vec::new(),
+            seen: HashSet::new(),
+        };
+        if let Some(first) = open.document.bookmarks().root() {
+            outline.read_siblings(first, 0);
+        }
+        Ok(outline.items)
+    }
+
+    /// searches the given pages and returns at most `limit` matches.
+    ///
+    /// each page's text is loaded, searched and dropped before the next
+    /// page, so a long document never has all its text in memory at once.
+    pub fn search_pages(
+        &self,
+        id: DocumentId,
+        query: &SearchQuery,
+        pages: Range<u32>,
+        limit: usize,
+    ) -> Result<Vec<SearchMatch>, PdfError> {
+        let open = self.document(id)?;
+        let mut matches = Vec::new();
+        for page_number in pages {
+            if matches.len() >= limit {
+                break;
+            }
+            let Some(&page_size) = open.page_sizes.get(page_number as usize) else {
+                break;
+            };
+            // a page that can't be loaded just has nothing to find
+            let Ok(page) = open.document.pages().get(page_number as PdfPageIndex) else {
+                continue;
+            };
+            let found = search_page(&page, page_number, page_size, query);
+            let room = limit - matches.len();
+            matches.extend(found.into_iter().take(room));
+        }
+        Ok(matches)
+    }
+
+    fn document(&self, id: DocumentId) -> Result<&OpenDocument, PdfError> {
+        self.documents.get(&id).ok_or(PdfError::UnknownDocument)
+    }
+
     /// draws one tile and returns it as png bytes.
     pub fn render_tile(&self, key: TileKey) -> Result<Vec<u8>, PdfError> {
-        let open = self
-            .documents
-            .get(&key.document)
-            .ok_or(PdfError::UnknownDocument)?;
+        let open = self.document(key.document)?;
         let page_size = *open
             .page_sizes
             .get(key.page as usize)
@@ -115,6 +168,142 @@ impl PdfEngine {
     }
 }
 
+/// walks the outline tree, collecting entries that lead to a page.
+struct OutlineReader<'a> {
+    page_count: usize,
+    items: Vec<OutlineItem>,
+    /// bookmarks already visited, so a looping outline can't loop forever
+    seen: HashSet<PdfBookmark<'a>>,
+}
+
+impl<'a> OutlineReader<'a> {
+    fn read_siblings(&mut self, first: PdfBookmark<'a>, level: u32) {
+        let mut next = Some(first);
+        while let Some(bookmark) = next {
+            let too_much = level > MAX_OUTLINE_DEPTH || self.items.len() >= MAX_OUTLINE_ITEMS;
+            if too_much || !self.seen.insert(bookmark.clone()) {
+                return;
+            }
+            let child_level = match self.page_of(&bookmark) {
+                Some(page) => {
+                    self.items.push(OutlineItem {
+                        title: title_of(&bookmark),
+                        page,
+                        level,
+                    });
+                    level + 1
+                }
+                // an entry that leads nowhere is left out. its children
+                // move up a level so the list has no gaps in its indenting
+                None => level,
+            };
+            if let Some(child) = bookmark.first_child() {
+                self.read_siblings(child, child_level);
+            }
+            next = bookmark.next_sibling();
+        }
+    }
+
+    /// the page an entry leads to, either named directly or through a
+    /// "go to" action (pdf writers use both).
+    fn page_of(&self, bookmark: &PdfBookmark) -> Option<u32> {
+        let index = match bookmark.destination() {
+            Some(destination) => destination.page_index().ok()?,
+            None => {
+                let action = bookmark.action()?;
+                let local = action.as_local_destination_action()?;
+                local.destination().ok()?.page_index().ok()?
+            }
+        };
+        let page = u32::try_from(index).ok()?;
+        ((page as usize) < self.page_count).then_some(page)
+    }
+}
+
+fn title_of(bookmark: &PdfBookmark) -> String {
+    let title = bookmark.title().unwrap_or_default();
+    let title = title.trim();
+    if title.is_empty() {
+        "Untitled".to_owned()
+    } else {
+        title.to_owned()
+    }
+}
+
+/// finds the query on one page. the page's text is dropped on return.
+fn search_page(
+    page: &PdfPage,
+    page_number: u32,
+    page_size: PageSize,
+    query: &SearchQuery,
+) -> Vec<SearchMatch> {
+    let Ok(text) = page.text() else {
+        return Vec::new();
+    };
+    let chars: Vec<char> = text
+        .chars()
+        .iter()
+        .map(|letter| letter.unicode_char().unwrap_or(char::REPLACEMENT_CHARACTER))
+        .collect();
+    find_matches(&chars, query)
+        .into_iter()
+        .map(|range| SearchMatch {
+            page: page_number,
+            rects: match_rects(page, &text, page_size, range),
+            snippet: snippet(&chars, range),
+        })
+        .collect()
+}
+
+/// the rectangles a match covers, one per line, measured from the top left.
+fn match_rects(
+    page: &PdfPage,
+    text: &PdfPageText,
+    page_size: PageSize,
+    range: CharRange,
+) -> Vec<TextRect> {
+    text.segments_subset(range.start, range.count)
+        .iter()
+        .filter_map(|segment| to_top_left(page, page_size, segment.bounds()))
+        .collect()
+}
+
+/// how finely positions are measured when converting them: 1/64 point.
+const POSITION_STEPS_PER_POINT: f32 = 64.0;
+
+/// turns a rectangle in pdf coordinates (origin at the bottom left, and
+/// shifted or rotated however the file says) into the viewer's
+/// coordinates: points from the top left of the page as it is shown.
+///
+/// pdfium's own page-to-screen conversion is used, the same one it uses
+/// when drawing tiles, so highlights land on the drawn text even on
+/// rotated pages or pages whose box does not start at zero. that
+/// conversion answers in whole pixels, so it is asked about a page 64
+/// times larger than life and the answer is divided back down.
+fn to_top_left(page: &PdfPage, page_size: PageSize, rect: PdfRect) -> Option<TextRect> {
+    let config = PdfRenderConfig::new().set_fixed_size(
+        (page_size.width_pt * POSITION_STEPS_PER_POINT).round() as Pixels,
+        (page_size.height_pt * POSITION_STEPS_PER_POINT).round() as Pixels,
+    );
+    let corner_a = page
+        .points_to_pixels(rect.left(), rect.top(), &config)
+        .ok()?;
+    let corner_b = page
+        .points_to_pixels(rect.right(), rect.bottom(), &config)
+        .ok()?;
+    // after a rotation either corner may be the top left one
+    let left = corner_a.0.min(corner_b.0) as f32;
+    let top = corner_a.1.min(corner_b.1) as f32;
+    let right = corner_a.0.max(corner_b.0) as f32;
+    let bottom = corner_a.1.max(corner_b.1) as f32;
+    Some(TextRect {
+        x: left / POSITION_STEPS_PER_POINT,
+        y: top / POSITION_STEPS_PER_POINT,
+        width: (right - left) / POSITION_STEPS_PER_POINT,
+        height: (bottom - top) / POSITION_STEPS_PER_POINT,
+    })
+}
+
 fn describe_open_error(error: PdfiumError) -> PdfError {
     match error {
         PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::PasswordError) => {
@@ -129,7 +318,8 @@ fn describe_open_error(error: PdfiumError) -> PdfError {
 }
 
 fn read_page_sizes(document: &PdfDocument) -> Result<Vec<PageSize>, PdfError> {
-    // page_sizes asks pdfium for the sizes only, without loading the pages
+    // page_sizes asks pdfium for the sizes only, without loading the pages.
+    // the sizes already include each page's rotation
     let rects = document
         .pages()
         .page_sizes()
