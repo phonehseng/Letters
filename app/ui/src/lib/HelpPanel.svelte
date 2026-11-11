@@ -43,8 +43,9 @@
 <style>
   /* runs the full height of the window, edge to edge, like a sidebar */
   .panel {
-    width: 17.5rem;
-    max-width: 80vw;
+    /* on a small window it leaves the document more than half the width,
+       so the toolbar still fits beside it */
+    width: min(17.5rem, 45vw);
     height: 100%;
     overflow-y: auto;
     padding: 1rem 1rem 1.5rem;

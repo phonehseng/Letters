@@ -15,24 +15,47 @@
     pressed?: boolean;
     /** show only the symbol. for the few everyone knows, like back */
     symbolOnly?: boolean;
+    /** hide the name on a narrow window; screen readers still hear it */
+    hideLabel?: boolean;
+    /** for a pull-down button: whether its menu is showing */
+    menuOpen?: boolean;
+    /** the button element, so a menu can give focus back to it */
+    element?: HTMLButtonElement;
+    onKeyDown?: (event: KeyboardEvent) => void;
   }
 
-  let { name, icon, onClick, pressed, symbolOnly = false }: Props = $props();
+  let {
+    name,
+    icon,
+    onClick,
+    pressed,
+    symbolOnly = false,
+    hideLabel = false,
+    menuOpen,
+    element = $bindable(),
+    onKeyDown,
+  }: Props = $props();
   const tool = $derived(tools[name]);
+  const isMenuButton = $derived(menuOpen !== undefined);
 </script>
 
 <button
   class="tool"
   class:pressed
-  class:symbol-only={symbolOnly}
+  class:open={menuOpen}
+  class:symbol-only={symbolOnly || hideLabel}
   title={tooltipFor(name)}
   aria-label={symbolOnly ? tool.label : undefined}
   aria-pressed={pressed}
+  aria-haspopup={isMenuButton ? "menu" : undefined}
+  aria-expanded={isMenuButton ? menuOpen : undefined}
+  bind:this={element}
   onclick={onClick}
+  onkeydown={onKeyDown}
 >
   <Icon name={icon} />
   {#if !symbolOnly}
-    <span>{tool.label}</span>
+    <span class:visually-hidden={hideLabel}>{tool.label}</span>
   {/if}
 </button>
 
@@ -70,7 +93,8 @@
   }
 
   /* every button needs a pressed look, or it feels like it ignored the click */
-  .tool:active {
+  .tool:active,
+  .tool.open {
     background: var(--control-active);
   }
 

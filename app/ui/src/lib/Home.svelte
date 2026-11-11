@@ -4,6 +4,8 @@
   // documents are shown as the pages they are, not as rows in a list,
   // so a student can recognise a file by how it looks.
   import { forgetRecentFile, recentFiles, thumbnailUrl, type RecentFile } from "./api";
+  import { appCommands } from "./commands";
+  import FolderList from "./FolderList.svelte";
   import { matchesSearch, plural, timeAgo } from "./format";
   import HelpPanel from "./HelpPanel.svelte";
   import Icon from "./Icon.svelte";
@@ -20,6 +22,7 @@
   let files = $state<RecentFile[]>([]);
   let search = $state("");
   let showExplain = $state(false);
+  let searchField = $state<HTMLInputElement>();
   const now = Date.now() / 1000;
 
   const shownFiles = $derived(files.filter((file) => matchesSearch(file.name, search)));
@@ -34,6 +37,14 @@
   }
 
   loadFiles();
+
+  // on this screen, find means the search box
+  $effect(() =>
+    appCommands.register("find", () => {
+      searchField?.focus();
+      searchField?.select();
+    }),
+  );
 </script>
 
 <div class="home">
@@ -78,6 +89,8 @@
       {#if files.length > 0 && shownFiles.length === 0}
         <p class="note">No recent document has “{search}” in its name.</p>
       {/if}
+
+      <FolderList {search} {now} {onOpenPath} />
     </main>
 
     <div class="toolbar" role="toolbar" aria-label="File tools">
@@ -89,8 +102,8 @@
       <div class="trailing">
         <label class="glass search" title="Type part of a file name to find it">
           <Icon name="search" size={0.9375} />
-          <span class="visually-hidden">Search recent documents</span>
-          <input type="search" placeholder="Search" bind:value={search} />
+          <span class="visually-hidden">Search recent documents and pinned folders</span>
+          <input type="search" placeholder="Search" bind:value={search} bind:this={searchField} />
         </label>
         <div class="glass group">
           <ToolButton
@@ -105,7 +118,7 @@
   </div>
 
   {#if showExplain}
-    <HelpPanel names={["open", "newWindow", "explain"]} onClose={() => (showExplain = false)} />
+    <HelpPanel names={["open", "newWindow", "pinFolder", "explain"]} onClose={() => (showExplain = false)} />
   {/if}
 </div>
 

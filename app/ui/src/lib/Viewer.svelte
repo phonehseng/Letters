@@ -1,5 +1,5 @@
 <script lang="ts">
-  // shows one document as a scrolling column of pages.
+  // shows one document as a scrolling column of pages, or of pairs.
   //
   // only the pages near the screen exist in the page at all, and each of
   // those only loads the tiles that are visible. that is what keeps a
@@ -7,8 +7,12 @@
   //
   // the toolbar floats above the pages instead of sitting in its own
   // strip, so the document reaches the top of the window (docs/DESIGN.md).
+  // this file holds the viewer's state; the parts are their own components.
   import { tick, untrack } from "svelte";
-  import { tileUrl, type OpenedDocument } from "./api";
+  import { documentOutline, type OpenedDocument, type OutlineItem, type SearchMatch } from "./api";
+  import { appCommands, type Command } from "./commands";
+  import { remInPixels } from "./dom";
+  import FindBar from "./FindBar.svelte";
   import HelpPanel from "./HelpPanel.svelte";
   import {
     anchorAt,
@@ -16,15 +20,32 @@
     pageAtMiddle,
     placePages,
     positionOf,
+    rowAround,
     scaleMilli,
+    scrollToCentre,
+    scrollTopForPage,
     tilesForPage,
     visiblePages,
     zoomIn,
     zoomOut,
     zoomToFitWidth,
+    type PageMode,
   } from "./layout";
-  import ToolButton from "./ToolButton.svelte";
-  import { tooltipFor, tools } from "./tools";
+  import PageView from "./PageView.svelte";
+  import { highlightsOnPage, matchBounds, matchesByPage } from "./search";
+  import SearchHighlights from "./SearchHighlights.svelte";
+  import Sidebar from "./Sidebar.svelte";
+  import {
+    CLOSED_SIDEBAR,
+    onlyOnePanelFits,
+    toggleSidebar,
+    toggleSidebarMode,
+    type SidebarMode,
+    type SidebarState,
+  } from "./sidebar";
+  import { hiddenParts } from "./toolbar";
+  import type { ToolName } from "./tools";
+  import ViewerToolbar from "./ViewerToolbar.svelte";
 
   interface Props {
     document: OpenedDocument;
@@ -36,29 +57,63 @@
 
   let scroller = $state<HTMLDivElement>();
   let zoom = $state(1);
+  let pageMode = $state<PageMode>("single");
   let scrollTop = $state(0);
   let viewportWidth = $state(0);
   let viewportHeight = $state(0);
+  let windowWidth = $state(window.innerWidth);
   let toolbarHeight = $state(0);
   let nightMode = $state(false);
   let showExplain = $state(false);
+  let sidebar = $state<SidebarState>(CLOSED_SIDEBAR);
+  let outline = $state<OutlineItem[] | null>(null);
+  let findOpen = $state(false);
+  let findBar = $state<FindBar>();
+  let found = $state<{ matches: SearchMatch[]; current: number }>({ matches: [], current: -1 });
   // true until the reader picks their own zoom. while it is true the
   // page keeps filling the width, even when the window is resized.
   let followsWidth = true;
+  let outlineRequested = false;
   // on a high density screen one css pixel is several real pixels;
   // tiles are rendered at the real size so text stays sharp
   let pixelRatio = $state(window.devicePixelRatio || 1);
+  let remPx = $state(remInPixels());
 
-  const layout = $derived(placePages(doc.pages, zoom, toolbarHeight));
+  const layout = $derived(placePages(doc.pages, zoom, toolbarHeight, pageMode));
   const scale = $derived(scaleMilli(zoom, pixelRatio));
-  const contentWidth = $derived(Math.max(layout.widestPage + 2 * PAGE_GAP, viewportWidth));
-  const currentPage = $derived(pageAtMiddle(layout.pages, scrollTop, viewportHeight) + 1);
+  const contentWidth = $derived(Math.max(layout.widestRow + 2 * PAGE_GAP, viewportWidth));
+  const currentIndex = $derived(pageAtMiddle(layout.pages, scrollTop, viewportHeight));
+  const currentRow = $derived(rowAround(layout.pages, currentIndex));
+  const hidden = $derived(hiddenParts(viewportWidth, remPx));
+  const matchesOnPages = $derived(matchesByPage(found.matches));
 
   // pages within half a screen of the visible area are kept ready
   const shownPages = $derived.by(() => {
     const range = visiblePages(layout.pages, scrollTop, viewportHeight, viewportHeight / 2);
     return range ? layout.pages.slice(range.first, range.last + 1) : [];
   });
+
+  // the explain panel describes what is on screen right now
+  const explained = $derived<ToolName[]>([
+    "sidebar",
+    "thumbnails",
+    "outline",
+    "recents",
+    "goToPage",
+    "zoomOut",
+    "zoomIn",
+    "fitWidth",
+    "find",
+    ...(findOpen ? (["findNext", "findPrevious"] as const) : []),
+    "view",
+    "twoPages",
+    "nightMode",
+    "newWindow",
+    "explain",
+  ]);
+
+  /** where a page's left edge is in the scroll area */
+  const pageLeft = (pageLeftFromCentre: number) => contentWidth / 2 + pageLeftFromCentre;
 
   function tilesOf(pageIndex: number, pageTop: number) {
     const margin = viewportHeight / 2;
@@ -71,81 +126,132 @@
     );
   }
 
-  /** a zoom the reader chose by hand: stop following the window's width. */
-  function setZoom(newZoom: number) {
-    followsWidth = false;
-    applyZoom(newZoom);
-  }
-
   /**
-   * changes the zoom while keeping the same part of the document on screen.
+   * changes the zoom or the page mode while keeping the same part of the
+   * document on screen.
    *
    * the spot just below the toolbar is remembered as "this far down that
-   * page" and scrolled back to once the pages have their new sizes.
+   * page" and scrolled back to once the pages have their new places.
    */
-  async function applyZoom(newZoom: number) {
-    if (!scroller || newZoom === zoom) return;
+  async function relayout(newZoom: number, newMode: PageMode) {
+    if (!scroller || (newZoom === zoom && newMode === pageMode)) return;
     const anchor = anchorAt(layout.pages, scrollTop + toolbarHeight);
     zoom = newZoom;
+    pageMode = newMode;
     await tick();
     scroller.scrollTop = positionOf(layout.pages, anchor) - toolbarHeight;
   }
 
+  /** a zoom the reader chose by hand: stop following the window's width. */
+  function setZoom(newZoom: number) {
+    followsWidth = false;
+    relayout(newZoom, pageMode);
+  }
+
   function fitWidth() {
     followsWidth = true;
-    applyZoom(zoomToFitWidth(doc.pages, viewportWidth));
+    relayout(zoomToFitWidth(doc.pages, viewportWidth, pageMode), pageMode);
   }
 
-  function goToPage(pageNumber: number) {
-    if (!scroller || !Number.isFinite(pageNumber)) return;
-    const index = Math.min(Math.max(Math.round(pageNumber), 1), doc.pages.length) - 1;
-    // stop with the page's top edge just below the floating toolbar
-    scroller.scrollTop = layout.pages[index].top - PAGE_GAP - toolbarHeight;
+  function toggleTwoPages() {
+    const mode: PageMode = pageMode === "single" ? "twoPages" : "single";
+    // a page that filled the width becomes a pair that fills it
+    relayout(followsWidth ? zoomToFitWidth(doc.pages, viewportWidth, mode) : zoom, mode);
   }
 
-  function onPageInput(event: KeyboardEvent) {
-    if (event.key !== "Enter") return;
-    goToPage(Number((event.currentTarget as HTMLInputElement).value));
+  /** goes to a page, counted from 0. */
+  function goToPage(index: number) {
+    if (!scroller || !Number.isFinite(index)) return;
+    scroller.scrollTop = scrollTopForPage(layout.pages, index, toolbarHeight);
   }
 
-  function onKeyDown(event: KeyboardEvent) {
-    if (!(event.ctrlKey || event.metaKey)) return;
-    if (event.key === "=" || event.key === "+") setZoom(zoomIn(zoom));
-    else if (event.key === "-") setZoom(zoomOut(zoom));
-    else if (event.key === "0") fitWidth();
-    else return;
-    event.preventDefault();
+  // on a small window the sidebar and the explain panel take turns
+  function setSidebar(next: SidebarState) {
+    if (next.open && onlyOnePanelFits(windowWidth, remPx)) showExplain = false;
+    sidebar = next;
+  }
+
+  function toggleExplain() {
+    showExplain = !showExplain;
+    if (showExplain && onlyOnePanelFits(windowWidth, remPx)) sidebar = { ...sidebar, open: false };
+  }
+
+  function openFind() {
+    if (findOpen) findBar?.focus();
+    else findOpen = true;
+  }
+
+  function closeFind() {
+    findOpen = false;
+    found = { matches: [], current: -1 };
+    scroller?.focus();
+  }
+
+  function onFindChange(matches: SearchMatch[], current: number) {
+    found = { matches, current };
+    revealMatch(current);
   }
 
   /**
-   * a tile can fail when it was skipped during fast scrolling. if it is
-   * still on screen it is simply asked for again, a few times at most.
+   * scrolls the current match to the middle of the screen if it is not
+   * already in view. the band under the toolbar and the find bar does
+   * not count as in view, since the match would be hidden behind them.
    */
-  function retryTile(event: Event) {
-    const image = event.currentTarget as HTMLImageElement;
-    // a tile that has left the screen (or whose document was closed) is not needed
-    if (!image.isConnected) return;
-    const attempts = Number(image.dataset.attempts ?? 0);
-    if (attempts >= 4) return;
-    image.dataset.attempts = String(attempts + 1);
-    const address = image.src.split("#")[0];
-    // the part after # is not sent anywhere: it only makes the address
-    // look new so the image is loaded again
-    setTimeout(
-      () => {
-        if (image.isConnected) image.src = `${address}#${attempts + 1}`;
-      },
-      250 * (attempts + 1),
-    );
+  function revealMatch(index: number) {
+    const match = found.matches[index];
+    const page = match && layout.pages[match.page];
+    const bounds = match && matchBounds(match);
+    if (!scroller || !page || !bounds) return;
+    const covered = toolbarHeight + 3 * remPx;
+    const top = page.top + bounds.y * zoom;
+    const y = scrollToCentre(top - covered, bounds.height * zoom, scroller.scrollTop, viewportHeight - covered);
+    if (y !== null) scroller.scrollTop = y;
+    const left = pageLeft(page.left) + bounds.x * zoom;
+    const x = scrollToCentre(left, bounds.width * zoom, scroller.scrollLeft, viewportWidth);
+    if (x !== null) scroller.scrollLeft = x;
   }
 
+  function onWindowKeyDown(event: KeyboardEvent) {
+    // escape closes find from anywhere in the viewer, not only its field
+    if (event.key === "Escape" && findOpen && !event.defaultPrevented) closeFind();
+  }
+
+  // the menu bar and the keyboard shortcuts reach the viewer through
+  // the shared dispatcher (see commands.ts)
+  $effect(() => {
+    const handlers: [Command, () => void][] = [
+      ["zoom-in", () => setZoom(zoomIn(zoom))],
+      ["zoom-out", () => setZoom(zoomOut(zoom))],
+      ["fit-width", fitWidth],
+      ["find", openFind],
+      ["toggle-thumbnails", () => setSidebar(toggleSidebarMode(sidebar, "thumbnails"))],
+      ["toggle-outline", () => setSidebar(toggleSidebarMode(sidebar, "outline"))],
+      ["toggle-two-pages", toggleTwoPages],
+      ["toggle-night-mode", () => (nightMode = !nightMode)],
+    ];
+    const takeBack = handlers.map(([command, handler]) => appCommands.register(command, handler));
+    return () => takeBack.forEach((unregister) => unregister());
+  });
+
+  // the outline is read the first time it is shown, then kept
+  $effect(() => {
+    if (!sidebar.open || sidebar.mode !== "outline" || outlineRequested) return;
+    outlineRequested = true;
+    untrack(() =>
+      documentOutline(doc.id)
+        .then((items) => (outline = items))
+        // a document whose outline cannot be read is treated as having none
+        .catch(() => (outline = [])),
+    );
+  });
+
   // start with the page filling the window's width, the most readable
-  // size, and keep it that way as the window (or the side panel) changes
+  // size, and keep it that way as the window (or a side panel) changes
   $effect(() => {
     const width = viewportWidth;
     if (width > 0 && followsWidth) {
       // untrack: this should run when the width changes, not on every scroll
-      untrack(() => applyZoom(zoomToFitWidth(doc.pages, width)));
+      untrack(() => relayout(zoomToFitWidth(doc.pages, width, pageMode), pageMode));
     }
   });
 
@@ -163,17 +269,34 @@
     return () => element.removeEventListener("wheel", onWheel);
   });
 
-  // moving the window to another monitor can change the pixel density
+  // moving the window to another monitor can change the pixel density,
+  // and the system text size can change the size of a rem
   $effect(() => {
-    const update = () => (pixelRatio = window.devicePixelRatio || 1);
+    const update = () => {
+      pixelRatio = window.devicePixelRatio || 1;
+      remPx = remInPixels();
+    };
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   });
 </script>
 
-<svelte:window onkeydown={onKeyDown} />
+<svelte:window bind:innerWidth={windowWidth} onkeydown={onWindowKeyDown} />
 
 <div class="viewer">
+  {#if sidebar.open}
+    <Sidebar
+      mode={sidebar.mode}
+      documentId={doc.id}
+      pages={doc.pages}
+      {currentRow}
+      {pixelRatio}
+      {outline}
+      onModeChange={(mode: SidebarMode) => setSidebar({ open: true, mode })}
+      onGoToPage={goToPage}
+    />
+  {/if}
+
   <div class="stage">
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
@@ -181,7 +304,7 @@
       class:night={nightMode}
       tabindex="0"
       role="document"
-      aria-label={`${doc.name}, page ${currentPage} of ${doc.pages.length}`}
+      aria-label={`${doc.name}, page ${currentIndex + 1} of ${doc.pages.length}`}
       bind:this={scroller}
       bind:clientWidth={viewportWidth}
       bind:clientHeight={viewportHeight}
@@ -189,90 +312,66 @@
     >
       <div class="content" style:width="{contentWidth}px" style:height="{layout.totalHeight}px">
         {#each shownPages as page (page.index)}
-          <div
-            class="page"
-            role="img"
-            aria-label={`Page ${page.index + 1}`}
-            style:top="{page.top}px"
-            style:left="{(contentWidth - page.width) / 2}px"
-            style:width="{page.width}px"
-            style:height="{page.height}px"
-          >
-            {#each tilesOf(page.index, page.top) as tile (`${scale}/${tile.column}/${tile.row}`)}
-              <img
-                src={tileUrl(doc.id, page.index, scale, tile.column, tile.row)}
-                alt=""
-                draggable="false"
-                onerror={retryTile}
-                style:left="{tile.left}px"
-                style:top="{tile.top}px"
-                style:width="{tile.width}px"
-                style:height="{tile.height}px"
-              />
-            {/each}
-          </div>
+          <PageView
+            documentId={doc.id}
+            {page}
+            left={pageLeft(page.left)}
+            {scale}
+            tiles={tilesOf(page.index, page.top)}
+          />
+          {#if matchesOnPages.has(page.index)}
+            <SearchHighlights
+              highlights={highlightsOnPage(found.matches, matchesOnPages, page.index, zoom, found.current)}
+              left={pageLeft(page.left)}
+              top={page.top}
+              width={page.width}
+              height={page.height}
+            />
+          {/if}
         {/each}
       </div>
     </div>
 
-    <!-- three areas with fixed jobs: where you are, how you see it, what else you can do -->
-    <div class="toolbar" role="toolbar" aria-label="Document tools" bind:clientHeight={toolbarHeight}>
-      <div class="area leading">
-        <div class="glass group">
-          <ToolButton name="recents" icon="back" symbolOnly onClick={onRecents} />
-          <div class="title">
-            <span class="name" title={doc.path}>{doc.name}</span>
-            <label class="page-jump" title={tooltipFor("goToPage")}>
-              <span>{tools.goToPage.label}</span>
-              <input
-                type="number"
-                min="1"
-                max={doc.pages.length}
-                value={currentPage}
-                onkeydown={onPageInput}
-              />
-              <span>of {doc.pages.length}</span>
-            </label>
-          </div>
-        </div>
-      </div>
+    <ViewerToolbar
+      name={doc.name}
+      path={doc.path}
+      pageCount={doc.pages.length}
+      currentPage={currentIndex + 1}
+      {zoom}
+      {hidden}
+      sidebarOpen={sidebar.open}
+      {findOpen}
+      explainOpen={showExplain}
+      twoPages={pageMode === "twoPages"}
+      {nightMode}
+      bind:height={toolbarHeight}
+      onSidebar={() => setSidebar(toggleSidebar(sidebar))}
+      {onRecents}
+      onGoToPage={(pageNumber) => goToPage(pageNumber - 1)}
+      onZoomOut={() => setZoom(zoomOut(zoom))}
+      onZoomIn={() => setZoom(zoomIn(zoom))}
+      onFitWidth={fitWidth}
+      onFind={() => (findOpen ? closeFind() : openFind())}
+      onToggleTwoPages={toggleTwoPages}
+      onToggleNightMode={() => (nightMode = !nightMode)}
+      {onNewWindow}
+      onExplain={toggleExplain}
+    />
 
-      <div class="area">
-        <div class="glass group">
-          <ToolButton name="zoomOut" icon="zoomOut" onClick={() => setZoom(zoomOut(zoom))} />
-          <span class="zoom-level" aria-live="polite" title="How big the page is shown">
-            {Math.round(zoom * 100)}%
-          </span>
-          <ToolButton name="zoomIn" icon="zoomIn" onClick={() => setZoom(zoomIn(zoom))} />
-          <ToolButton name="fitWidth" icon="fitWidth" onClick={fitWidth} />
-        </div>
-      </div>
-
-      <div class="area trailing">
-        <div class="glass group">
-          <ToolButton
-            name="nightMode"
-            icon="nightMode"
-            pressed={nightMode}
-            onClick={() => (nightMode = !nightMode)}
-          />
-          <ToolButton name="newWindow" icon="newWindow" onClick={onNewWindow} />
-          <ToolButton
-            name="explain"
-            icon="sidePanel"
-            pressed={showExplain}
-            onClick={() => (showExplain = !showExplain)}
-          />
-        </div>
-      </div>
-    </div>
+    {#if findOpen}
+      <FindBar
+        bind:this={findBar}
+        documentId={doc.id}
+        currentPage={currentIndex}
+        top={toolbarHeight}
+        onChange={onFindChange}
+        onClose={closeFind}
+      />
+    {/if}
   </div>
 
   {#if showExplain}
-    <HelpPanel
-      names={["recents", "goToPage", "zoomOut", "zoomIn", "fitWidth", "nightMode", "newWindow", "explain"]}
-      onClose={() => (showExplain = false)}
-    />
+    <HelpPanel names={explained} onClose={() => (showExplain = false)} />
   {/if}
 </div>
 
@@ -300,132 +399,5 @@
 
   .content {
     position: relative;
-  }
-
-  .page {
-    position: absolute;
-    overflow: hidden;
-    border-radius: 2px;
-    background: #ffffff;
-    box-shadow: var(--shadow-page);
-  }
-
-  .page img {
-    position: absolute;
-    user-select: none;
-  }
-
-  /* night mode flips light and dark, then turns the colours back around
-     so blue stays blue. it is only a screen effect. */
-  .night .page {
-    filter: invert(0.92) hue-rotate(180deg);
-  }
-
-  .toolbar {
-    position: absolute;
-    inset: 0 0.75rem auto 0;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: start;
-    gap: 0.75rem;
-    padding: 0.625rem 0 0.625rem 0.75rem;
-    /* clicks between the groups go through to the document */
-    pointer-events: none;
-  }
-
-  /* pages fade out as they slide under the toolbar, so the controls
-     stay readable without a hard bar across the window */
-  .toolbar::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 -0.75rem 0;
-    background: linear-gradient(to bottom, var(--desk) 35%, transparent);
-    opacity: 0.9;
-  }
-
-  .area {
-    position: relative;
-    display: flex;
-    min-width: 0;
-  }
-
-  .area.trailing {
-    justify-content: flex-end;
-  }
-
-  .group {
-    display: flex;
-    align-items: center;
-    gap: 0.125rem;
-    min-width: 0;
-    padding: var(--group-padding);
-    pointer-events: auto;
-  }
-
-  .title {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-    min-width: 0;
-    padding: 0 0.75rem 0 0.25rem;
-  }
-
-  .name {
-    overflow: hidden;
-    font: var(--headline);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .page-jump {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    color: var(--label-secondary);
-    font: var(--subheadline);
-    letter-spacing: var(--subheadline-spacing);
-    white-space: nowrap;
-  }
-
-  /* looks like plain text until you point at it or click into it */
-  .page-jump input {
-    width: 2.5rem;
-    padding: 0 0.125rem;
-    border: 0;
-    border-radius: 0.25rem;
-    background: var(--control);
-    color: var(--label);
-    font: var(--subheadline);
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-    appearance: textfield;
-  }
-
-  .page-jump input::-webkit-inner-spin-button {
-    appearance: none;
-  }
-
-  .page-jump input:hover,
-  .page-jump input:focus {
-    background: var(--control-hover);
-  }
-
-  .zoom-level {
-    min-width: 2.75rem;
-    color: var(--label-secondary);
-    font: var(--subheadline);
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-  }
-
-  /* on a narrow window the zoom number gives way so the buttons still fit */
-  @media (max-width: 50rem) {
-    .zoom-level {
-      display: none;
-    }
-
-    .toolbar {
-      grid-template-columns: minmax(0, 1fr) auto auto;
-    }
   }
 </style>

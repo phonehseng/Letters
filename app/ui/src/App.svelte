@@ -6,11 +6,13 @@
     asCommandError,
     chooseFile,
     closeDocument,
+    listenForMenuCommands,
     newWindow,
     openDocument,
     takeStartupFile,
     type OpenedDocument,
   } from "./lib/api";
+  import { appCommands, commandForKey, isCommand, keyPressOf } from "./lib/commands";
   import Home from "./lib/Home.svelte";
   import Viewer from "./lib/Viewer.svelte";
 
@@ -62,15 +64,35 @@
     if (lockedPath) openPath(lockedPath, password);
   }
 
-  /** shortcuts that work on every screen. zoom shortcuts live in the viewer. */
+  /**
+   * every keyboard shortcut of the window arrives here and goes to the
+   * shared dispatcher, the same way the menu bar's commands do.
+   */
   function onKeyDown(event: KeyboardEvent) {
-    if (!(event.ctrlKey || event.metaKey)) return;
-    const key = event.key.toLowerCase();
-    if (key === "o") chooseAndOpen();
-    else if (key === "n") newWindow();
-    else return;
+    const command = commandForKey(keyPressOf(event));
+    if (!command) return;
+    // even a shortcut this screen does not use must not reach the web
+    // view, or ctrl + plus would zoom the whole interface
     event.preventDefault();
+    appCommands.dispatch(command, "keyboard");
   }
+
+  // commands that work on every screen. the viewer and the recents
+  // screen add their own while they are shown.
+  $effect(() => {
+    const takeBack = [
+      appCommands.register("open", chooseAndOpen),
+      appCommands.register("new-window", () => newWindow()),
+    ];
+    return () => takeBack.forEach((unregister) => unregister());
+  });
+
+  // the menu bar (macOS only) sends its commands as events
+  $effect(() =>
+    listenForMenuCommands((command) => {
+      if (isCommand(command)) appCommands.dispatch(command, "menu");
+    }),
+  );
 
   // a window is named after what it shows, never after the app, so
   // several windows can be told apart in the taskbar

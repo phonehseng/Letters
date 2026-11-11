@@ -15,6 +15,9 @@
   --control-hover: rgb(0 0 0 / 0.08);
   --control-active: rgb(0 0 0 / 0.13);
   --separator: rgb(0 0 0 / 0.1);
+  /* the chosen part of a segmented control: raised, not coloured */
+  --segment-selected: #ffffff;
+  --shadow-segment: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.12);
 
   /* --- colour: text, from most to least important --- */
   --label: rgb(0 0 0 / 0.85);
@@ -80,6 +83,8 @@
     --control-hover: rgb(255 255 255 / 0.11);
     --control-active: rgb(255 255 255 / 0.18);
     --separator: rgb(255 255 255 / 0.12);
+    --segment-selected: rgb(255 255 255 / 0.2);
+    --shadow-segment: 0 1px 2px rgb(0 0 0 / 0.3);
 
     --label: rgb(255 255 255 / 0.88);
     --label-secondary: rgb(255 255 255 / 0.58);
