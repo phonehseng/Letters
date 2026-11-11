@@ -1,0 +1,6 @@
+line-length = 120
+target-version = "py312"
+extend-exclude = [".venv", "out", "fonts"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP"]
