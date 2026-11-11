@@ -1,11 +1,11 @@
 <script lang="ts">
-  // a toolbar button: an icon with its name underneath.
+  // a toolbar button: a symbol with its name underneath.
   //
   // the label and tooltip come from tools.ts, so no button can be added
-  // without a plain-english description. the name is always visible
-  // because an icon alone makes people guess.
+  // without a plain-english description. the name stays visible because
+  // a symbol alone makes a new student guess (see docs/DESIGN.md).
   import Icon, { type IconName } from "./Icon.svelte";
-  import { tools, type ToolName } from "./tools";
+  import { tools, tooltipFor, type ToolName } from "./tools";
 
   interface Props {
     name: ToolName;
@@ -13,15 +13,27 @@
     onClick: () => void;
     /** for on/off tools such as night mode */
     pressed?: boolean;
+    /** show only the symbol. for the few everyone knows, like back */
+    symbolOnly?: boolean;
   }
 
-  let { name, icon, onClick, pressed }: Props = $props();
+  let { name, icon, onClick, pressed, symbolOnly = false }: Props = $props();
   const tool = $derived(tools[name]);
 </script>
 
-<button class="tool" class:pressed title={tool.tooltip} aria-pressed={pressed} onclick={onClick}>
+<button
+  class="tool"
+  class:pressed
+  class:symbol-only={symbolOnly}
+  title={tooltipFor(name)}
+  aria-label={symbolOnly ? tool.label : undefined}
+  aria-pressed={pressed}
+  onclick={onClick}
+>
   <Icon name={icon} />
-  <span>{tool.label}</span>
+  {#if !symbolOnly}
+    <span>{tool.label}</span>
+  {/if}
 </button>
 
 <style>
@@ -29,31 +41,46 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.1rem;
-    min-width: 3.4rem;
-    padding: 0.3rem 0.5rem 0.2rem;
+    justify-content: center;
+    gap: 0.125rem;
+    min-width: 3.5rem;
+    height: 2.75rem;
+    padding: 0 0.5rem;
     border: 0;
-    border-radius: var(--radius-small);
+    /* concentric with the glass group this button sits in */
+    border-radius: var(--radius-control);
     background: transparent;
-    color: var(--text-secondary);
-    font-size: 0.6875rem;
+    color: var(--label);
+    font: var(--footnote);
+    letter-spacing: var(--footnote-spacing);
     white-space: nowrap;
-    transition:
-      background 0.15s var(--ease),
-      color 0.15s var(--ease);
+    transition: background 0.15s var(--ease);
+  }
+
+  .tool.symbol-only {
+    min-width: 2.75rem;
+  }
+
+  .tool span {
+    color: var(--label-secondary);
   }
 
   .tool:hover {
-    background: var(--control);
-    color: var(--text);
+    background: var(--control-hover);
   }
 
+  /* every button needs a pressed look, or it feels like it ignored the click */
   .tool:active {
     background: var(--control-active);
   }
 
+  /* an on/off tool that is on: the one place the toolbar uses the accent */
   .tool.pressed {
     background: var(--accent-soft);
-    color: var(--accent);
+    color: var(--accent-label);
+  }
+
+  .tool.pressed span {
+    color: var(--accent-label);
   }
 </style>

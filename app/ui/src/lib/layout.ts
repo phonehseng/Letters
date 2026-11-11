@@ -45,10 +45,15 @@ export const MAX_ZOOM = 8;
 /** each press of zoom in or out changes the size by this factor. */
 const ZOOM_STEP = 1.1;
 
-/** stacks the pages top to bottom. zoom is css pixels per point. */
-export function placePages(sizes: PageSize[], zoom: number): PageLayout {
+/**
+ * stacks the pages top to bottom. zoom is css pixels per point.
+ *
+ * `topInset` leaves room above the first page for the floating toolbar,
+ * so the first page starts below it but later pages scroll underneath.
+ */
+export function placePages(sizes: PageSize[], zoom: number, topInset = 0): PageLayout {
   const pages: PlacedPage[] = [];
-  let top = PAGE_GAP;
+  let top = topInset + PAGE_GAP;
   let widestPage = 0;
   sizes.forEach((size, index) => {
     const width = size.width * zoom;
@@ -104,6 +109,33 @@ export function pageAtMiddle(pages: PlacedPage[], scrollTop: number, viewportHei
   if (pages.length === 0) return 0;
   const index = firstPageEndingAfter(pages, scrollTop + viewportHeight / 2);
   return Math.min(index, pages.length - 1);
+}
+
+/** a place in the document that survives a change of zoom. */
+export interface Anchor {
+  page: number;
+  /** how far down that page, from 0 (its top edge) to 1 (its bottom edge) */
+  fraction: number;
+}
+
+/**
+ * describes the height `y` of the scroll area as "this far down that page".
+ *
+ * pixels change meaning when the zoom changes, but "a third of the way
+ * down page 250" does not, so this is what we remember across a zoom.
+ */
+export function anchorAt(pages: PlacedPage[], y: number): Anchor {
+  if (pages.length === 0) return { page: 0, fraction: 0 };
+  const index = Math.min(firstPageEndingAfter(pages, y), pages.length - 1);
+  const page = pages[index];
+  return { page: index, fraction: (y - page.top) / page.height };
+}
+
+/** the height in the scroll area where an anchor now sits. */
+export function positionOf(pages: PlacedPage[], anchor: Anchor): number {
+  const page = pages[anchor.page];
+  if (!page) return 0;
+  return page.top + anchor.fraction * page.height;
 }
 
 /**

@@ -1,5 +1,5 @@
 <script lang="ts">
-  // one window: either the home screen or one open document.
+  // one window: either the recents screen or one open document.
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import {
@@ -35,7 +35,6 @@
       openedDocument = await openDocument(path, withPassword);
       lockedPath = null;
       password = "";
-      await getCurrentWindow().setTitle(`${openedDocument.name} - Letters`);
     } catch (problem) {
       const error = asCommandError(problem);
       if (error.kind === "password-required") {
@@ -52,17 +51,32 @@
     if (path) await openPath(path);
   }
 
-  async function goHome() {
+  async function showRecents() {
     if (!openedDocument) return;
     await closeDocument(openedDocument.id);
     openedDocument = null;
-    await getCurrentWindow().setTitle("Letters");
   }
 
   function submitPassword(event: SubmitEvent) {
     event.preventDefault();
     if (lockedPath) openPath(lockedPath, password);
   }
+
+  /** shortcuts that work on every screen. zoom shortcuts live in the viewer. */
+  function onKeyDown(event: KeyboardEvent) {
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLowerCase();
+    if (key === "o") chooseAndOpen();
+    else if (key === "n") newWindow();
+    else return;
+    event.preventDefault();
+  }
+
+  // a window is named after what it shows, never after the app, so
+  // several windows can be told apart in the taskbar
+  $effect(() => {
+    getCurrentWindow().setTitle(openedDocument ? openedDocument.name : "Recents");
+  });
 
   // a file this window was started for (for example by double clicking it)
   takeStartupFile().then((path) => {
@@ -84,66 +98,73 @@
   });
 </script>
 
-{#if errorMessage}
-  <div class="banner" role="alert">
-    <span>{errorMessage}</span>
-    <button class="button" onclick={() => (errorMessage = null)}>Dismiss</button>
-  </div>
-{/if}
-
-{#if lockedPath}
-  <form class="banner" onsubmit={submitPassword}>
-    <label>
-      {wrongPassword ? "That password did not work. Try again:" : "This PDF is locked. Enter its password:"}
-      <!-- svelte-ignore a11y_autofocus -->
-      <input class="field" type="password" bind:value={password} autofocus />
-    </label>
-    <button class="button primary" type="submit">Unlock</button>
-    <button class="button" type="button" onclick={() => (lockedPath = null)}>Cancel</button>
-  </form>
-{/if}
+<svelte:window onkeydown={onKeyDown} />
 
 <div class="screen">
   {#if openedDocument}
     {#key openedDocument.id}
-      <Viewer document={openedDocument} onHome={goHome} onNewWindow={() => newWindow()} />
+      <Viewer document={openedDocument} onRecents={showRecents} onNewWindow={() => newWindow()} />
     {/key}
   {:else}
     <Home onOpenPath={openPath} onChooseFile={chooseAndOpen} onNewWindow={() => newWindow()} />
   {/if}
 </div>
 
+<!-- messages float just under the toolbar and never push the document around -->
+{#if errorMessage}
+  <div class="glass message" role="alert">
+    <span>{errorMessage}</span>
+    <button class="button" onclick={() => (errorMessage = null)}>OK</button>
+  </div>
+{/if}
+
+{#if lockedPath}
+  <form class="glass message" onsubmit={submitPassword}>
+    <label>
+      <span>{wrongPassword ? "That password didn’t work. Try again." : "This PDF is locked. Enter its password."}</span>
+      <!-- svelte-ignore a11y_autofocus -->
+      <input class="field" type="password" placeholder="Password" bind:value={password} autofocus />
+    </label>
+    <button class="button" type="button" onclick={() => (lockedPath = null)}>Cancel</button>
+    <button class="button primary" type="submit">Unlock</button>
+  </form>
+{/if}
+
 <style>
   :global(#app) {
-    display: flex;
-    flex-direction: column;
+    position: relative;
   }
 
   .screen {
-    flex: 1;
-    min-height: 0;
+    height: 100%;
   }
 
-  .banner {
+  .message {
+    position: absolute;
+    top: calc(var(--toolbar-space) + 0.75rem);
+    left: 50%;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
     gap: 0.75rem;
-    padding: 0.5rem 1rem;
-    border-bottom: 0.5px solid var(--hairline);
-    background: var(--surface);
-    font-size: 0.8125rem;
+    max-width: min(34rem, calc(100% - 2rem));
+    padding: 0.625rem 0.625rem 0.625rem 1rem;
+    transform: translateX(-50%);
+    animation: arrive 0.2s var(--ease);
   }
 
-  .banner[role="alert"] {
-    color: var(--danger);
-  }
-
-  .banner label {
+  .message label {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.625rem;
+  }
+
+  /* a short slide down from the toolbar shows where the message came from */
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -0.5rem);
+    }
   }
 </style>

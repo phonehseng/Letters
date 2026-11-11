@@ -19,7 +19,7 @@
 
   let files = $state<RecentFile[]>([]);
   let search = $state("");
-  let showHelp = $state(false);
+  let showExplain = $state(false);
   const now = Date.now() / 1000;
 
   const shownFiles = $derived(files.filter((file) => matchesSearch(file.name, search)));
@@ -37,31 +37,18 @@
 </script>
 
 <div class="home">
-  <div class="bar" role="toolbar" aria-label="File tools">
-    <ToolButton name="open" icon="open" onClick={onChooseFile} />
-    <ToolButton name="newWindow" icon="newWindow" onClick={onNewWindow} />
-
-    <label class="search" title="Type part of a file name to find it quickly">
-      <Icon name="search" size={0.95} />
-      <span class="visually-hidden">Search your recent files</span>
-      <input type="search" placeholder="Search" bind:value={search} />
-    </label>
-
-    <ToolButton name="help" icon="help" pressed={showHelp} onClick={() => (showHelp = !showHelp)} />
-  </div>
-
-  <div class="body">
+  <div class="stage">
     <main>
       <h1>Recents</h1>
 
       <ul class="documents">
         <li>
-          <button class="document" onclick={onChooseFile} title="Choose a PDF from your computer">
+          <button class="document" onclick={onChooseFile} title="Choose a PDF from this computer (Ctrl O)">
             <span class="sheet placeholder">
               <Icon name="plus" size={1.75} />
             </span>
             <span class="name">Open a PDF</span>
-            <span class="details">or drop one anywhere here</span>
+            <span class="details">or drop one anywhere</span>
           </button>
         </li>
 
@@ -78,64 +65,127 @@
             </button>
             <button
               class="forget"
-              title="Remove from this list. The file itself is not deleted."
-              aria-label={`Remove ${file.name} from this list`}
+              title="Remove from Recents. The file is not deleted."
+              aria-label={`Remove ${file.name} from Recents`}
               onclick={() => forget(file)}
             >
-              <Icon name="close" size={0.7} />
+              <Icon name="close" size={0.625} />
             </button>
           </li>
         {/each}
       </ul>
 
-      {#if files.length === 0}
-        <p class="note">Documents you open will appear here, so you can get back to them in one click.</p>
-      {:else if shownFiles.length === 0}
-        <p class="note">No recent document has "{search}" in its name.</p>
+      {#if files.length > 0 && shownFiles.length === 0}
+        <p class="note">No recent document has “{search}” in its name.</p>
       {/if}
     </main>
 
-    {#if showHelp}
-      <HelpPanel names={["open", "newWindow", "help"]} onClose={() => (showHelp = false)} />
-    {/if}
+    <div class="toolbar" role="toolbar" aria-label="File tools">
+      <div class="glass group">
+        <ToolButton name="open" icon="open" onClick={onChooseFile} />
+        <ToolButton name="newWindow" icon="newWindow" onClick={onNewWindow} />
+      </div>
+
+      <div class="trailing">
+        <label class="glass search" title="Type part of a file name to find it">
+          <Icon name="search" size={0.9375} />
+          <span class="visually-hidden">Search recent documents</span>
+          <input type="search" placeholder="Search" bind:value={search} />
+        </label>
+        <div class="glass group">
+          <ToolButton
+            name="explain"
+            icon="sidePanel"
+            pressed={showExplain}
+            onClick={() => (showExplain = !showExplain)}
+          />
+        </div>
+      </div>
+    </div>
   </div>
+
+  {#if showExplain}
+    <HelpPanel names={["open", "newWindow", "explain"]} onClose={() => (showExplain = false)} />
+  {/if}
 </div>
 
 <style>
   .home {
     display: flex;
-    flex-direction: column;
     height: 100%;
   }
 
-  .bar {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.35rem 0.75rem;
-    border-bottom: 0.5px solid var(--hairline);
-    background: var(--bar);
-    backdrop-filter: blur(24px) saturate(1.8);
+  .stage {
+    position: relative;
+    flex: 1;
+    min-width: 0;
   }
 
-  /* the search field sits on the right, like in a file browser */
+  main {
+    height: 100%;
+    overflow-y: auto;
+    padding: calc(var(--toolbar-space) + 1.25rem) 2.5rem 3rem;
+  }
+
+  h1 {
+    margin: 0 0 1.5rem;
+    font: var(--large-title);
+    letter-spacing: var(--large-title-spacing);
+  }
+
+  .toolbar {
+    position: absolute;
+    inset: 0 0.75rem auto 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.625rem 0 0.625rem 0.75rem;
+    pointer-events: none;
+  }
+
+  /* content fades out as it slides under the toolbar */
+  .toolbar::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -0.75rem 0;
+    background: linear-gradient(to bottom, var(--window) 35%, transparent);
+    opacity: 0.9;
+  }
+
+  .group,
+  .trailing,
   .search {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    width: min(15rem, 40vw);
-    margin-left: auto;
-    margin-right: 0.5rem;
-    padding: 0.3rem 0.6rem;
-    border-radius: var(--radius-small);
-    background: var(--control);
-    color: var(--text-secondary);
+    pointer-events: auto;
+  }
+
+  .group {
+    gap: 0.125rem;
+    padding: var(--group-padding);
+  }
+
+  .trailing {
+    gap: 0.5rem;
+  }
+
+  /* a capsule, the shape of a control that stands on its own */
+  .search {
+    gap: 0.375rem;
+    width: min(14rem, 36vw);
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    border-radius: 1.125rem;
+    color: var(--label-secondary);
   }
 
   .search:focus-within {
     box-shadow:
       0 0 0 1px var(--accent),
-      0 0 0 4px var(--accent-soft);
+      0 0 0 4px var(--accent-soft),
+      var(--shadow-glass);
   }
 
   .search input {
@@ -145,27 +195,8 @@
     outline: 0;
     box-shadow: none;
     background: transparent;
-    color: var(--text);
-    font-size: 0.8125rem;
-  }
-
-  .body {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-  }
-
-  main {
-    flex: 1;
-    overflow-y: auto;
-    padding: 2rem 2.5rem 3rem;
-  }
-
-  h1 {
-    margin: 0 0 1.5rem;
-    font-size: 1.75rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+    color: var(--label);
+    font: var(--body);
   }
 
   .documents {
@@ -188,7 +219,7 @@
     width: 100%;
     padding: 0;
     border: 0;
-    border-radius: var(--radius);
+    border-radius: var(--radius-small);
     background: transparent;
     text-align: center;
   }
@@ -201,15 +232,20 @@
     overflow: hidden;
     border-radius: 3px;
     background: #ffffff;
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-sheet);
     transition:
       transform 0.2s var(--ease),
       box-shadow 0.2s var(--ease);
   }
 
   .document:hover .sheet {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sheet-hover);
+  }
+
+  .document:active .sheet {
+    transform: none;
+    box-shadow: var(--shadow-sheet);
   }
 
   .sheet img {
@@ -220,49 +256,54 @@
     object-position: top;
   }
 
+  /* the one accent-coloured thing on this screen: the next step */
   .sheet.placeholder {
     display: grid;
     place-items: center;
-    border: 1.5px dashed var(--hairline);
-    background: var(--control);
+    border-radius: var(--radius-control);
+    background: var(--accent-soft);
     box-shadow: none;
-    color: var(--accent);
+    color: var(--accent-label);
   }
 
   .document:hover .sheet.placeholder {
-    background: var(--accent-soft);
     box-shadow: none;
+    filter: brightness(0.97);
   }
 
   .name {
     max-width: 100%;
-    margin-top: 0.7rem;
+    margin-top: 0.75rem;
     overflow: hidden;
-    font-size: 0.8125rem;
+    font: var(--body);
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .details {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
+    margin-top: 0.125rem;
+    color: var(--label-secondary);
+    font: var(--subheadline);
+    letter-spacing: var(--subheadline-spacing);
   }
 
   /* only shown when the pointer or keyboard is on the document, to keep the grid calm */
   .forget {
     position: absolute;
-    top: -0.45rem;
-    left: -0.45rem;
+    top: -0.4375rem;
+    left: -0.4375rem;
     display: grid;
     place-items: center;
     width: 1.25rem;
     height: 1.25rem;
     border: 0;
     border-radius: 50%;
-    background: var(--text-secondary);
-    color: var(--window);
+    background: var(--glass);
+    box-shadow: var(--shadow-glass);
+    color: var(--label);
     opacity: 0;
+    backdrop-filter: var(--blur);
     transition: opacity 0.15s var(--ease);
   }
 
@@ -271,13 +312,12 @@
     opacity: 1;
   }
 
-  .forget:hover {
-    background: var(--danger);
+  .forget:active {
+    background: var(--control-active);
   }
 
   .note {
     margin-top: 2rem;
-    color: var(--text-secondary);
-    font-size: 0.8125rem;
+    color: var(--label-secondary);
   }
 </style>

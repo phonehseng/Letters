@@ -4,13 +4,18 @@
   // only the pages near the screen exist in the page at all, and each of
   // those only loads the tiles that are visible. that is what keeps a
   // 500 page file as light as a 5 page one.
+  //
+  // the toolbar floats above the pages instead of sitting in its own
+  // strip, so the document reaches the top of the window (docs/DESIGN.md).
   import { tick, untrack } from "svelte";
   import { tileUrl, type OpenedDocument } from "./api";
   import HelpPanel from "./HelpPanel.svelte";
   import {
+    anchorAt,
     PAGE_GAP,
     pageAtMiddle,
     placePages,
+    positionOf,
     scaleMilli,
     tilesForPage,
     visiblePages,
@@ -19,23 +24,24 @@
     zoomToFitWidth,
   } from "./layout";
   import ToolButton from "./ToolButton.svelte";
-  import { tools } from "./tools";
+  import { tooltipFor, tools } from "./tools";
 
   interface Props {
     document: OpenedDocument;
-    onHome: () => void;
+    onRecents: () => void;
     onNewWindow: () => void;
   }
 
-  let { document: doc, onHome, onNewWindow }: Props = $props();
+  let { document: doc, onRecents, onNewWindow }: Props = $props();
 
   let scroller = $state<HTMLDivElement>();
   let zoom = $state(1);
   let scrollTop = $state(0);
   let viewportWidth = $state(0);
   let viewportHeight = $state(0);
+  let toolbarHeight = $state(0);
   let nightMode = $state(false);
-  let showHelp = $state(false);
+  let showExplain = $state(false);
   // true until the reader picks their own zoom. while it is true the
   // page keeps filling the width, even when the window is resized.
   let followsWidth = true;
@@ -43,7 +49,7 @@
   // tiles are rendered at the real size so text stays sharp
   let pixelRatio = $state(window.devicePixelRatio || 1);
 
-  const layout = $derived(placePages(doc.pages, zoom));
+  const layout = $derived(placePages(doc.pages, zoom, toolbarHeight));
   const scale = $derived(scaleMilli(zoom, pixelRatio));
   const contentWidth = $derived(Math.max(layout.widestPage + 2 * PAGE_GAP, viewportWidth));
   const currentPage = $derived(pageAtMiddle(layout.pages, scrollTop, viewportHeight) + 1);
@@ -71,13 +77,18 @@
     applyZoom(newZoom);
   }
 
-  /** changes the zoom while keeping the same part of the document on screen. */
+  /**
+   * changes the zoom while keeping the same part of the document on screen.
+   *
+   * the spot just below the toolbar is remembered as "this far down that
+   * page" and scrolled back to once the pages have their new sizes.
+   */
   async function applyZoom(newZoom: number) {
     if (!scroller || newZoom === zoom) return;
-    const ratio = newZoom / zoom;
+    const anchor = anchorAt(layout.pages, scrollTop + toolbarHeight);
     zoom = newZoom;
     await tick();
-    scroller.scrollTop = scrollTop * ratio;
+    scroller.scrollTop = positionOf(layout.pages, anchor) - toolbarHeight;
   }
 
   function fitWidth() {
@@ -88,7 +99,8 @@
   function goToPage(pageNumber: number) {
     if (!scroller || !Number.isFinite(pageNumber)) return;
     const index = Math.min(Math.max(Math.round(pageNumber), 1), doc.pages.length) - 1;
-    scroller.scrollTop = layout.pages[index].top - PAGE_GAP;
+    // stop with the page's top edge just below the floating toolbar
+    scroller.scrollTop = layout.pages[index].top - PAGE_GAP - toolbarHeight;
   }
 
   function onPageInput(event: KeyboardEvent) {
@@ -111,17 +123,24 @@
    */
   function retryTile(event: Event) {
     const image = event.currentTarget as HTMLImageElement;
+    // a tile that has left the screen (or whose document was closed) is not needed
+    if (!image.isConnected) return;
     const attempts = Number(image.dataset.attempts ?? 0);
     if (attempts >= 4) return;
     image.dataset.attempts = String(attempts + 1);
     const address = image.src.split("#")[0];
     // the part after # is not sent anywhere: it only makes the address
     // look new so the image is loaded again
-    setTimeout(() => (image.src = `${address}#${attempts + 1}`), 250 * (attempts + 1));
+    setTimeout(
+      () => {
+        if (image.isConnected) image.src = `${address}#${attempts + 1}`;
+      },
+      250 * (attempts + 1),
+    );
   }
 
   // start with the page filling the window's width, the most readable
-  // size, and keep it that way as the window (or the help panel) changes
+  // size, and keep it that way as the window (or the side panel) changes
   $effect(() => {
     const width = viewportWidth;
     if (width > 0 && followsWidth) {
@@ -155,46 +174,7 @@
 <svelte:window onkeydown={onKeyDown} />
 
 <div class="viewer">
-  <div class="bar" role="toolbar" aria-label="Document tools">
-    <div class="side">
-      <ToolButton name="home" icon="back" onClick={onHome} />
-    </div>
-
-    <div class="title">
-      <span class="file-name" title={doc.path}>{doc.name}</span>
-      <label class="page-jump" title={tools.goToPage.tooltip}>
-        <span>{tools.goToPage.label}</span>
-        <input
-          type="number"
-          min="1"
-          max={doc.pages.length}
-          value={currentPage}
-          onkeydown={onPageInput}
-        />
-        <span>of {doc.pages.length}</span>
-      </label>
-    </div>
-
-    <div class="side end">
-      <ToolButton name="zoomOut" icon="zoomOut" onClick={() => setZoom(zoomOut(zoom))} />
-      <span class="zoom-level" aria-live="polite" title="How big the page is shown">
-        {Math.round(zoom * 100)}%
-      </span>
-      <ToolButton name="zoomIn" icon="zoomIn" onClick={() => setZoom(zoomIn(zoom))} />
-      <ToolButton name="fitWidth" icon="fitWidth" onClick={fitWidth} />
-      <span class="divider"></span>
-      <ToolButton
-        name="nightMode"
-        icon="nightMode"
-        pressed={nightMode}
-        onClick={() => (nightMode = !nightMode)}
-      />
-      <ToolButton name="newWindow" icon="newWindow" onClick={onNewWindow} />
-      <ToolButton name="help" icon="help" pressed={showHelp} onClick={() => (showHelp = !showHelp)} />
-    </div>
-  </div>
-
-  <div class="body">
+  <div class="stage">
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
       class="scroller"
@@ -235,118 +215,83 @@
       </div>
     </div>
 
-    {#if showHelp}
-      <HelpPanel
-        names={["home", "goToPage", "zoomOut", "zoomIn", "fitWidth", "nightMode", "newWindow", "help"]}
-        onClose={() => (showHelp = false)}
-      />
-    {/if}
+    <!-- three areas with fixed jobs: where you are, how you see it, what else you can do -->
+    <div class="toolbar" role="toolbar" aria-label="Document tools" bind:clientHeight={toolbarHeight}>
+      <div class="area leading">
+        <div class="glass group">
+          <ToolButton name="recents" icon="back" symbolOnly onClick={onRecents} />
+          <div class="title">
+            <span class="name" title={doc.path}>{doc.name}</span>
+            <label class="page-jump" title={tooltipFor("goToPage")}>
+              <span>{tools.goToPage.label}</span>
+              <input
+                type="number"
+                min="1"
+                max={doc.pages.length}
+                value={currentPage}
+                onkeydown={onPageInput}
+              />
+              <span>of {doc.pages.length}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="area">
+        <div class="glass group">
+          <ToolButton name="zoomOut" icon="zoomOut" onClick={() => setZoom(zoomOut(zoom))} />
+          <span class="zoom-level" aria-live="polite" title="How big the page is shown">
+            {Math.round(zoom * 100)}%
+          </span>
+          <ToolButton name="zoomIn" icon="zoomIn" onClick={() => setZoom(zoomIn(zoom))} />
+          <ToolButton name="fitWidth" icon="fitWidth" onClick={fitWidth} />
+        </div>
+      </div>
+
+      <div class="area trailing">
+        <div class="glass group">
+          <ToolButton
+            name="nightMode"
+            icon="nightMode"
+            pressed={nightMode}
+            onClick={() => (nightMode = !nightMode)}
+          />
+          <ToolButton name="newWindow" icon="newWindow" onClick={onNewWindow} />
+          <ToolButton
+            name="explain"
+            icon="sidePanel"
+            pressed={showExplain}
+            onClick={() => (showExplain = !showExplain)}
+          />
+        </div>
+      </div>
+    </div>
   </div>
+
+  {#if showExplain}
+    <HelpPanel
+      names={["recents", "goToPage", "zoomOut", "zoomIn", "fitWidth", "nightMode", "newWindow", "explain"]}
+      onClose={() => (showExplain = false)}
+    />
+  {/if}
 </div>
 
 <style>
   .viewer {
     display: flex;
-    flex-direction: column;
     height: 100%;
   }
 
-  /* three parts: back on the left, the title in the middle, tools on
-     the right. the middle stays centred whatever the sides contain. */
-  .bar {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.35rem 0.75rem;
-    border-bottom: 0.5px solid var(--hairline);
-    background: var(--bar);
-    backdrop-filter: blur(24px) saturate(1.8);
-  }
-
-  .side {
-    display: flex;
-    align-items: center;
-    gap: 0.1rem;
-    min-width: 0;
-  }
-
-  .side.end {
-    justify-content: flex-end;
-  }
-
-  .title {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-width: 0;
-    max-width: 32vw;
-  }
-
-  .file-name {
-    max-width: 100%;
-    overflow: hidden;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .page-jump {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    color: var(--text-secondary);
-    font-size: 0.6875rem;
-    white-space: nowrap;
-  }
-
-  /* looks like plain text until you point at it or click into it */
-  .page-jump input {
-    width: 2.6rem;
-    padding: 0.05rem 0.2rem;
-    border: 0;
-    border-radius: 0.25rem;
-    background: transparent;
-    color: var(--text);
-    font-size: 0.6875rem;
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-    appearance: textfield;
-  }
-
-  .page-jump input::-webkit-inner-spin-button {
-    appearance: none;
-  }
-
-  .page-jump input:hover,
-  .page-jump input:focus {
-    background: var(--control);
-  }
-
-  .zoom-level {
-    min-width: 2.6rem;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-  }
-
-  .divider {
-    width: 0.5px;
-    height: 1.6rem;
-    margin: 0 0.4rem;
-    background: var(--hairline);
-  }
-
-  .body {
-    display: flex;
+  /* the document and the toolbar floating over it */
+  .stage {
+    position: relative;
     flex: 1;
-    min-height: 0;
+    min-width: 0;
   }
 
   .scroller {
-    flex: 1;
+    width: 100%;
+    height: 100%;
     overflow: auto;
     outline: none;
     box-shadow: none;
@@ -376,19 +321,111 @@
     filter: invert(0.92) hue-rotate(180deg);
   }
 
-  /* on a narrow window the title gives way so the tools still fit */
-  @media (max-width: 52rem) {
-    .bar {
-      grid-template-columns: auto 1fr auto;
-    }
+  .toolbar {
+    position: absolute;
+    inset: 0 0.75rem auto 0;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: start;
+    gap: 0.75rem;
+    padding: 0.625rem 0 0.625rem 0.75rem;
+    /* clicks between the groups go through to the document */
+    pointer-events: none;
+  }
 
-    .title {
-      max-width: none;
-    }
+  /* pages fade out as they slide under the toolbar, so the controls
+     stay readable without a hard bar across the window */
+  .toolbar::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -0.75rem 0;
+    background: linear-gradient(to bottom, var(--desk) 35%, transparent);
+    opacity: 0.9;
+  }
 
-    .zoom-level,
-    .divider {
+  .area {
+    position: relative;
+    display: flex;
+    min-width: 0;
+  }
+
+  .area.trailing {
+    justify-content: flex-end;
+  }
+
+  .group {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+    min-width: 0;
+    padding: var(--group-padding);
+    pointer-events: auto;
+  }
+
+  .title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    padding: 0 0.75rem 0 0.25rem;
+  }
+
+  .name {
+    overflow: hidden;
+    font: var(--headline);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .page-jump {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--label-secondary);
+    font: var(--subheadline);
+    letter-spacing: var(--subheadline-spacing);
+    white-space: nowrap;
+  }
+
+  /* looks like plain text until you point at it or click into it */
+  .page-jump input {
+    width: 2.5rem;
+    padding: 0 0.125rem;
+    border: 0;
+    border-radius: 0.25rem;
+    background: var(--control);
+    color: var(--label);
+    font: var(--subheadline);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    appearance: textfield;
+  }
+
+  .page-jump input::-webkit-inner-spin-button {
+    appearance: none;
+  }
+
+  .page-jump input:hover,
+  .page-jump input:focus {
+    background: var(--control-hover);
+  }
+
+  .zoom-level {
+    min-width: 2.75rem;
+    color: var(--label-secondary);
+    font: var(--subheadline);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+
+  /* on a narrow window the zoom number gives way so the buttons still fit */
+  @media (max-width: 50rem) {
+    .zoom-level {
       display: none;
+    }
+
+    .toolbar {
+      grid-template-columns: minmax(0, 1fr) auto auto;
     }
   }
 </style>

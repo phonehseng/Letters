@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  anchorAt,
   MAX_ZOOM,
   MIN_ZOOM,
   PAGE_GAP,
   pageAtMiddle,
   pagePixelSize,
   placePages,
+  positionOf,
   scaleMilli,
   tilesForPage,
   visiblePages,
@@ -23,6 +25,12 @@ describe("placePages", () => {
     expect(layout.pages[0].top).toBe(PAGE_GAP);
     expect(layout.pages[1].top).toBe(PAGE_GAP + 792 + PAGE_GAP);
     expect(layout.totalHeight).toBe(2 * (792 + PAGE_GAP) + PAGE_GAP);
+  });
+
+  it("leaves room for the toolbar above the first page", () => {
+    const layout = placePages(manyPages(2), 1, 60);
+    expect(layout.pages[0].top).toBe(60 + PAGE_GAP);
+    expect(layout.totalHeight).toBe(60 + 2 * (792 + PAGE_GAP) + PAGE_GAP);
   });
 
   it("scales pages with the zoom", () => {
@@ -67,6 +75,25 @@ describe("pageAtMiddle", () => {
 
   it("stays on the last page at the very bottom", () => {
     expect(pageAtMiddle(pages, 100_000, 600)).toBe(2);
+  });
+});
+
+describe("anchors", () => {
+  it("keep the same spot of the same page when the zoom changes", () => {
+    const before = placePages(manyPages(500), 1, 60).pages;
+    const after = placePages(manyPages(500), 2.3, 60).pages;
+    // a third of the way down page 250 (index 249)
+    const anchor = anchorAt(before, before[249].top + 792 / 3);
+    expect(anchor.page).toBe(249);
+    expect(anchor.fraction).toBeCloseTo(1 / 3);
+    expect(positionOf(after, anchor)).toBeCloseTo(after[249].top + (792 * 2.3) / 3);
+  });
+
+  it("handle the gap above a page and an empty document", () => {
+    const pages = placePages(manyPages(2), 1).pages;
+    // a point in the gap belongs to the page below it, slightly above its top
+    expect(anchorAt(pages, pages[1].top - 5)).toEqual({ page: 1, fraction: -5 / 792 });
+    expect(positionOf([], anchorAt([], 100))).toBe(0);
   });
 });
 
