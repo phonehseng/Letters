@@ -8,8 +8,14 @@ import {
   pagePixelSize,
   placePages,
   positionOf,
+  rowAround,
+  rowsOf,
   scaleMilli,
+  scrollToCentre,
+  scrollToReveal,
+  scrollTopForPage,
   tilesForPage,
+  type PageSize,
   visiblePages,
   zoomIn,
   zoomOut,
@@ -36,7 +42,174 @@ describe("placePages", () => {
   it("scales pages with the zoom", () => {
     const layout = placePages([LETTER], 2);
     expect(layout.pages[0].width).toBe(1224);
-    expect(layout.widestPage).toBe(1224);
+    expect(layout.widestRow).toBe(1224);
+  });
+
+  it("centres each page on the content's centre line", () => {
+    const layout = placePages([LETTER, { width: 300, height: 400 }], 1);
+    expect(layout.pages[0].left).toBe(-306);
+    expect(layout.pages[1].left).toBe(-150);
+  });
+
+  it("gives every page in single mode a row of its own", () => {
+    const layout = placePages(manyPages(2), 1);
+    expect(layout.pages[1]).toMatchObject({ rowTop: layout.pages[1].top, rowHeight: 792 });
+  });
+});
+
+describe("rowsOf", () => {
+  it("pairs pages in two page mode with a last odd page alone", () => {
+    expect(rowsOf(5, "twoPages")).toEqual([[0, 1], [2, 3], [4]]);
+    expect(rowsOf(4, "twoPages")).toEqual([
+      [0, 1],
+      [2, 3],
+    ]);
+    expect(rowsOf(3, "single")).toEqual([[0], [1], [2]]);
+    expect(rowsOf(0, "twoPages")).toEqual([]);
+  });
+});
+
+describe("two page mode", () => {
+  const twoUp = (sizes: PageSize[], zoom = 1) => placePages(sizes, zoom, 0, "twoPages");
+
+  it("puts a pair side by side, centred, with a gap between", () => {
+    const { pages, widestRow } = twoUp(manyPages(2));
+    expect(pages[0].top).toBe(pages[1].top);
+    expect(pages[0].left).toBe(-(612 + PAGE_GAP / 2));
+    expect(pages[1].left).toBe(PAGE_GAP / 2);
+    expect(widestRow).toBe(2 * 612 + PAGE_GAP);
+  });
+
+  it("stacks rows with a gap between them", () => {
+    const { pages, totalHeight } = twoUp(manyPages(4));
+    expect(pages[2].top).toBe(PAGE_GAP + 792 + PAGE_GAP);
+    expect(totalHeight).toBe(2 * (792 + PAGE_GAP) + PAGE_GAP);
+  });
+
+  it("keeps a last odd page in the left seat", () => {
+    const { pages } = twoUp(manyPages(3));
+    expect(pages[2].left).toBe(pages[0].left);
+    expect(pages[2].rowTop).toBeGreaterThan(pages[0].rowTop);
+  });
+
+  it("centres mixed page sizes as a pair and the shorter one vertically", () => {
+    const small = { width: 300, height: 400 };
+    const { pages, widestRow } = twoUp([LETTER, small]);
+    const rowWidth = 612 + PAGE_GAP + 300;
+    expect(widestRow).toBe(rowWidth);
+    expect(pages[0].left).toBe(-rowWidth / 2);
+    expect(pages[1].left).toBe(-rowWidth / 2 + 612 + PAGE_GAP);
+    expect(pages[0].rowHeight).toBe(792);
+    expect(pages[1].top).toBe(PAGE_GAP + (792 - 400) / 2);
+  });
+
+  it("finds the row around a page", () => {
+    const { pages } = twoUp(manyPages(5));
+    expect(rowAround(pages, 3)).toEqual({ first: 2, last: 3 });
+    expect(rowAround(pages, 4)).toEqual({ first: 4, last: 4 });
+    expect(rowAround(placePages(manyPages(3), 1).pages, 1)).toEqual({ first: 1, last: 1 });
+  });
+
+  it("shows whole pairs as visible", () => {
+    const { pages } = twoUp(manyPages(500));
+    const top = pages[300].rowTop + 10;
+    expect(visiblePages(pages, top, 600, 0)).toEqual({ first: 300, last: 301 });
+    expect(visiblePages(pages, 0, 600, 0)).toEqual({ first: 0, last: 1 });
+  });
+
+  it("finds visible pages when the pair has different heights", () => {
+    // the short right page ends before the screen top, its taller partner does not
+    const sizes = [LETTER, { width: 300, height: 100 }, LETTER, LETTER];
+    const { pages } = twoUp(sizes);
+    const y = pages[0].top + 700;
+    expect(visiblePages(pages, y, 50, 0)).toEqual({ first: 0, last: 1 });
+  });
+
+  it("names the left page of the middle row as current", () => {
+    const { pages } = twoUp(manyPages(6));
+    expect(pageAtMiddle(pages, pages[2].rowTop, 600)).toBe(2);
+  });
+
+  it("fits a pair to the window", () => {
+    const zoom = zoomToFitWidth(manyPages(4), 2 * 612 + 3 * PAGE_GAP, "twoPages");
+    expect(zoom).toBeCloseTo(1);
+    const layout = placePages(manyPages(4), zoom, 0, "twoPages");
+    expect(layout.widestRow + 2 * PAGE_GAP).toBeCloseTo(2 * 612 + 3 * PAGE_GAP);
+  });
+
+  it("fits the widest pair and leaves room for a lone last page", () => {
+    // the lone wide last page needs room for two of itself
+    const sizes = [LETTER, LETTER, { width: 1000, height: 792 }];
+    const zoom = zoomToFitWidth(sizes, 2000 + 3 * PAGE_GAP, "twoPages");
+    expect(zoom).toBeCloseTo(1);
+  });
+});
+
+describe("anchors across page modes", () => {
+  it("keep the same spot when switching to two pages and back at another zoom", () => {
+    const single = placePages(manyPages(9), 1, 60).pages;
+    const anchor = anchorAt(single, single[6].top + 792 / 4);
+    expect(anchor).toEqual({ page: 6, fraction: 0.25 });
+
+    const twoUp = placePages(manyPages(9), 0.7, 60, "twoPages").pages;
+    const y = positionOf(twoUp, anchor);
+    expect(y).toBeCloseTo(twoUp[6].top + (792 * 0.7) / 4);
+    const again = anchorAt(twoUp, y);
+    expect(again.page).toBe(6);
+    expect(again.fraction).toBeCloseTo(0.25);
+
+    const back = placePages(manyPages(9), 1.5, 60).pages;
+    expect(positionOf(back, anchorAt(twoUp, y))).toBeCloseTo(back[6].top + (792 * 1.5) / 4);
+  });
+
+  it("round-trip on the last odd page", () => {
+    const twoUp = placePages(manyPages(5), 2, 0, "twoPages").pages;
+    const anchor = anchorAt(twoUp, twoUp[4].top + 100);
+    expect(anchor.page).toBe(4);
+    const single = placePages(manyPages(5), 1).pages;
+    expect(positionOf(single, anchor)).toBeCloseTo(single[4].top + 50);
+  });
+});
+
+describe("scrollTopForPage", () => {
+  it("puts the page's row just below the toolbar", () => {
+    const pages = placePages(manyPages(4), 1, 60, "twoPages").pages;
+    expect(scrollTopForPage(pages, 3, 60)).toBe(pages[2].rowTop - PAGE_GAP - 60);
+  });
+
+  it("clamps page numbers that do not exist", () => {
+    const pages = placePages(manyPages(3), 1).pages;
+    expect(scrollTopForPage(pages, 99, 0)).toBe(pages[2].top - PAGE_GAP);
+    expect(scrollTopForPage(pages, -4, 0)).toBe(0);
+    expect(scrollTopForPage([], 2, 0)).toBe(0);
+  });
+});
+
+describe("scrollToReveal", () => {
+  it("leaves a span that is already in view alone", () => {
+    expect(scrollToReveal(120, 50, 100, 300)).toBeNull();
+  });
+
+  it("scrolls up or down just enough", () => {
+    expect(scrollToReveal(50, 20, 100, 300)).toBe(50);
+    expect(scrollToReveal(450, 20, 100, 300)).toBe(170);
+    expect(scrollToReveal(450, 20, 100, 300, 10)).toBe(180);
+  });
+
+  it("lines up a span bigger than the view with the view's start", () => {
+    expect(scrollToReveal(500, 900, 0, 300)).toBe(500);
+  });
+});
+
+describe("scrollToCentre", () => {
+  it("brings a span out of view to the middle", () => {
+    // a 20 pixel match at 1000 in a 300 pixel view: 140 above it, 140 below
+    expect(scrollToCentre(1000, 20, 0, 300)).toBe(860);
+  });
+
+  it("leaves a span in view alone and never scrolls above the top", () => {
+    expect(scrollToCentre(100, 20, 0, 300)).toBeNull();
+    expect(scrollToCentre(10, 20, 500, 300)).toBe(0);
   });
 });
 
