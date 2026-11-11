@@ -12,6 +12,7 @@ use std::thread;
 use crate::cache::{TileBytes, TileCache};
 use crate::engine::PdfEngine;
 use crate::geometry::{PageSize, TileKey};
+use crate::queue::NewestFirstQueue;
 use crate::{DocumentId, PdfError};
 
 /// what the viewer needs to know about a freshly opened document.
@@ -134,35 +135,76 @@ fn load_engine(library_dir: &Path) -> Result<PdfEngine, PdfError> {
     PdfEngine::load(library_dir)
 }
 
+/// how many tile requests may wait at once. a screen needs a few dozen
+/// at most, so anything beyond this is left over from fast scrolling.
+const MAX_WAITING_TILES: usize = 96;
+
+struct WaitingTile {
+    key: TileKey,
+    reply: Reply<TileBytes>,
+}
+
 /// the worker thread's loop. it ends when every handle has been dropped.
+///
+/// opening, closing and stats are quick and handled as they arrive.
+/// tiles are slow, so they wait in a newest-first queue (see queue.rs)
+/// and are drawn one at a time between checks of the inbox.
 fn serve_requests(mut engine: PdfEngine, mut cache: TileCache, inbox: Receiver<Request>) {
-    for request in inbox {
-        let _pdfium = lock_pdfium();
-        match request {
-            Request::Open {
-                path,
-                password,
-                reply,
-            } => {
-                let result = engine
-                    .open(&path, password.as_deref())
-                    .map(|(id, page_sizes)| DocumentInfo { id, page_sizes });
-                let _ = reply.send(result);
+    let mut waiting_tiles = NewestFirstQueue::new(MAX_WAITING_TILES);
+    loop {
+        if waiting_tiles.is_empty() {
+            // nothing to draw: sleep until a request arrives
+            match inbox.recv() {
+                Ok(request) => accept(request, &mut engine, &mut cache, &mut waiting_tiles),
+                Err(_) => return,
             }
-            Request::Close { id } => {
-                engine.close(id);
-                cache.remove_where(|key| key.document == id);
+        }
+        while let Ok(request) = inbox.try_recv() {
+            accept(request, &mut engine, &mut cache, &mut waiting_tiles);
+        }
+        if let Some(tile) = waiting_tiles.pop_newest() {
+            let _pdfium = lock_pdfium();
+            let _ = tile
+                .reply
+                .send(cached_or_rendered(&engine, &mut cache, tile.key));
+        }
+    }
+}
+
+/// handles a quick request right away, or puts a tile request in the queue.
+fn accept(
+    request: Request,
+    engine: &mut PdfEngine,
+    cache: &mut TileCache,
+    waiting_tiles: &mut NewestFirstQueue<WaitingTile>,
+) {
+    let _pdfium = lock_pdfium();
+    match request {
+        Request::Open {
+            path,
+            password,
+            reply,
+        } => {
+            let result = engine
+                .open(&path, password.as_deref())
+                .map(|(id, page_sizes)| DocumentInfo { id, page_sizes });
+            let _ = reply.send(result);
+        }
+        Request::Close { id } => {
+            engine.close(id);
+            cache.remove_where(|key| key.document == id);
+        }
+        Request::Tile { key, reply } => {
+            if let Some(given_up) = waiting_tiles.push(WaitingTile { key, reply }) {
+                let _ = given_up.reply.send(Err(PdfError::Superseded));
             }
-            Request::Tile { key, reply } => {
-                let _ = reply.send(cached_or_rendered(&engine, &mut cache, key));
-            }
-            Request::Stats { reply } => {
-                let _ = reply.send(Ok(WorkerStats {
-                    open_documents: engine.open_document_count(),
-                    cached_tiles: cache.len(),
-                    cached_bytes: cache.used_bytes(),
-                }));
-            }
+        }
+        Request::Stats { reply } => {
+            let _ = reply.send(Ok(WorkerStats {
+                open_documents: engine.open_document_count(),
+                cached_tiles: cache.len(),
+                cached_bytes: cache.used_bytes(),
+            }));
         }
     }
 }

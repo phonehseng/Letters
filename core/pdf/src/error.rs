@@ -27,6 +27,11 @@ pub enum PdfError {
     #[error("the page could not be drawn: {0}")]
     RenderFailed(String),
 
+    /// the request waited so long that newer ones took its place.
+    /// asking again is fine.
+    #[error("this part of the page was skipped because newer ones were asked for")]
+    Superseded,
+
     #[error("the pdf engine stopped unexpectedly")]
     WorkerStopped,
 }

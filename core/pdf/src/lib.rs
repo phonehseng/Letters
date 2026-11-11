@@ -11,6 +11,7 @@ mod cache;
 mod engine;
 mod error;
 mod geometry;
+mod queue;
 mod worker;
 
 pub use cache::TileCache;
