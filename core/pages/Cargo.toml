@@ -1,0 +1,10 @@
+[package]
+name = "letters-pages"
+description = "reorders, rotates, inserts, deletes, extracts, merges, splits and crops pages, and stamps page numbers, headers, footers and watermarks"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+lopdf = "0.47"
+thiserror = "2"

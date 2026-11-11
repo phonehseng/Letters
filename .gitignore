@@ -13,3 +13,6 @@ node_modules/
 *.log
 .env
 .env.*
+
+# each engineer may build into their own folder to avoid waiting on a lock
+/target-*/

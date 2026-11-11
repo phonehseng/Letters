@@ -1,6 +1,14 @@
 [workspace]
 resolver = "2"
-members = ["core/pdf", "app/shell-core", "app/shell"]
+members = [
+    "core/pdf",
+    "core/pages",
+    "core/annotate",
+    "core/redact",
+    "core/forms",
+    "app/shell-core",
+    "app/shell",
+]
 
 [workspace.package]
 version = "0.1.0"

@@ -1,0 +1,10 @@
+[package]
+name = "letters-redact"
+description = "removes content for good, scrubs hidden data, and locks files with a password"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+lopdf = "0.47"
+thiserror = "2"

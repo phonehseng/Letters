@@ -1,0 +1,10 @@
+[package]
+name = "letters-forms"
+description = "finds, adds, fills and flattens form fields, and signs documents locally"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+lopdf = "0.47"
+thiserror = "2"

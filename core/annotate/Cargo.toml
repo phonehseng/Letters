@@ -1,0 +1,10 @@
+[package]
+name = "letters-annotate"
+description = "adds highlights, notes, text boxes, shapes and freehand ink to pages"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+lopdf = "0.47"
+thiserror = "2"
