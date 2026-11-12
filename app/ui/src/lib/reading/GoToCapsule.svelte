@@ -4,7 +4,7 @@
   // with nothing typed it lists the bookmarks. Enter goes to the first.
   import { onMount } from "svelte";
   import { tools, tooltipFor } from "../tools";
-  import { resolveJump, type JumpCandidate, type JumpDocument } from "./jump";
+  import { noPlaceSentence, resolveJump, type JumpCandidate, type JumpDocument } from "./jump";
 
   interface Props {
     document: JumpDocument;
@@ -23,7 +23,7 @@
 
   const bookmarkRows = $derived<JumpCandidate[]>(document.bookmarks.map((b) => ({ kind: "bookmark", page: b.page, block: null, label: b.title })));
   const candidates = $derived(typed.trim() ? resolveJump(document, typed) : bookmarkRows);
-  const live = $derived(typed.trim() ? (candidates.length === 0 ? "No match" : candidates.length === 1 ? "1 place" : `${candidates.length} places`) : "");
+  const live = $derived(typed.trim() ? (candidates.length === 0 ? noPlaceSentence(document, typed) : candidates.length === 1 ? "1 place" : `${candidates.length} places`) : "");
 
   function onKeyDown(event: KeyboardEvent) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -80,6 +80,9 @@
     </ul>
   {:else if !typed.trim()}
     <p class="hint">No bookmarks yet.</p>
+  {:else}
+    <!-- nothing matches: say why rather than show an empty list -->
+    <p class="hint">{noPlaceSentence(document, typed)}</p>
   {/if}
   <div class="footer">
     <button class="button" title={tooltipFor("addBookmark")} onclick={onAddBookmark}>{tools.addBookmark.label}</button>

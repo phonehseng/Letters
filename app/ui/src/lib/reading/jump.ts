@@ -66,6 +66,20 @@ export function resolveJump(document: JumpDocument, typed: string): JumpCandidat
   return dedupe(found);
 }
 
+/**
+ * what Go To says when nothing matches, so the list is never just empty:
+ * a page past the end gives the document's length, a share past 100% the
+ * range, and anything else what can be typed.
+ */
+export function noPlaceSentence(document: JumpDocument, typed: string): string {
+  const text = fold(typed.trim());
+  const pageCount = `This document has ${document.pageCount} ${document.pageCount === 1 ? "page" : "pages"}.`;
+  const number = (stripWordPrefix(text, ["pages", "page", "pg", "pp", "p"]) ?? text).split(/[/ ]/)[0].trim();
+  if (/^\d+$/.test(number)) return `Page ${Number(number)} doesn't exist. ${pageCount}`;
+  if (text.endsWith("%")) return "Type a share from 0% to 100%, such as 50%.";
+  return `Nothing here matches “${typed.trim()}”. Type a page number, a share such as 50%, or words from a heading or bookmark.`;
+}
+
 function candidate(document: JumpDocument, kind: JumpKind, page: number, label: string): JumpCandidate {
   return { kind, page: Math.min(page, document.pageCount - 1), block: null, label };
 }
