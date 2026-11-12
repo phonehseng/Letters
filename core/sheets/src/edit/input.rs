@@ -38,6 +38,15 @@ pub fn read_input(input: &str, system: DateSystem) -> Result<Typed, SheetError> 
     if let Some(error) = ErrorValue::parse(trimmed) {
         return Ok(plain(Value::Error(error)));
     }
+    // "1 1/2" is a mixed fraction, as in excel, shown as one ("1/2" on
+    // its own stays a date: 2 january)
+    if let Some((value, format)) = mixed_fraction(trimmed) {
+        return Ok(Typed {
+            value: Value::Number(value),
+            formula: None,
+            number_format: Some(format),
+        });
+    }
     match parse_number(trimmed, system) {
         Some(n) => Ok(Typed {
             value: Value::Number(n),
@@ -61,6 +70,32 @@ fn read_formula(formula: &str) -> Result<Typed, SheetError> {
     }
 }
 
+/// "1 1/2" or "-3 7/16": a whole number, a space and a fraction, with
+/// excel's fraction format for denominators of that many digits.
+fn mixed_fraction(typed: &str) -> Option<(f64, String)> {
+    let (negative, body) = match typed.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, typed),
+    };
+    let (whole, fraction) = body.split_once(' ')?;
+    let (top, bottom) = fraction.trim().split_once('/')?;
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+    if !digits(whole) || !digits(top) || !digits(bottom) {
+        return None;
+    }
+    let (whole, top, bottom): (f64, f64, f64) =
+        (whole.parse().ok()?, top.parse().ok()?, bottom.parse().ok()?);
+    if bottom == 0.0 {
+        return None;
+    }
+    let value = whole + top / bottom;
+    let places = "?".repeat(bottom.to_string().len().min(3));
+    Some((
+        if negative { -value } else { value },
+        format!("# {places}/{places}"),
+    ))
+}
+
 /// the format excel gives a cell from how a number was typed
 fn implied_format(typed: &str) -> Option<String> {
     let decimals = typed
@@ -79,6 +114,16 @@ fn implied_format(typed: &str) -> Option<String> {
     if typed.contains('$') {
         return Some("\"$\"#,##0.00".into());
     }
+    // "1e-3": scientific, as excel shows it (1.00E-03)
+    let lower = typed.to_ascii_lowercase();
+    if lower.contains('e')
+        && lower
+            .trim_start_matches(['-', '+'])
+            .starts_with(|c: char| c.is_ascii_digit() || c == '.')
+        && !lower.chars().any(|c| c.is_ascii_alphabetic() && c != 'e')
+    {
+        return Some("0.00E+00".into());
+    }
     let looks_like_time = typed.contains(':');
     match (looks_like_date(typed), looks_like_time) {
         (true, true) => Some("m/d/yyyy h:mm".into()),
@@ -91,12 +136,15 @@ fn implied_format(typed: &str) -> Option<String> {
     }
 }
 
-/// "3/1/2024", "1-Mar-24" (a dash and a month name) or "2024-03-01"
+/// "3/1/2024", "1-Mar-24" or "Mar 1, 2024" (a month name) or "2024-03-01"
 /// (two dashes, not a minus sign)
 fn looks_like_date(typed: &str) -> bool {
     let dashes = typed.matches('-').count();
-    let has_letters = typed.chars().any(|c| c.is_alphabetic());
-    typed.contains('/') || (dashes >= 1 && has_letters) || (dashes == 2 && !typed.starts_with('-'))
+    // letters count only as a month's name: the 'e' of "1e-3" isn't one
+    let has_letters = typed
+        .split(|c: char| !c.is_alphabetic())
+        .any(|word| crate::calc::text_numbers::month_number(word).is_some());
+    typed.contains('/') || has_letters || (dashes == 2 && !typed.starts_with('-'))
 }
 
 #[cfg(test)]
@@ -126,5 +174,30 @@ mod tests {
         assert_eq!(read("=sum(a1:a3)").formula.as_deref(), Some("SUM(A1:A3)"));
         assert!(read_input("=SUM(", DateSystem::Excel1900).is_err());
         assert_eq!(read("-5").number_format, None);
+    }
+
+    /// numbers that used to be read as dates
+    #[test]
+    fn numbers_typed_stay_numbers_not_dates() {
+        // an exponent: 0.001, shown scientific, not 1/0/1900
+        assert_eq!(read("1e-3").value, Value::Number(0.001));
+        assert_eq!(read("1e-3").number_format.as_deref(), Some("0.00E+00"));
+        assert_eq!(read("2.5e2").value, Value::Number(250.0));
+        // a misplaced comma: text, not 5 january
+        assert_eq!(read("1,5").value, Value::text("1,5"));
+        // a mixed fraction: 1.5 shown as one, not 1 january 2002
+        assert_eq!(read("1 1/2").value, Value::Number(1.5));
+        assert_eq!(read("1 1/2").number_format.as_deref(), Some("# ?/?"));
+        assert_eq!(read("-3 7/16").value, Value::Number(-3.4375));
+        assert_eq!(read("-3 7/16").number_format.as_deref(), Some("# ??/??"));
+        // dates are still dates
+        assert_eq!(read("1/2").number_format.as_deref(), Some("m/d/yyyy"));
+        assert_eq!(read("2024-03-01").value, Value::Number(45352.0));
+        assert_eq!(read("1-Mar-24").number_format.as_deref(), Some("m/d/yyyy"));
+        assert!(matches!(read("Mar 1, 2024").value, Value::Number(_)));
+        assert_eq!(
+            read("Mar 1, 2024").number_format.as_deref(),
+            Some("m/d/yyyy")
+        );
     }
 }
