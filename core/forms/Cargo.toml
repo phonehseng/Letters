@@ -5,6 +5,25 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+# every dependency is MIT or Apache-2.0 (or both). see README.md for the list.
 [dependencies]
 lopdf = "0.47"
 thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+png = "0.18"
+# certificates, keys and signatures (the RustCrypto project)
+p12-keystore = "0.4"
+rsa = { version = "0.10", features = ["pkcs1v15"] }
+p256 = { version = "0.14", features = ["ecdsa", "pkcs8"] }
+sha2 = "0.11"
+der = { version = "0.8", features = ["std", "derive", "oid"] }
+spki = "0.8"
+x509-cert = { version = "0.3", features = ["builder"] }
+cms = "=0.3.0-rc.2"
+const-oid = "0.10"
+rand = "0.10"
+
+[dev-dependencies]
+letters-pdf = { path = "../pdf" }
+png = "0.18"
+serde_json = "1"
