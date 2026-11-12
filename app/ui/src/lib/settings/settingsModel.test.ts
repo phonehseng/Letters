@@ -1,7 +1,7 @@
 // tests of the Settings model: reading any stored version, the AI Tools section, the privacy summary.
 
 import { describe, expect, it } from "vitest";
-import { aiProblems, CURRENT_VERSION, defaultSettings, fromStored, newProvider, privacyItems, withProviderKind } from "./settingsModel";
+import { aiProblems, CURRENT_VERSION, defaultSettings, fromStored, newProvider, ocrLanguageChoices, privacyItems, withProviderKind } from "./settingsModel";
 
 describe("reading the stored settings", () => {
   it("nothing stored means the defaults, with AI Tools off", () => {
@@ -73,5 +73,21 @@ describe("the AI Tools section", () => {
     expect(defaultSettings().signing.timestampServer).toBe("");
     expect(fromStored({ signing: { timestampServer: "http://127.0.0.1:3180/tsr" } }).signing.timestampServer).toBe("http://127.0.0.1:3180/tsr");
     expect(fromStored({ signing: { timestampServer: 7 } }).signing.timestampServer).toBe("");
+  });
+});
+
+describe("the Scanning section", () => {
+  const installed = [
+    { code: "eng", name: "English" },
+    { code: "fra", name: "French" },
+  ];
+
+  it("offers the computer's language and only installed languages", () => {
+    expect(ocrLanguageChoices(installed, "auto").map((choice) => choice.value)).toEqual(["auto", "eng", "fra"]);
+    expect(defaultSettings().scanning.ocrLanguage).toBe("auto");
+  });
+
+  it("keeps showing a stored language that is no longer installed", () => {
+    expect(ocrLanguageChoices(installed, "deu").at(-1)).toEqual({ value: "deu", label: "deu (not installed)" });
   });
 });

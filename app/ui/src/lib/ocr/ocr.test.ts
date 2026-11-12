@@ -133,6 +133,14 @@ describe("languages", () => {
     expect(defaultLanguage([], "en")).toBeNull();
   });
 
+  it("starts with the language chosen in settings when it is installed", () => {
+    expect(defaultLanguage(installed, "fr-CA", "eng")).toBe("eng");
+    expect(defaultLanguage(installed, "en-US", "fra")).toBe("fra");
+    // a language no longer installed falls back to the computer's
+    expect(defaultLanguage(installed, "fr-CA", "jpn")).toBe("fra");
+    expect(defaultLanguage(installed, "fr-CA", "auto")).toBe("fra");
+  });
+
   it("allows two at most, and says why", () => {
     let chosen = toggleLanguage([], "eng");
     chosen = toggleLanguage(chosen, "fra");

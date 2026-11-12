@@ -14,7 +14,8 @@
   import LibrarySettingsPanel from "../library/LibrarySettingsPanel.svelte";
   import SigningSettings from "../forms/SigningSettings.svelte";
   import * as api from "./settingsApi";
-  import { OCR_LANGUAGES, privacyItems, ZOOM_CHOICES, type AppSettings } from "./settingsModel";
+  import { ocrApi, type OcrLanguage } from "../ocr/ocrApi";
+  import { ocrLanguageChoices, privacyItems, ZOOM_CHOICES, type AppSettings } from "./settingsModel";
 
   // "Search" is the library folders and the index (lib/library/LibrarySettingsPanel.svelte)
   // "Signing" is the time stamp server for digital signatures (lib/forms/SigningSettings.svelte)
@@ -27,6 +28,8 @@
   let typing = $state<WriterSettings | null>(null);
   let author = $state("");
   let message = $state<string | null>(null);
+  // scanning: only languages installed here can be chosen
+  let ocrInstalled = $state<OcrLanguage[]>([]);
 
   onMount(() => {
     getCurrentWindow().setTitle("Settings");
@@ -41,6 +44,7 @@
     settings = view.settings;
     typing = await writerSettings().catch(() => null);
     author = await api.authorName();
+    ocrInstalled = await ocrApi.status().then((status) => status.languages).catch(() => []);
   }
 
   /** saves a change at once; what the shell kept comes back. */
@@ -169,7 +173,7 @@
       <label class="setting">
         <span class="caption">Language of Scanned Text</span>
         <select class="field" value={settings.scanning.ocrLanguage} onchange={(event) => change((draft) => (draft.scanning.ocrLanguage = event.currentTarget.value))}>
-          {#each OCR_LANGUAGES as language (language.value)}
+          {#each ocrLanguageChoices(ocrInstalled, settings.scanning.ocrLanguage) as language (language.value)}
             <option value={language.value}>{language.label}</option>
           {/each}
         </select>

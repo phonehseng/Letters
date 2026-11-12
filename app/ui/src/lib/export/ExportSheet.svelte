@@ -20,6 +20,7 @@
     type ExportOptions,
     type ExportOutcome,
     type FormatChoice,
+    type ExportStart,
     type Style,
   } from "./exportChoices";
 
@@ -27,12 +28,12 @@
     document: DocumentState;
     /** distance from the top of the window, below the toolbar */
     top: number;
-    /** the Word style Settings chose to start with */
-    wordStyle?: Style;
+    /** what Settings (Files) chose to start with: Word style, document and picture format */
+    starting?: Partial<ExportStart>;
     onClose: () => void;
   }
 
-  let { document: doc, top, wordStyle = "exactMatch", onClose }: Props = $props();
+  let { document: doc, top, starting = {}, onClose }: Props = $props();
 
   let choices = $state<FormatChoice[]>([]);
   let options = $state<ExportOptions>(defaultOptions());
@@ -47,7 +48,7 @@
   const hint = $derived(checked.ok && choices.length > 0 ? durationHint(checked.request, hasWord) : null);
 
   onMount(() => {
-    options = defaultOptions(wordStyle);
+    options = defaultOptions(starting);
     api
       .exportCapabilities()
       .then((found) => {

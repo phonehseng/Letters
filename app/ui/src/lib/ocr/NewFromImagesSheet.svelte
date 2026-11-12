@@ -11,7 +11,7 @@
   import type { DocumentState } from "../api";
   import Choices from "../inspector/Choices.svelte";
   import { addPictures, makeSentence, moveItem, PAPER_CHOICES, paperSentence } from "./imagesToPdf";
-  import { defaultLanguage } from "./languages";
+  import { defaultLanguage, settingsLanguage } from "./languages";
   import { ocrApi, optionsFrom, type OcrStatus, type PaperSize } from "./ocrApi";
   import { rememberNewDocument, suggestedPathFor } from "./newDocuments";
 
@@ -40,11 +40,10 @@
 
   onMount(() => {
     sheet?.focus();
-    ocrApi
-      .status()
-      .then((answer) => {
+    Promise.all([ocrApi.status(), settingsLanguage()])
+      .then(([answer, chosen]) => {
         status = answer;
-        language = defaultLanguage(answer.languages, navigator.language || "en") ?? "eng";
+        language = defaultLanguage(answer.languages, navigator.language || "en", chosen) ?? "eng";
       })
       .catch(() => (status = null));
   });

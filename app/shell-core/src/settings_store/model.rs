@@ -86,14 +86,15 @@ impl Default for FileDefaults {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Scanning {
-    /// a text recognition language code, such as "eng"
+    /// a text recognition language code, such as "eng", or "auto": the
+    /// computer's language when it is installed (the default)
     pub ocr_language: String,
 }
 
 impl Default for Scanning {
     fn default() -> Self {
         Scanning {
-            ocr_language: "eng".into(),
+            ocr_language: "auto".into(),
         }
     }
 }
