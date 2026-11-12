@@ -183,3 +183,10 @@ is (ssim 0.890 vs 0.895) but breaks few lines alike, because the box layout foll
 powerpoint's rules. Text that shrinks on overflow with no stored scale now gets one
 worked out, only for decks from odp: doing it for pptx made pp_autofit_notes worse,
 since powerpoint draws the stored state and never recomputes when exporting.
+## 2026-11-12 new slides start empty
+
+The slide editor's New Slide showed the layout's own prompt words ("Click to edit Master title style", the five bullet levels) and the date and slide number as real text on the new slide, and saving wrote them into the file. `new_slide` copied each layout placeholder whole. It now copies only the id, name and placeholder link with one empty paragraph, as powerpoint writes a new slide, so the place, look and text style still come from the layout; the date, footer and slide number placeholders stay on the layout, as powerpoint leaves them unless Header & Footer asks for them.
+
+## 2026-11-12 a libreoffice master's extra placeholder is no longer drawn
+
+Opening lo_theme_facet.odp in the slide editor showed "Click to edit Master subtitle style" over the title slide's own subtitle. LibreOffice's title-slide master keeps a subtitle placeholder; the reader turns it into a plain text box because a pptx master can't hold one, and as a plain text box the renderer drew it on every slide of that master. It is now also hidden: kept in the model and written back, never drawn, as LibreOffice never draws a master's placeholders on its slides. The fidelity and back-and-forth runs (which need the corpus) were not rerun.

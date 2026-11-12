@@ -57,6 +57,8 @@
   import { chooseAnyFileToOpen, openCodeDocument, type CodeDocument } from "./lib/code/codeApi";
   import { isCodePath } from "./lib/code/languages";
   import DocumentCodeTools from "./lib/code/DocumentCodeTools.svelte";
+  // presentations: .pptx and .odp open in the slide editor, loaded only when one opens (lib/slides)
+  import { isAudienceWindow, isSlidesPath, openDeck, type OpenedDeck } from "./lib/slides/slidesApi";
 
   let openedDocument = $state<DocumentState | null>(null);
   /** the Compare screen while it shows; the document (or Recents) waits underneath */
@@ -77,6 +79,8 @@
   let newFromImages = $state<string[] | null>(null);
   /** code: the code or text file this window shows, if any */
   let openedCode = $state<CodeDocument | null>(null);
+  /** presentations: the deck this window shows, if any */
+  let openedSlides = $state<OpenedDeck | null>(null);
 
   /** scan: the pdf New from Images made is open (unsaved); it takes this window's place */
   async function showNewDocument(next: DocumentState) {
@@ -100,7 +104,7 @@
       newFromImages = [path];
       return;
     }
-    if (openedDocument || openedWriter || openedCode) {
+    if (openedDocument || openedWriter || openedCode || openedSlides) {
       await newWindow(path);
       return;
     }
@@ -108,6 +112,11 @@
     // export: a window opened by "Open PDF as Document…" shows the pdf as a document
     if (await takeOpenAsDocument(path)) {
       await openAsDocument(path);
+      return;
+    }
+    // presentations: the slide editor, or a pdf made by office when the engine can't read the file
+    if (isSlidesPath(path)) {
+      await openInSlides(path);
       return;
     }
     const route = routeForPath(path);
@@ -147,6 +156,19 @@
     } catch (problem) {
       errorMessage = isCodePath(path) ? asCommandError(problem).message : unsupportedMessage(path);
     }
+  }
+
+  /** presentations: a deck in the slide editor; a file the engine can't read is shown as a pdf as before. */
+  async function openInSlides(path: string) {
+    try {
+      openedSlides = await openDeck(path);
+    } catch {
+      await openAsPdf(path);
+    }
+  }
+
+  async function closeSlides() {
+    if (openedSlides && (await mayLeaveDocument())) openedSlides = null;
   }
 
   async function closeCode() {
@@ -286,7 +308,7 @@
     // wait for edits still on their way, so the question sees them
     await documentChanges(async () => {});
     // code: the code screen answers through the same guard as the writer
-    if ((openedWriter || openedCode) && writerGuard.mayLeave) return writerGuard.mayLeave(askToSave);
+    if ((openedWriter || openedCode || openedSlides) && writerGuard.mayLeave) return writerGuard.mayLeave(askToSave);
     // protect: marks for redaction not yet applied are offered first
     if (openedDocument && !(await protectMayLeave())) return false;
     return mayLeave(openedDocument, askToSave, save);
@@ -350,7 +372,7 @@
   $effect(() => {
     const takeBack = [appCommands.register("open", chooseAndOpen), appCommands.register("new-window", () => newWindow())];
     // the writer registers its own save, save as and print while it shows (and so does the code screen)
-    if (!openedWriter && !openedCode) {
+    if (!openedWriter && !openedCode && !openedSlides) {
       takeBack.push(
         appCommands.register("save", () => {
           if (openedDocument && isAvailable("save", openedDocument)) save();
@@ -369,7 +391,7 @@
 
   // compare: with a document open it is the newer version; from Recents both are chosen
   $effect(() => {
-    if (openedWriter || openedCode) return;
+    if (openedWriter || openedCode || openedSlides) return;
     const takeBack = [
       appCommands.register("compare-with-version", () => {
         if (openedDocument) openCompare(setupFromDocument(openedDocument));
@@ -440,7 +462,7 @@
   // says so, as on a mac
   $effect(() => {
     // the writer names the window itself while it shows, and so do compare and the code screen
-    if (openedWriter || comparing || openedCode) return;
+    if (openedWriter || comparing || openedCode || openedSlides) return;
     // the Settings window is called Settings (lib/settings)
     if (getCurrentWindow().label === SETTINGS_WINDOW) return;
     getCurrentWindow().setTitle(windowTitle(openedDocument));
@@ -493,6 +515,18 @@
   {#if getCurrentWindow().label === SETTINGS_WINDOW}
     <!-- the Settings window (lib/settings) -->
     <SettingsScreen />
+  {:else if isAudienceWindow(getCurrentWindow().label)}
+    <!-- presentations: a slide show's audience window on a second screen (lib/slides) -->
+    {#await import("./lib/slides/AudienceScreen.svelte") then screen}
+      <screen.default />
+    {/await}
+  {:else if openedSlides}
+    <!-- presentations: the slide editor loads in its own chunk (lib/slides) -->
+    {#key openedSlides.id}
+      {#await import("./lib/slides/SlidesScreen.svelte") then screen}
+        <screen.default opened={openedSlides} onError={(message: string) => (errorMessage = message)} onRecents={closeSlides} onNewWindow={() => newWindow()} />
+      {/await}
+    {/key}
   {:else if openedDocument}
     {#key openedDocument.id}
       <Viewer

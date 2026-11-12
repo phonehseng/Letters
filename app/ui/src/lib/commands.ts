@@ -18,6 +18,8 @@ import { CONVERSION_COMMANDS, conversionCommandForKey } from "./export/conversio
 import { READING_COMMANDS, readingCommandForKey, readingPlainKey } from "./reading/readingCommands";
 // code and text files (code/codeCommands.ts)
 import { CODE_COMMANDS, CODE_KEYS } from "./code/codeCommands";
+// presentations: the slide editor's commands; its keys are read by the slide screen (slides/slidesCommands.ts)
+import { SLIDES_COMMANDS } from "./slides/slidesCommands";
 
 export const COMMANDS = [
   "open",
@@ -80,6 +82,8 @@ export const COMMANDS = [
   ...READING_COMMANDS,
   // code and text files, exports and checks of code in documents (code/codeCommands.ts)
   ...CODE_COMMANDS,
+  // presentations: the slide editor (slides/slidesCommands.ts)
+  ...SLIDES_COMMANDS,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];

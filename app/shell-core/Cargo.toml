@@ -49,6 +49,8 @@ letters-ai = { path = "../../core/ai" }
 letters-exact = { path = "../../core/exact" }
 # search all documents and the page finder (see src/library_search and src/reading)
 letters-search = { path = "../../core/search" }
+# presentation mode: reads, edits, draws and writes .pptx and .odp (see src/slides)
+letters-slides = { path = "../../core/slides" }
 
 [dev-dependencies]
 # the annotation engine, run through an edit session in the tests

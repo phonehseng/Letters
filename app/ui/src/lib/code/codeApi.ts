@@ -126,7 +126,8 @@ export function findCodeInDocument(source: string, kind: "writer" | "pdf", pdfId
 }
 
 // the document kinds the other screens open (lib/writer/writerApi.ts lists the same)
-const DOCUMENT_EXTENSIONS = ["pdf", "docx", "odt", "rtf", "doc"];
+// presentations open in the slide editor too (lib/slides)
+const DOCUMENT_EXTENSIONS = ["pdf", "docx", "odt", "rtf", "doc", "pptx", "odp"];
 
 /**
  * the window's Open… panel: pdfs and documents first, as before, then code
@@ -140,6 +141,7 @@ export async function chooseAnyFileToOpen(): Promise<string | null> {
       { name: "PDFs, documents and code", extensions: [...DOCUMENT_EXTENSIONS, ...CODE_EXTENSIONS] },
       { name: "PDF documents", extensions: ["pdf"] },
       { name: "Word, OpenDocument and Rich Text", extensions: ["docx", "odt", "rtf", "doc"] },
+      { name: "PowerPoint and OpenDocument presentations", extensions: ["pptx", "odp"] },
       { name: "Code and text files", extensions: CODE_EXTENSIONS },
       { name: "All files", extensions: ["*"] },
     ],

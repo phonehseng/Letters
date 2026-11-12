@@ -6,7 +6,7 @@
 use crate::model::{
     Autofit, Bullet, BulletFont, Layout, LevelStyle, Master, Object, ParagraphProps, Placeholder,
     PlaceholderKind, Presentation, RunProps, Shape, Slide, SlideSize, Spacing, TextAlign, TextBody,
-    TextStyle, Theme, Transform, Typeface, EMU_PER_POINT,
+    TextParagraph, TextStyle, Theme, Transform, Typeface, EMU_PER_POINT,
 };
 
 pub const MASTER_ID: &str = "master-1";
@@ -254,7 +254,10 @@ fn body_style() -> TextStyle {
 }
 
 /// a slide on a layout, with empty placeholders copied from the layout
-/// (empty placeholders take their position from the layout).
+/// (empty placeholders take their position from the layout). like
+/// powerpoint's New Slide, the date, footer and slide number placeholders
+/// stay on the layout, and the layout's prompt words ("Click to edit Master
+/// title style") are not copied: a new slide's placeholders hold no text.
 pub fn new_slide(presentation: &Presentation, id: &str, layout_id: &str) -> Slide {
     let objects = presentation
         .layout(layout_id)
@@ -262,15 +265,8 @@ pub fn new_slide(presentation: &Presentation, id: &str, layout_id: &str) -> Slid
             layout
                 .objects
                 .iter()
-                .filter(|o| o.placeholder().is_some())
-                .map(|o| {
-                    let mut copy = o.clone();
-                    copy.set_source(None);
-                    if let Some(transform) = copy.transform_mut() {
-                        *transform = None;
-                    }
-                    copy
-                })
+                .filter(|o| o.placeholder().is_some_and(|p| !p.kind.is_furniture()))
+                .map(empty_placeholder)
                 .collect()
         })
         .unwrap_or_default();
@@ -280,5 +276,67 @@ pub fn new_slide(presentation: &Presentation, id: &str, layout_id: &str) -> Slid
         objects,
         show_master_shapes: true,
         ..Default::default()
+    }
+}
+
+/// a slide's copy of a layout placeholder: its id, name and placeholder
+/// link only, so its place, look and text style all come from the layout
+/// (what powerpoint writes: an empty `p:spPr` and one empty paragraph).
+fn empty_placeholder(object: &Object) -> Object {
+    match object {
+        Object::Shape(shape) => Object::Shape(Shape {
+            id: shape.id,
+            name: shape.name.clone(),
+            placeholder: shape.placeholder.clone(),
+            text: Some(TextBody {
+                paragraphs: vec![TextParagraph::default()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        other => {
+            let mut copy = other.clone();
+            copy.set_source(None);
+            if let Some(transform) = copy.transform_mut() {
+                *transform = None;
+            }
+            copy
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_new_slide_has_empty_placeholders_and_no_footer_ones() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/decks/pp_title_bullets.pptx");
+        let deck = crate::read_pptx(&std::fs::read(path).unwrap()).unwrap();
+        let layout = deck
+            .layouts
+            .iter()
+            .find(|layout| {
+                layout
+                    .objects
+                    .iter()
+                    .any(|o| o.text().is_some_and(|t| !t.is_empty()))
+            })
+            .unwrap();
+        let slide = new_slide(&deck, "new", &layout.id);
+        assert!(!slide.objects.is_empty());
+        for object in &slide.objects {
+            assert!(
+                object.text().is_none_or(TextBody::is_empty),
+                "{}",
+                object.name()
+            );
+            assert!(!object.placeholder().unwrap().kind.is_furniture());
+            assert!(
+                object.transform().is_none(),
+                "the place comes from the layout"
+            );
+        }
     }
 }

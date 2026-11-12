@@ -679,6 +679,39 @@ reading and fixing, not a programming environment: nothing is ever run.
 - **Not the default app for code.** Letters doesn't register itself for
   source files; they open through Open…, dropping, and Open With.
 
+### Slides (presentations)
+
+A `.pptx` or `.odp` opens as one slide on the desk, as Keynote shows it:
+the slide is the star, everything else floats.
+
+- **Toolbar.** Leading: Slides (the rail), back to Recents, the
+  presentation's name as its menu (Save, Save As…, Export as PDF…, Play
+  from This Slide, Presenter View, Undo, Redo). Centre: New Slide and zoom.
+  Trailing: Insert (Text Box, Picture…, shapes, a table grid), Play, Find,
+  Notes, New Window, Format and Explain.
+- **Nothing moves when you click.** A click selects: an accent frame with
+  eight square handles and one round handle above for turning. A press
+  becomes a move only after a few pixels. While dragging, a copy of the
+  object follows the pointer with pink guides for what it lines up with;
+  the slide itself changes once, on release, as one Undo step.
+- **Typing happens on the slide**, in the theme's font, size and colour.
+  Empty placeholders show PowerPoint's grey "Click to add title" while
+  editing, never in the show or a PDF.
+- **The rail** numbers every slide; the current one has the accent ring, a
+  hidden one is dimmed with its number struck through. Drag to reorder;
+  right-click for New Slide, Duplicate, Hide and Delete.
+- **The inspector** (Format) has three tabs: Slide (layout, Hide Slide, what
+  the file keeps but doesn't play here), Arrange (exact place, size and
+  angle, stacking, grouping, a fill from the theme, a table's rows and
+  columns) and Theme (the twelve colours and the two fonts).
+- **Honest limits.** Charts, SmartArt and embedded objects show a quiet
+  "Chart — kept as it is" chip; effects, arrowheads, recolouring,
+  transitions and animations are kept and saved back exactly, and Explain
+  and the inspector say so in one sentence each.
+- **The slide show** fills the screen on black with PowerPoint's keys.
+  Presenter View shows the slide, the next one, the notes and a clock; with
+  a second screen the audience sees the slides there.
+
 ### Where Letters differs from the HIG on purpose
 
 - **Toolbar buttons keep their text labels.** The HIG prefers symbols alone in
