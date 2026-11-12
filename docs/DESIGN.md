@@ -63,14 +63,61 @@ from the background. So legibility wins over glassiness here too.
 |---|---|
 | Two layers | The page scrolls under a floating toolbar. Only the toolbar groups and the side panel use the glass material; nothing in the page area does. A soft fade at the top keeps the toolbar readable (Apple's "scroll edge effect"). |
 | Hierarchy from layout | The document name sits at the leading edge in bold, with the page number under it in a quieter colour. No boxes or divider lines around toolbar areas: spacing separates them. |
-| One accent | Toolbar symbols are monochrome. The accent appears on the "Open a PDF" tile, on pressed toggles (Night Mode, Explain), and on focus rings. |
-| Show less | The toolbar holds about nine actions in three groups. Night Mode and Two Pages sit in one View pull-down, as in Preview and Pages. The sidebar and the Explain panel are closed by default. Later stages add an inspector on the right that changes with the selection, as Pages does, instead of a ribbon. |
-| Expected places | Leading: the sidebar button, back to Recents, then the title. Centre: zoom. Trailing: Find, View, New Window, then Explain (it opens a side panel, and inspector buttons go on the trailing edge). On a narrow window items leave in a fixed order, least important first (`app/ui/src/lib/toolbar.ts`). |
-| Type scale | The macOS text styles, in rem so they scale with the system text size: large title 26/32, title 17/22, headline 13 bold, body 13/16, subheadline 11/14, footnote 10/13. Nothing is smaller than 10. Letter spacing follows Apple's tracking table. |
+| One accent | Toolbar symbols are monochrome. The accent appears on the "Open a PDF" tile, on pressed toggles (Night Mode, Tools, Explain), on selected thumbnails and the drop line when moving pages, on the one open tool's action button, and on focus rings. |
+| Show less | The toolbar holds about ten actions in three groups. Night Mode and Two Pages sit in one View pull-down, as in Preview and Pages. The sidebar, the Tools inspector and the Explain panel are closed by default. Editing tools live in the inspector, not in a ribbon (see "The Tools inspector" below). |
+| Expected places | Leading: the sidebar button, back to Recents, then the title, which is also the document menu. Centre: zoom. Trailing: Find, View, New Window, then Tools and Explain (both open side panels, and inspector buttons go on the trailing edge). On a narrow window items leave in a fixed order, least important first (`app/ui/src/lib/toolbar.ts`). |
+| Type scale | The macOS text styles, in rem so they scale with the system text size: large title 26/32, title 17/22, headline 13 bold, body 13/16, subheadline 11/14, footnote 10/13. Nothing is smaller than 10. Letter spacing follows Apple's tracking table. The body style is set on `body`, never on `:root`: on `:root` it would make 1rem 13px and shrink the whole scale (that happened until stage 2, putting the footnote at 8px). |
 | Nested shapes | Toolbar groups have a 14px radius and 4px padding, so buttons inside have a 10px radius. The same sum is used wherever shapes nest. |
 | Words | All labels and tooltips live in `app/ui/src/lib/tools.ts`. Title case verbs, "Open…" with an ellipsis, errors that say what to do. |
 | Motion | 150 to 200 ms, only on hover and panel changes, off when the system asks for reduced motion. |
 | Fits its platform | System font on each OS (San Francisco on macOS, Segoe UI Variable on Windows). Follows dark mode, reduced motion, reduced transparency (glass becomes solid) and increased contrast (Apple's higher-contrast blue). Every toolbar action has a keyboard shortcut. |
+
+### The Tools inspector
+
+Pages has no ribbon: a short toolbar and an inspector on the trailing side
+whose contents fit the task. Letters does the same.
+
+- **One button, one panel.** "Tools" on the trailing edge of the toolbar
+  (Ctrl Alt I, the Show Inspector key in Pages) opens the inspector. A
+  segmented control at its top picks a tab. Today there is one, Pages; later
+  stages add Annotate, Fill & Sign, Protect and Accessibility. The control
+  shows even with one tab, so the place where tabs appear is already
+  familiar. Adding a tab is one entry in `app/ui/src/lib/inspector.ts` and
+  one component.
+- **Progressive disclosure.** Each tool is a disclosure section. Closed, it
+  shows its name and one line about it. Open, it shows a sentence explaining
+  the word if a first-year may not know it ("Cropping hides the outside of a
+  page; it doesn't remove it…"), its few settings, one clearly named button,
+  and under the button a live line saying exactly what will happen ("Adds
+  “Page 1 of 30” at the bottom centre of 30 pages. Undo with Ctrl Z."). Only
+  one section is open at a time, so the inspector never has more than one
+  prominent (accent) button.
+- **Sensible defaults.** The common case is one click: page numbers at the
+  bottom centre of every page, a header with the file name and the date, a
+  "Draft" watermark at 30%, a crop half an inch in from each edge.
+- **What tools act on.** Pages selected in the thumbnails, or the page being
+  read when none are; every tool says which ("Works on the page you are
+  reading, page 3. To choose other pages, select them in the sidebar.").
+- **Choices are segmented controls**, raised rather than coloured, like the
+  sidebar's Thumbnails and Outline control.
+
+### Side panels: sidebar, Tools and Explain
+
+The sidebar is on the leading side; Tools and Explain share the trailing
+side, Tools nearer the document. The rule (`app/ui/src/lib/sidePanels.ts`):
+the document always keeps at least 26rem. Opening a panel that doesn't fit
+closes the panel opened longest ago. On a wide window all three can be open;
+on a medium one two; on a small one they take turns.
+
+Explain is context-aware: with the inspector open it lists the open tab's
+tools first, under "Pages tools", then the rest of the screen. Words a
+first-year may not know (extract, split, merge, crop, header, watermark) are
+explained there and in the open section.
+
+Below 46rem the inspector stops narrowing the document and floats over it
+like a sheet, full height, with its own close button (Escape closes it too).
+At the 480px minimum window nothing overflows: the toolbar drops its
+least important parts as before, and the floating inspector covers the page.
 
 ### Where Letters differs from the HIG on purpose
 
@@ -83,6 +130,10 @@ from the background. So legibility wins over glassiness here too.
   Explain is not a link to a manual: it opens a side panel describing the
   tools on screen, which makes it an inspector button, and those belong on the
   trailing edge.
+- **The inspector's tabs are named for tasks, not formatting.** Pages names
+  its inspector tabs after what is selected (Text, Arrange). A student comes
+  to a PDF with a task (number the pages, fill in a form), so Letters names
+  the tabs after tasks.
 - **The icons are our own.** SF Symbols may only be used on Apple platforms,
   so Letters draws its own in the same spirit: one stroke weight, rounded
   ends, no outlines around them.

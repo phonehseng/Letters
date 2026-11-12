@@ -4,6 +4,74 @@ All notable changes to Letters are written here, newest first.
 
 ## Unreleased
 
+### Stage 2: page tools
+
+Works:
+
+- A Tools inspector on the trailing side (toolbar button Tools, Ctrl Alt I),
+  with a segmented control for its tabs. The first tab, Pages, holds eleven
+  tools as disclosure sections: Rotate, Delete Pages, Insert (blank pages or
+  pages from another PDF), Extract, Split (by ranges, every N pages, by
+  chapter, by file size), Merge (a list to arrange and name), Crop, Page
+  Numbers, Header & Footer, Watermark (text or picture, in front or behind,
+  with an opacity slider) and Remove (page numbers, headers and footers, or
+  watermarks that Letters added). Each open section explains new words,
+  shows its few settings and one action button, and says under the button
+  exactly what will happen to which pages and to the file. Defaults make the
+  common case one click.
+- Later stages add a tab with one registry entry and one component (see
+  "Adding a tab to the Tools inspector" in ARCHITECTURE.md).
+- Selecting pages in the thumbnails: click, Ctrl-click (Command on a Mac),
+  Shift-click, Ctrl A, the arrows and Shift with the arrows. Tools act on the
+  selection, or on the page being read when nothing is selected, and say which.
+- Reordering by dragging thumbnails, one or many, with an insertion line and
+  the list scrolling itself at its edges; it works from layout numbers, so a
+  500 page document reorders as smoothly as a short one. Alt Up and Alt Down
+  move the selected pages from the keyboard.
+- Delete deletes the selected pages (Undo brings them back); deleting every
+  page is refused with a plain sentence. A right-click menu on thumbnails
+  (and the Menu key or Shift F10) offers Rotate Left and Right, Delete,
+  Extract…, Insert Blank Page After and Insert from PDF….
+- PDFs dropped from the system onto the thumbnails are inserted where the
+  line shows.
+- Crop shows a rectangle on the page with eight handles (or arrow keys, Shift
+  to resize), with number fields and "This Page / Selected / All Pages".
+  The text explains that cropping hides and doesn't remove, and points to
+  redaction under Protect.
+- Extract, Split and Merge make new files and leave the open document alone.
+  Split never replaces a file in the chosen folder: taken names get " (2)",
+  " (3)", and the message lists the files made. Extract and Merge offer to
+  open the result. Password-locked PDFs given to Insert or Merge get the
+  page tools' message.
+- macOS: a Pages menu replaces the temporary Tools menu, and Tools is in View.
+- Explain follows the inspector: with Tools open it lists the open tab's
+  tools first. Sidebar, Tools and Explain share the window by one rule: the
+  document keeps at least 26rem, and the panel opened longest ago gives way.
+  Below 46rem the inspector floats over the document.
+- Fixed: the type scale was 19% too small everywhere. The body font was set
+  on `:root`, which made 1rem 13px instead of 16px, so the footnote style
+  came out at 8px. Text and controls are now the sizes DESIGN.md gives.
+
+Measured on Windows 11, debug build, 500 page file: moving a page with Alt
+Down took about 130 ms from key to new state, a drag across 150 pages about
+140 ms from drop to new state, and undo about 250 ms. Only 8 of the 500
+thumbnails were built at any time.
+
+Not verified or not done:
+
+- Dropping a file from the system onto the thumbnails: the logic is unit
+  tested, but a system drag can't be driven from the test scripts, so it has
+  not been tried by hand.
+- The system's file panels (open, save, folder) were answered by the test
+  scripts, not clicked, so their own behaviour (the "replace?" question,
+  for one) was not exercised.
+- macOS: the Pages menu has not been run on a Mac. Its Alt Up and Alt Down
+  keys would take Option-arrow away from text fields there while the menu
+  is in front.
+- Merge uses the open document as last saved; the inspector says so when
+  there are unsaved changes.
+- Crop numbers are in points only.
+
 ### Stage 2: the editing foundation
 
 The file can change for the first time. Every later tool (page tools,

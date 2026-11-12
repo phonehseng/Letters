@@ -90,8 +90,12 @@ Decisions worth knowing:
 The parts of the shell that need no window, kept apart so they can be unit
 tested: the recent files list (`recents.rs`), pinned folders (`pinned.rs`),
 reading tile and thumbnail addresses (`address.rs`), finding a file on the
-command line (`startup.rs`), the edit session (`session.rs`) and the
-reference edit, turning pages (`rotate.rs`).
+command line (`startup.rs`), the edit session (`session.rs`), and the files
+page tools make beside the document (`outputs.rs`: reading other PDFs with the
+page tools' locked-file message, writing a file the save panel confirmed in
+one step, and writing split parts under numbered names that never replace an
+existing file). `page_tools_tests.rs` runs core/pages tools through a session
+the way the app does.
 
 ### `app/shell` (crate `letters-shell`, program `letters`)
 
@@ -104,6 +108,7 @@ The desktop program. Thin glue, no logic of its own worth testing.
 | `documents.rs` | each open document's edit session and page sizes; runs edits, undo, redo and save, and answers with a `DocumentState` |
 | `errors.rs` | `CommandError`, the one error every command returns |
 | `commands.rs` | the functions the interface can call |
+| `page_commands.rs` | one command per page tool from core/pages, each one call through `state.edit` (or `state.read_document` for tools that make other files) |
 | `tile_protocol.rs` | serves tiles and thumbnails to `<img>` tags over a private `tile://` address |
 | `windows.rs` | creates windows |
 | `menu.rs` | the macOS menu bar. each item sends a `menu-command` event to the window in front. Undo and Redo are our own items, so the ui can send them to a text field or to the document |
@@ -123,6 +128,15 @@ Logic lives in plain TypeScript modules with unit tests; components stay thin.
 | `lib/layout.ts` | where pages sit (one column or pairs), which are visible, which tiles they need, zoom and scroll maths |
 | `lib/documentState.ts` | the window title ("— Edited"), keeping the reader's place after an edit, the queue that runs changes one at a time, and the unsaved changes question |
 | `lib/documentMenu.ts` | what the document menu holds and which of its commands can run now (shortcuts use the same rule) |
+| `lib/inspector.ts` | the Tools inspector's tab registry, the `ToolContext` every tool gets, and what Explain lists with a tab open |
+| `lib/sidePanels.ts` | which of sidebar, Tools and Explain fit beside the document, and when the inspector floats |
+| `lib/selection.ts` | the page selection: click, ctrl or command click, shift click, select all, arrows |
+| `lib/movePages.ts` | where moved pages land, the keyboard move, and the drag's drop point and auto-scroll, from layout numbers only |
+| `lib/pageRanges.ts` | reading "1-3, 7, 10-" with plain error messages, and writing pages as words |
+| `lib/pageEffects.ts` | the "what will happen" sentence under each tool's button |
+| `lib/cropRect.ts` | the crop rectangle: starting place, dragging handles, staying on the page |
+| `lib/fileDrop.ts` | lets the thumbnails claim pdfs dropped from the system |
+| `lib/pageApi.ts` | every page tool call into the shell, typed, and the pickers they need |
 | `lib/commands.ts` | the one list of commands. keyboard shortcuts and menu events both go through its dispatcher, so they cannot drift apart |
 | `lib/search.ts` | moving between matches, the count text, highlight boxes, and running only the newest query |
 | `lib/thumbnails.ts`, `lib/outline.ts`, `lib/folders.ts`, `lib/sidebar.ts`, `lib/toolbar.ts` | the rules behind the sidebar, the outline's current section, folder filtering, and what the toolbar drops on a narrow window |
@@ -141,6 +155,10 @@ Logic lives in plain TypeScript modules with unit tests; components stay thin.
 | `lib/Sidebar.svelte`, `lib/Thumbnails.svelte`, `lib/Outline.svelte` | the left sidebar and its two modes |
 | `lib/Home.svelte`, `lib/FolderList.svelte` | the Recents screen and its pinned folders |
 | `lib/HelpPanel.svelte` | the Explain side panel |
+| `lib/InspectorPanel.svelte` | the Tools inspector: header, tab control, the open tab |
+| `lib/inspector/ToolSection.svelte`, `Choices.svelte`, `PagesChoice.svelte` | a tool's disclosure section with its action and effect line; segmented choices; "which pages" |
+| `lib/inspector/PagesTab.svelte`, `lib/inspector/pages/*Tool.svelte` | the Pages tab and its eleven tools |
+| `lib/CropOverlay.svelte`, `lib/ContextMenu.svelte` | the crop rectangle on the page; the thumbnails' right-click menu |
 | `lib/ToolButton.svelte`, `lib/Icon.svelte` | toolbar buttons and icons |
 | `app.css` | colours, type, shapes: the design tokens (see `docs/DESIGN.md`) |
 
@@ -206,34 +224,60 @@ lopdf would have to decrypt and encrypt them again.
 
 ### Adding an editing tool
 
-`app/shell-core/src/rotate.rs` and the `rotate_pages` command are the
-example to copy:
+`rotate_pages` in `app/shell/src/page_commands.rs` is the example to copy:
 
 ```rust
-// in a core crate: a pure function on the lopdf document, with its own
-// error type whose Display text is shown to the person
-pub fn rotate_pages(document: &mut lopdf::Document, pages: &[u32], degrees: i32)
-    -> Result<(), RotateError>;
+// in a core crate (here core/pages): a pure function on the lopdf document
+// and a settings struct, with an error type whose Display text is shown
+pub fn rotate(document: &mut lopdf::Document, params: &RotateParams) -> Result<(), PagesError>;
 
-// in app/shell/src/commands.rs: one call through the shared helper
+// in app/shell/src/page_commands.rs: one call through the shared helper
 #[tauri::command(async)]
-pub fn rotate_pages(state: State<AppState>, id: u64, pages: Vec<u32>, degrees: i32)
+pub fn rotate_pages(state: State<AppState>, id: u64, pages: Vec<u32>, quarter_turns: i32)
     -> Result<DocumentState, CommandError> {
-    state.edit(DocumentId(id), |document| rotate::rotate_pages(document, &pages, degrees))
+    let params = RotateParams { pages, quarter_turns };
+    state.edit(DocumentId(id), |document| page_tools::rotate(document, &params))
 }
 ```
 
 `AppState::edit<E: Display>(&self, id, edit: impl FnOnce(&mut lopdf::Document)
 -> Result<(), E>) -> Result<DocumentState, CommandError>` does everything
 else: working copy, undo step, reload, revision. In the ui, call the command
-through `lib/api.ts` inside the viewer's `change(command, action)`, give the
-tool an entry in `lib/tools.ts` (the "What happens to the file" line must say
-that only the working copy changes until Save), and add it to the Explain list.
+through a typed function (`lib/pageApi.ts` for page tools) via the tool
+context's `change(action)` (or the viewer's `change(command, action)`), give
+the tool an entry in `lib/tools.ts` (the "What happens to the file" line must
+say that only the working copy changes until Save), and put it in an
+inspector tab (see below), which also lists it in Explain.
+
+### Tools that make other files
+
+Extract, split and merge leave the open document alone. They go through
+`AppState::read_document(id, |document| ...)`, which hands over the document as
+shown (working copy included) without making an undo step, and write with the
+helpers in `outputs.rs`: a file chosen in the save panel is replaced in one
+step (the panel already asked); split parts go into the chosen folder under
+"<name> - <suffix>.pdf", taking " (2)", " (3)" when a name is taken, and are
+created only if new, so nothing there is ever replaced.
+
+### Adding a tab to the Tools inspector
+
+1. Write `app/ui/src/lib/inspector/<Name>Tab.svelte`. It gets one prop,
+   `context: ToolContext` (`lib/inspector.ts`): the document, the page being
+   read, the target pages (selection or current page), `change(action)` to
+   run an edit, `notify`, `showError`, the crop controller, and the section a
+   menu command asked for.
+2. Build it from `ToolSection` components, one per tool: `tool` (a
+   `tools.ts` name), `actionLabel`, `effect` (a sentence from a builder like
+   those in `pageEffects.ts`), `ready`, `onAction`, the settings as children.
+3. Add one entry to `INSPECTOR_TABS`: `{ id, label, tooltip, tools: [...],
+   load: () => import("./inspector/<Name>Tab.svelte") }`. Every tool in
+   `tools` needs a `tools.ts` entry; Explain lists them first while the tab is
+   open, and menu commands can open a tool with `openTool(name)`.
 
 ## Planned
 
-In the order they will be built (each plugs into the edit pipeline above):
-page tools, annotations, forms and signing,
+In the order they will be built (each plugs into the edit pipeline above and
+gets a tab in the Tools inspector): annotations, forms and signing,
 OCR, redaction, compare, word-processor mode, conversion with the fidelity
 harness, optional AI tools, the accessibility wizard, packaging and default-app
 registration. Each will get its own crate under `core/`.
