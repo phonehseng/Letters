@@ -25,9 +25,9 @@ There are three places a reason lives. Use the one that fits.
    border's width per row, because Word does and long tables drifted by a line
    per page". Each crate and each feature folder of the interface has one.
 
-3. **In the commit.** Commits are small and frequent. Each one names the file,
-   what the file is for, which functions it touches, and the reason from the
-   worklog. Read `git log -p -- path/to/file` to see how a file came to be.
+3. **In the commit.** Each commit is one logical change, and its message
+   says what changed and why (see "How changes land" below). Read
+   `git log -p -- path/to/file` to see how a file came to be.
 
 If you cannot say why a line is there, it should not be there. Code that is
 only there "in case" gets deleted. Dead code, commented-out code and unused
@@ -65,6 +65,22 @@ for a reviewer. They explain why, cite the measurement or the part of a
 specification behind a rule, and warn about what is surprising. They do not
 restate the code, apologise, or keep history ("used to be X"): history lives
 in the worklog and the commits.
+
+## How changes land
+
+`main` must build and pass its tests at every commit, so that `git bisect`
+works and anyone can check out any point in the history.
+
+- Work happens in a local clone, on a branch named for the change
+  (`fix-exact-platform-bytes`, `stage-sheets-grid`). Nothing is uploaded
+  file by file.
+- Each commit is one logical change that builds and passes its tests on
+  its own. A change too big to review in one sitting is split into
+  smaller logical steps, never into slices of a file.
+- The message says what changed and why in one short line, then a few
+  plain sentences if the reason needs them, for example "make the
+  redaction preview report exactly what redaction will do".
+- A branch reaches `main` through a pull request, once its checks pass.
 
 ## Changing someone else's code
 
