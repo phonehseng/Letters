@@ -488,3 +488,26 @@ fn a_document_built_from_nothing_writes_valid_odt() {
     let styles = part_text(&saved, "styles.xml");
     assert!(styles.contains("style:display-name=\"Heading 1\""));
 }
+
+#[test]
+fn page_breaks_survive_an_odt_round_trip() {
+    // the writer's Insert › Page Break, saved as .odt and opened again
+    let mut docx = read_docx(&rich_docx()).unwrap();
+    docx.blocks = vec![
+        Block::text("before"),
+        Block::PageBreak,
+        Block::text("after"),
+        Block::PageBreak,
+        Block::text("last"),
+    ];
+    let breaks = |document: &Document| {
+        document
+            .blocks
+            .iter()
+            .filter(|block| matches!(block, Block::PageBreak))
+            .count()
+    };
+    let before = breaks(&docx);
+    let again = read_odt(&write_odt(&docx).unwrap()).unwrap();
+    assert_eq!(breaks(&again), before);
+}

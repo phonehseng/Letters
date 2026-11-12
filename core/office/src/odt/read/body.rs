@@ -183,7 +183,11 @@ impl OdtReader<'_> {
             };
             paragraph.content.insert(0, column);
         }
-        if break_after && paragraph.content.is_empty() && paragraph.style_id.is_none() {
+        // an empty paragraph there only to break the page is a page break:
+        // letters writes one for each (odt/write/body.rs), and its automatic
+        // style always names a parent ("Normal"), so the style is no test
+        // (every page break was lost on reopening a saved .odt)
+        if break_after && paragraph.content.is_empty() && element.name == "text:p" {
             return Block::PageBreak;
         }
         if element.name == "text:h" {
