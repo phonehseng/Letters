@@ -63,6 +63,11 @@ fn text_block(block: &Block, counter: &mut ListCounter, notes: &mut Vec<String>,
             }
         }
         Block::PageBreak => out.push('\u{C}'),
+        Block::TextBox(text_box) => {
+            for block in &text_box.blocks {
+                text_block(block, counter, notes, out);
+            }
+        }
         Block::SectionBreak => {}
         Block::Preserved { xml } => {
             let text = xml_text(xml);
@@ -187,6 +192,14 @@ impl HtmlWriter<'_> {
                 .out
                 .push_str("<hr style=\"page-break-after: always\">\n"),
             Block::SectionBreak => {}
+            Block::TextBox(text_box) => {
+                self.out.push_str(&format!(
+                    "<div class=\"text-box\" style=\"width: {}pt\">\n",
+                    text_box.width / 20
+                ));
+                self.blocks_html(&text_box.blocks);
+                self.out.push_str("</div>\n");
+            }
             Block::Preserved { xml } => {
                 let text = xml_text(xml);
                 if !text.trim().is_empty() {

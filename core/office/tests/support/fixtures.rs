@@ -3,6 +3,8 @@
 
 #![allow(dead_code)]
 
+use letters_office::model::*;
+
 use super::{p, png, Docx};
 
 pub const HEADING_STYLES: &str = "<w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val=\"22\"/></w:rPr></w:rPrDefault>\
@@ -149,4 +151,60 @@ pub fn rich_docx() -> Vec<u8> {
         )
         .loose_part("customXml/item1.xml", "", CUSTOM_XML.as_bytes())
         .build()
+}
+
+/// two text boxes, one positioned on the page and one on its paragraph.
+pub fn text_box_document() -> Document {
+    let mut document = Document::new();
+    document
+        .numbering
+        .definitions
+        .push(ListDefinition::standard("0", false));
+    let list = document.numbering.add_instance("0");
+    let mut item = Paragraph::with_text("a listed point");
+    item.props.list = Some(ListRef {
+        list_id: list,
+        level: 0,
+    });
+    let mut first = TextBox::new(
+        2880,
+        2160,
+        4320,
+        1440,
+        vec![
+            Block::Paragraph(Paragraph {
+                content: vec![
+                    Inline::styled("Boxed ", vec![Mark::Bold]),
+                    Inline::text("text"),
+                ],
+                ..Default::default()
+            }),
+            Block::Paragraph(item),
+        ],
+    );
+    first.name = Some("First".into());
+    first.z_order = Some(5);
+    first.wrap = Wrap::Square;
+    first.fill = Some("FFF2CC".into());
+    let mut second = TextBox::new(1440, 6000, 3000, 2000, vec![Block::text("Second box")]);
+    second.horizontal = FloatPosition::new("margin", 720);
+    second.vertical = FloatPosition::new("paragraph", 240);
+    second.auto_height = true;
+    second.wrap = Wrap::TopAndBottom;
+    second.border = None;
+    second.fill = None;
+    second.margins = BoxMargins {
+        left: 100,
+        top: 50,
+        right: 100,
+        bottom: 50,
+    };
+    second.z_order = Some(6);
+    document.blocks = vec![
+        Block::text("Before the boxes."),
+        Block::TextBox(first),
+        Block::TextBox(second),
+        Block::text("After the boxes."),
+    ];
+    document
 }

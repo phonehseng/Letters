@@ -10,18 +10,25 @@
 //!   plain text and html export and import
 
 pub mod base64;
+pub mod bridge;
+pub mod clipboard;
+pub mod compat;
 pub mod counts;
 pub mod docx;
 mod error;
 pub mod export;
+pub mod floating;
+pub mod formats;
 pub mod import;
 pub mod indent;
+pub mod markdown;
 pub mod model;
 pub mod numbering;
 pub mod odt;
 pub mod outline;
 pub mod package;
 pub mod presets;
+pub mod rtf;
 pub mod ruler;
 pub mod styles;
 pub mod tables;

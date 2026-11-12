@@ -118,6 +118,11 @@ impl DocxWriter<'_> {
                     }
                 }
                 Block::Preserved { xml } => self.write_preserved_block(xml, out),
+                // a text box needs a paragraph to anchor it
+                Block::TextBox(text_box) => {
+                    let run = self.text_box_run(text_box, story);
+                    out.raw(&format!("<w:p>{run}</w:p>"));
+                }
             }
             if carries_break {
                 // the break went out with the paragraph, so skip it

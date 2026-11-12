@@ -94,4 +94,11 @@ pub const STORY_NAMESPACES: &[(&str, &str)] = &[
         "xmlns:w14",
         "http://schemas.microsoft.com/office/word/2010/wordml",
     ),
+    (
+        "xmlns:wps",
+        "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
+    ),
+    ("xmlns:v", "urn:schemas-microsoft-com:vml"),
+    ("xmlns:o", "urn:schemas-microsoft-com:office:office"),
+    ("xmlns:w10", "urn:schemas-microsoft-com:office:word"),
 ];

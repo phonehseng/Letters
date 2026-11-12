@@ -128,7 +128,9 @@ anything the model does not understand.
 | Headers and footers, first page, even pages | modelled | modelled through master pages |
 | Sections: size, orientation, margins, columns, start | modelled (line numbering, page borders, doc grid preserved) | modelled (master page per section) |
 | Pictures, inline and floating | modelled, original XML reused while unchanged | modelled, original frame reused while unchanged |
-| Shapes, text boxes, charts, SmartArt, equations, content controls, fields not listed | preserved | preserved |
+| Text boxes: position (page, margin, column or paragraph), size or grow-to-fit, wrap, stacking order, rotation, inner margins, line, fill, any content | modelled; written as a shape for Word 2010+ with a VML copy for older Word | modelled as a frame with a text box (rotation not kept) |
+| Floating picture geometry: exact EMU size and offsets, stacking order, rotation, crop, aspect lock, alt text | modelled | position, size, wrap, order and alt text modelled; rotation and crop not kept |
+| Shapes, charts, SmartArt, equations, content controls, fields not listed | preserved | preserved |
 | Fields: page number, page count, date, table of contents | modelled | page number, count, date modelled; table of contents preserved as a block |
 | Metadata | title, subject, author, keywords, description, dates, language modelled; other core properties preserved | same; other meta elements preserved |
 | Unknown package parts | byte for byte | byte for byte |
@@ -150,6 +152,63 @@ Known losses (by design, for now):
   joined with line breaks; date field formats are lost.
 - Odt: a comment range inside a header, footer or note shrinks to its
   first piece of text (ranges are tracked for the main text only).
+
+## Floating objects, copy and paste
+
+- `floating::float_image` / `inline_image` turn a picture between "in the
+  line" and "floating". Going back into the line remembers the floating
+  geometry (`Image.previousPlacement`), so floating it again is exact.
+- `floating::split_paragraph_into_text_boxes`, `text_box_from_blocks` and
+  `dissolve_text_box` turn text into movable boxes and back.
+- `floating::{bring_to_front, send_to_back, align, distribute, move_to,
+  snap}` work in page coordinates (twips from the page corner). Objects
+  positioned relative to a paragraph have no page position without a
+  layout, so align, distribute and snap leave them alone.
+- `clipboard::add_image` takes clipboard picture bytes. PNG, JPEG and GIF
+  are kept as they are; BMP is converted to PNG; WebP and SVG are kept as
+  they are (no decoder here), and the result says that Word 2019 and
+  older can't show them. `import::from_html_with_images` pastes HTML and
+  asks a loader the caller supplies for pictures named by file or
+  address. `clipboard::copy_blocks` gives HTML, plain text and, for a lone
+  picture, its bytes.
+
+## Strict Word mode
+
+`compat::word_compatibility(&doc)` lists everything Word would not keep
+or would show differently (OpenDocument-only objects, highlighter colours
+Word lacks, list numbering Word lacks, fonts that are neither standard nor
+embedded, nested text boxes, WebP and SVG pictures, anchors Word measures
+differently), each with a plain sentence and, where possible, a fix that
+`compat::apply_fixes` applies. `compat::feature_matrix()` says for every
+editor feature whether it is exact in both formats, Word-exact, ODT-exact
+or approximate; strict Word mode offers only the Word-exact ones, so the
+report stays empty.
+
+**Letters has no page layout of its own**, so by itself it can't promise
+Word's line and page breaks. `bridge::word_layout(docx, cache)` asks Word
+instead: it opens the file in a private hidden Word and reads every line
+from Word's own layout (`Pages`, `Rectangles`, `Lines`): page size, each
+line's top, left, height and character range, its paragraph in Word's
+order (`bridge::word_paragraph_map` maps that back to the model), and
+where each floating object landed. Exporting a PDF and mapping its text
+back was rejected: it needs a PDF text extractor and loses the link to
+character positions. Results are cached by a hash of the file. Without
+Word the call answers `BridgeError::WordNotInstalled`.
+
+## Formats, printing and old Word files
+
+`formats::save_as` writes DOCX, ODT, RTF, HTML, Markdown (with picture
+files beside it), plain text and, through Word or LibreOffice, `.doc`.
+`formats::format_capabilities()` gives one plain sentence per format for
+the Save As dialog. `rtf::read_rtf` reads RTF (text, character and
+paragraph formatting, lists, tables, pictures); `formats::open_any` opens
+DOCX, ODT, RTF, plain text and, through a converter, `.doc`.
+`formats::page_setups` gives each section's paper name, size,
+orientation and margins. `bridge::print_pdf` makes the print-ready PDF
+through Word (exact) or, failing that, LibreOffice (close; the result
+says so). `bridge::convert_word_format` converts `.doc` and `.docx` the
+same way. LibreOffice runs headless with its own profile folder and is
+always waited for.
 
 ## Typing helpers
 
@@ -189,8 +248,15 @@ opens our files without repairing them, with the expected paragraphs,
 heading styles, footnotes, comments, revisions, pictures, headers and
 tables; that a file Word itself saved reads correctly and survives our
 save unchanged in Word's eyes; and, as a control, that a deliberately
-broken file is reported. LibreOffice is not installed on the development
-machine, so odt output has only been checked by this crate's own reader.
+broken file is reported. Further Word checks cover text boxes (positions
+within a twip), a picture floating and then toggled into the line, a
+paragraph split into two text boxes, our RTF, `word_layout` on a 16-page
+document, printing to PDF and `.doc` conversion.
+
+`tests/libreoffice.rs` (also `--ignored`) checks the same against
+LibreOffice: it converts our ODT to PDF and text, reads an ODT that
+LibreOffice wrote from our DOCX, round-trips text boxes and floating
+pictures through it, and uses it to print and to convert `.doc` files.
 
 ## Libraries
 

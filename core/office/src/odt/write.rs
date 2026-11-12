@@ -407,6 +407,7 @@ impl<'d> OdtWriter<'d> {
             Block::Table(table) => self.table_xml(table, master),
             Block::PageBreak => self.paragraph_xml(&Paragraph::default(), None, master, true),
             Block::SectionBreak => String::new(),
+            Block::TextBox(text_box) => self.text_box_xml(text_box, master),
             Block::Preserved { xml } => {
                 if self.native {
                     xml.clone()
@@ -929,6 +930,121 @@ impl<'d> OdtWriter<'d> {
         self.span(&marks, xml)
     }
 
+    /// the attributes of a floating frame: anchored to its paragraph, with
+    /// the position measured from the page, the margins or the paragraph
+    /// through the frame's graphic style.
+    fn floating_attributes(
+        &mut self,
+        horizontal: &FloatPosition,
+        vertical: &FloatPosition,
+        wrap: Wrap,
+        z_order: Option<i64>,
+        extra_properties: &str,
+    ) -> String {
+        let (wrap_value, through) = match wrap {
+            Wrap::Square => ("parallel", ""),
+            Wrap::Tight | Wrap::Through => ("dynamic", " style:wrap-contour=\"true\""),
+            Wrap::TopAndBottom => ("none", ""),
+            Wrap::BehindText => ("run-through", " style:run-through=\"background\""),
+            Wrap::InFrontOfText => ("run-through", " style:run-through=\"foreground\""),
+        };
+        let relation = |position: &FloatPosition| match position.relative_to.as_str() {
+            "page" => "page",
+            "margin" => "page-content",
+            "character" => "char",
+            _ => "paragraph",
+        };
+        let body = format!(
+            "<style:graphic-properties style:wrap=\"{wrap_value}\"{through} style:horizontal-pos=\"from-left\" \
+             style:horizontal-rel=\"{}\" style:vertical-pos=\"from-top\" style:vertical-rel=\"{}\"{extra_properties}/>",
+            relation(horizontal),
+            relation(vertical)
+        );
+        let style = self.automatic_style("LFr", "graphic", "", &body);
+        let z = z_order
+            .map(|z| format!(" draw:z-index=\"{}\"", z.max(0)))
+            .unwrap_or_default();
+        format!(
+            " draw:style-name=\"{style}\" text:anchor-type=\"paragraph\" svg:x=\"{}\" svg:y=\"{}\"{z}",
+            twips_to_inches(horizontal.offset),
+            twips_to_inches(vertical.offset)
+        )
+    }
+
+    /// a text box as a frame holding a `draw:text-box`, in a paragraph of
+    /// its own so it has something to anchor to.
+    fn text_box_xml(&mut self, text_box: &TextBox, master: Option<&str>) -> String {
+        let m = &text_box.margins;
+        let mut properties = format!(
+            " fo:padding-left=\"{}\" fo:padding-top=\"{}\" fo:padding-right=\"{}\" fo:padding-bottom=\"{}\"",
+            twips_to_inches(m.left),
+            twips_to_inches(m.top),
+            twips_to_inches(m.right),
+            twips_to_inches(m.bottom)
+        );
+        match &text_box.fill {
+            Some(hex) => properties.push_str(&format!(
+                " draw:fill=\"solid\" draw:fill-color=\"#{0}\" fo:background-color=\"#{0}\"",
+                hex.to_ascii_lowercase()
+            )),
+            None => properties.push_str(" draw:fill=\"none\" fo:background-color=\"transparent\""),
+        }
+        match &text_box.border {
+            Some(border) if border.style != "none" && border.style != "nil" => {
+                properties.push_str(&format!(
+                    " fo:border=\"{} solid #{}\"",
+                    crate::units::points(f64::from(border.size) / 8.0),
+                    border
+                        .color
+                        .as_deref()
+                        .unwrap_or("000000")
+                        .to_ascii_lowercase()
+                ))
+            }
+            _ => properties.push_str(" fo:border=\"none\""),
+        }
+        let floating = self.floating_attributes(
+            &text_box.horizontal,
+            &text_box.vertical,
+            text_box.wrap,
+            text_box.z_order,
+            &properties,
+        );
+        self.counter += 1;
+        let name = text_box
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("Text Box {}", self.counter));
+        let height = if text_box.auto_height {
+            String::new()
+        } else {
+            format!(" svg:height=\"{}\"", twips_to_inches(text_box.height))
+        };
+        let min_height = if text_box.auto_height {
+            format!(" fo:min-height=\"{}\"", twips_to_inches(text_box.height))
+        } else {
+            String::new()
+        };
+        let saved = self.after_space;
+        let content = self.blocks_xml(&text_box.blocks);
+        self.after_space = saved;
+        let content = if content.is_empty() {
+            "<text:p/>".to_string()
+        } else {
+            content
+        };
+        let anchor = self.paragraph_style(&Paragraph::default(), master, false);
+        let style = anchor
+            .map(|name| format!(" text:style-name=\"{}\"", escape_attribute(&name)))
+            .unwrap_or_default();
+        format!(
+            "<text:p{style}><draw:frame draw:name=\"{}\"{floating} svg:width=\"{}\"{height}>\
+             <draw:text-box{min_height}>{content}</draw:text-box></draw:frame></text:p>",
+            escape_attribute(&name),
+            twips_to_inches(text_box.width)
+        )
+    }
+
     fn frame_xml(&mut self, image: &Image) -> String {
         if let (true, Some(original)) = (self.native, &image.original) {
             if original.as_read == image.geometry() {
@@ -961,26 +1077,9 @@ impl<'d> OdtWriter<'d> {
                 vertical,
                 wrap,
             } => {
-                let anchor = if horizontal.relative_to == "page" {
-                    "page"
-                } else {
-                    "paragraph"
-                };
-                let (wrap_value, through) = match wrap {
-                    Wrap::Square => ("parallel", ""),
-                    Wrap::Tight | Wrap::Through => ("dynamic", " style:wrap-contour=\"true\""),
-                    Wrap::TopAndBottom => ("none", ""),
-                    Wrap::BehindText => ("run-through", " style:run-through=\"background\""),
-                    Wrap::InFrontOfText => ("run-through", " style:run-through=\"foreground\""),
-                };
-                let body =
-                    format!("<style:graphic-properties style:wrap=\"{wrap_value}\"{through}/>");
-                let style = self.automatic_style("LFr", "graphic", "", &body);
-                attributes.push_str(&format!(
-                    " draw:style-name=\"{style}\" text:anchor-type=\"{anchor}\" svg:x=\"{}\" svg:y=\"{}\"",
-                    twips_to_inches(horizontal.offset),
-                    twips_to_inches(vertical.offset)
-                ));
+                let floating =
+                    self.floating_attributes(horizontal, vertical, *wrap, image.z_order, "");
+                attributes.push_str(&floating);
             }
         }
         let description = image

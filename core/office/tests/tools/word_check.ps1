@@ -23,62 +23,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# word started for automation runs as "WINWORD.EXE /Automation -Embedding".
-# a word the person opened never has that switch, so these are the only
-# processes this script may ever stop
-function Get-AutomationWords {
-    @(Get-CimInstance Win32_Process -Filter "Name='WINWORD.EXE'" |
-        Where-Object { $_.CommandLine -like "*/Automation*" } |
-        ForEach-Object { $_.ProcessId })
-}
-
-function Start-PrivateWord {
-    $before = Get-AutomationWords
-    $word = New-Object -ComObject Word.Application
-    # the new process can take a moment to show up
-    $new = @()
-    for ($try = 0; $try -lt 20 -and $new.Count -eq 0; $try++) {
-        Start-Sleep -Milliseconds 250
-        $new = @(Get-AutomationWords | Where-Object { $before -notcontains $_ })
-    }
-    if ($new.Count -ne 1) {
-        # com handed us a word that was already running, or the count is
-        # unclear: touch nothing that is not certainly ours
-        [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($word)
-        throw "could not start a private Word instance (found $($new.Count) new automation processes)"
-    }
-    $id = $new[0]
-    # if this script dies on the way, the watchdog still ends our word
-    $watchdog = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @(
-        "-NoProfile", "-Command", "Start-Sleep -Seconds 120; Stop-Process -Id $id -Force -ErrorAction SilentlyContinue")
-    $session = @{ Word = $word; Pid = $id; Watchdog = $watchdog }
-    try {
-        $word.Visible = $false
-        $word.DisplayAlerts = 0
-        $word.ScreenUpdating = $false
-    }
-    catch {
-        Stop-PrivateWord $session
-        throw
-    }
-    return $session
-}
-
-function Stop-PrivateWord($session) {
-    try { $session.Word.Quit(0) } catch { }
-    try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($session.Word) } catch { }
-    # wait for it to go, so the next run cannot be handed a closing word
-    for ($try = 0; $try -lt 40; $try++) {
-        if (-not (Get-Process -Id $session.Pid -ErrorAction SilentlyContinue)) { break }
-        Start-Sleep -Milliseconds 250
-    }
-    if (Get-Process -Id $session.Pid -ErrorAction SilentlyContinue) {
-        Stop-Process -Id $session.Pid -Force -ErrorAction SilentlyContinue
-    }
-    if ($session.Watchdog -and -not $session.Watchdog.HasExited) {
-        Stop-Process -Id $session.Watchdog.Id -Force -ErrorAction SilentlyContinue
-    }
-}
+# the private word session is shared with the product's word bridge
+. "$PSScriptRoot\..\..\src\bridge\word_session.ps1"
 
 function Get-Report($word, $file) {
     $full = (Resolve-Path $file).Path
@@ -123,6 +69,12 @@ function Get-Report($word, $file) {
             headerText = $doc.Sections(1).Headers(1).Range.Text.TrimEnd([char]13)
             footerText = $doc.Sections($doc.Sections.Count).Footers(1).Range.Text.TrimEnd([char]13)
             pages      = $doc.ComputeStatistics(2)
+            shapeList  = @(foreach ($shape in $doc.Shapes) {
+                    $text = ""
+                    try { if ($shape.TextFrame.HasText) { $text = $shape.TextFrame.TextRange.Text.TrimEnd([char]13) } } catch { }
+                    [ordered]@{ name = $shape.Name; type = $shape.Type; left = [math]::Round($shape.Left * 20); top = [math]::Round($shape.Top * 20); width = [math]::Round($shape.Width * 20); height = [math]::Round($shape.Height * 20); rotation = $shape.Rotation; relativeHorizontal = $shape.RelativeHorizontalPosition; relativeVertical = $shape.RelativeVerticalPosition; wrap = $shape.WrapFormat.Type; text = $text }
+                })
+            inlinePictures = @(foreach ($picture in $doc.InlineShapes) { [ordered]@{ width = [math]::Round($picture.Width * 20); height = [math]::Round($picture.Height * 20) } })
         }
     }
     finally {

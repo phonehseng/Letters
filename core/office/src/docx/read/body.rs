@@ -72,6 +72,9 @@ impl DocxReader<'_> {
         sections: &mut Vec<Section>,
         blocks: &mut Vec<Block>,
     ) {
+        if self.read_text_box_paragraph(element, story, blocks) {
+            return;
+        }
         let mut paragraph = Paragraph::default();
         let mut section_element = None;
         if let Some(ppr) = element.child("w:pPr") {
@@ -96,6 +99,35 @@ impl DocxReader<'_> {
                 blocks.push(Block::SectionBreak);
             }
         }
+    }
+
+    /// a paragraph that only anchors text boxes becomes those text boxes.
+    /// one that also ends a section stays a paragraph, so the break is
+    /// not lost.
+    fn read_text_box_paragraph(
+        &mut self,
+        element: &Element,
+        story: &mut Story,
+        blocks: &mut Vec<Block>,
+    ) -> bool {
+        let ends_section = element
+            .child("w:pPr")
+            .is_some_and(|ppr| ppr.child("w:sectPr").is_some());
+        let Some(found) = super::drawing::text_box_elements(element) else {
+            return false;
+        };
+        if ends_section {
+            return false;
+        }
+        let mut boxes = Vec::new();
+        for anchor in found {
+            match self.read_text_box(anchor, story) {
+                Some(text_box) => boxes.push(Block::TextBox(text_box)),
+                None => return false,
+            }
+        }
+        blocks.extend(boxes);
+        true
     }
 
     /// a paragraph becomes a heading when its outline level (its own or

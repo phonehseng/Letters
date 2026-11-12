@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "letters-office"
 description = "reads and writes word processor documents (docx and odt) through one shared model"
 version.workspace = true
@@ -6,11 +6,13 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+# png encoding of pasted bitmaps; the same pure-rust backend zip uses
+crc32fast = "1.5"
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 serde = { version = "1.0.229", features = ["derive"] }
+# the word bridge's layout reports arrive as json
+serde_json = "1.0.154"
 thiserror = "2"
 # only deflate is needed: docx and odt packages use stored or deflated entries.
 # zlib-rs is pure rust, so no c compiler is involved
 zip = { version = "9.5.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
-
-[dev-dependencies]
-serde_json = "1.0.154"

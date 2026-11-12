@@ -27,6 +27,9 @@ pub enum Block {
     Preserved {
         xml: String,
     },
+    /// a text box floating on the page. in the flow it sits where its
+    /// anchor is: word and odt anchor it to the paragraph that follows
+    TextBox(super::objects::TextBox),
 }
 
 impl Block {

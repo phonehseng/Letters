@@ -223,6 +223,9 @@ fn entity(name: &str) -> Option<char> {
     Some(code)
 }
 
+/// gives the bytes of a picture html names by file or address.
+pub type PictureLoader = dyn Fn(&str) -> Option<Vec<u8>>;
+
 /// tags whose content is never shown.
 const DROPPED: &[&str] = &[
     "script", "style", "head", "title", "template", "noscript", "iframe", "object", "svg", "math",
@@ -235,7 +238,9 @@ struct TableBuild {
     cell: Option<TableCell>,
 }
 
-struct HtmlBuilder {
+struct HtmlBuilder<'a> {
+    /// fetches pictures the html only names (a file or an address)
+    loader: Option<&'a PictureLoader>,
     document: Document,
     blocks_stack: Vec<Vec<Block>>,
     paragraph: Option<(Paragraph, Option<u8>)>,
@@ -249,6 +254,12 @@ struct HtmlBuilder {
 
 /// a document from pasted html (see the module notes for what is kept).
 pub fn from_html(html: &str) -> Document {
+    from_html_with_images(html, None)
+}
+
+/// like rom_html, with loader asked for the bytes of pictures named
+/// by file or address (clipboard html often points at a temporary file).
+pub fn from_html_with_images(html: &str, loader: Option<&PictureLoader>) -> Document {
     let mut document = Document::new();
     document.blocks.clear();
     document
@@ -260,6 +271,7 @@ pub fn from_html(html: &str) -> Document {
         .definitions
         .push(ListDefinition::standard("html-numbers", true));
     let mut builder = HtmlBuilder {
+        loader,
         document,
         blocks_stack: vec![Vec::new()],
         paragraph: None,
@@ -276,7 +288,7 @@ pub fn from_html(html: &str) -> Document {
     builder.finish()
 }
 
-impl HtmlBuilder {
+impl HtmlBuilder<'_> {
     fn token(&mut self, token: Token) {
         match token {
             Token::Open {
@@ -577,54 +589,44 @@ impl HtmlBuilder {
 
     /// only pictures carried in the html itself (data addresses) can be
     /// kept; others would have to be downloaded, which pasting never does.
+    /// pictures given as data in the html, or, when the caller supplied a
+    /// loader, files and addresses it can fetch. nothing is downloaded here.
     fn image(&mut self, attributes: &HashMap<String, String>) {
         let Some(source) = attributes.get("src") else {
             return;
         };
-        let Some((header, data)) = source
+        let bytes = match source
             .strip_prefix("data:")
             .and_then(|rest| rest.split_once(','))
-        else {
+        {
+            Some((header, data)) if header.starts_with("image/") && header.ends_with(";base64") => {
+                crate::base64::decode(data)
+            }
+            Some(_) => None,
+            None => self.loader.and_then(|load| load(source)),
+        };
+        let Some(bytes) = bytes else {
             return;
         };
-        let Some(content_type) = header.strip_suffix(";base64") else {
-            return;
-        };
-        if !content_type.starts_with("image/") {
-            return;
-        }
-        let Some(bytes) = crate::base64::decode(data) else {
-            return;
-        };
-        let id = format!(
-            "pasted-{}.{}",
-            self.document.media.len() + 1,
-            content_type.trim_start_matches("image/")
-        );
         let size = |name: &str| {
             attributes
                 .get(name)
                 .and_then(|v| v.trim_end_matches("px").parse::<i32>().ok())
                 .map(|px| px * 15)
         };
-        self.document.media.push(MediaItem {
-            id: id.clone(),
-            content_type: content_type.to_string(),
-            source_path: None,
-            bytes,
-        });
-        self.push_inline(Inline::Image(Image {
-            media_id: id,
-            width: size("width").unwrap_or(1440),
-            height: size("height").unwrap_or(1440),
-            description: attributes.get("alt").cloned(),
-            name: None,
-            placement: Placement::Inline,
-            marks: Vec::new(),
-            original: None,
-        }));
+        let alt = attributes.get("alt").cloned();
+        let Ok(pasted) = crate::clipboard::add_image(&mut self.document, &bytes, alt) else {
+            return;
+        };
+        let mut inline = pasted.inline;
+        if let (Inline::Image(image), Some(width), Some(height)) =
+            (&mut inline, size("width"), size("height"))
+        {
+            image.width = width;
+            image.height = height;
+        }
+        self.push_inline(inline);
     }
-
     fn finish(mut self) -> Document {
         self.end_paragraph();
         while !self.tables.is_empty() {

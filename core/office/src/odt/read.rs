@@ -414,7 +414,11 @@ impl<'p> OdtReader<'p> {
 
     fn read_block(&mut self, element: &Element, xml: &XmlDocument, blocks: &mut Vec<Block>) {
         match element.name.as_str() {
-            "text:p" | "text:h" => blocks.push(self.read_paragraph(element, xml, None)),
+            "text:p" | "text:h" => {
+                if !self.read_text_box_paragraph(element, xml, blocks) {
+                    blocks.push(self.read_paragraph(element, xml, None));
+                }
+            }
             "text:list" => self.read_list(element, xml, 0, None, blocks),
             "table:table" => blocks.push(Block::Table(self.read_table(element, xml))),
             // sections only group blocks here; their content is kept
@@ -907,34 +911,17 @@ impl<'p> OdtReader<'p> {
         let media_id = self.media_for(&path)?;
         let width = frame.attr("svg:width").and_then(parse_length)?;
         let height = frame.attr("svg:height").and_then(parse_length)?;
-        let anchor = frame.attr("text:anchor-type").unwrap_or("paragraph");
-        let placement = if anchor == "as-char" {
+        let placement = if frame.attr("text:anchor-type") == Some("as-char") {
             Placement::Inline
         } else {
-            let wrap = frame
-                .attr("draw:style-name")
-                .and_then(|name| self.style(name))
-                .and_then(|(style, _)| style.wrap)
-                .unwrap_or(Wrap::Square);
-            let relative = if anchor == "page" {
-                ("page", "page")
-            } else {
-                ("column", "paragraph")
-            };
+            let (horizontal, vertical, wrap) = self.frame_position(frame);
             Placement::Floating {
-                horizontal: FloatPosition {
-                    relative_to: relative.0.into(),
-                    offset: frame.attr("svg:x").and_then(parse_length).unwrap_or(0),
-                    align: None,
-                },
-                vertical: FloatPosition {
-                    relative_to: relative.1.into(),
-                    offset: frame.attr("svg:y").and_then(parse_length).unwrap_or(0),
-                    align: None,
-                },
+                horizontal,
+                vertical,
                 wrap,
             }
         };
+        let floating = placement != Placement::Inline;
         let mut image = Image {
             media_id,
             width,
@@ -942,14 +929,137 @@ impl<'p> OdtReader<'p> {
             description: frame.child("svg:desc").map(Element::deep_text),
             name: frame.attr("draw:name").map(str::to_string),
             placement,
-            marks: Vec::new(),
-            original: None,
+            z_order: frame
+                .attr("draw:z-index")
+                .and_then(|z| z.parse().ok())
+                .filter(|_| floating),
+            ..Default::default()
         };
         image.original = Some(OriginalDrawing {
             xml: xml.raw(frame).to_string(),
             as_read: image.geometry(),
         });
         Some(image)
+    }
+
+    /// where a floating frame sits and how text flows around it.
+    fn frame_position(&self, frame: &Element) -> (FloatPosition, FloatPosition, Wrap) {
+        let anchor = frame.attr("text:anchor-type").unwrap_or("paragraph");
+        let style = frame
+            .attr("draw:style-name")
+            .and_then(|name| self.style(name))
+            .map(|(style, _)| style.clone())
+            .unwrap_or_default();
+        let wrap = style.wrap.unwrap_or(Wrap::Square);
+        let default = if anchor == "page" {
+            "page"
+        } else {
+            "paragraph"
+        };
+        let model = |rel: &Option<String>, vertical: bool| -> &'static str {
+            match rel.as_deref().unwrap_or(default) {
+                "page" | "page-start-margin" | "page-end-margin" => "page",
+                "page-content" => "margin",
+                "char" => "character",
+                _ if vertical => "paragraph",
+                _ => "column",
+            }
+        };
+        let relative = (
+            model(&style.horizontal_rel, false),
+            model(&style.vertical_rel, true),
+        );
+        let offset = |name: &str| frame.attr(name).and_then(parse_length).unwrap_or(0);
+        (
+            FloatPosition::new(relative.0, offset("svg:x")),
+            FloatPosition::new(relative.1, offset("svg:y")),
+            wrap,
+        )
+    }
+
+    /// a paragraph that only holds text box frames becomes those boxes.
+    fn read_text_box_paragraph(
+        &mut self,
+        element: &Element,
+        xml: &XmlDocument,
+        blocks: &mut Vec<Block>,
+    ) -> bool {
+        let only_frames = element.children.iter().all(|node| match node {
+            Node::Text(text) => text.trim().is_empty(),
+            Node::Element(child) => is_text_box_frame(child),
+        });
+        if !only_frames || element.elements().next().is_none() {
+            return false;
+        }
+        let mut boxes = Vec::new();
+        for frame in element.elements() {
+            match self.read_text_box(frame, xml) {
+                Some(text_box) => boxes.push(Block::TextBox(text_box)),
+                None => return false,
+            }
+        }
+        blocks.extend(boxes);
+        true
+    }
+
+    /// a frame holding a text box, as the model's text box.
+    fn read_text_box(&mut self, frame: &Element, xml: &XmlDocument) -> Option<TextBox> {
+        // libreoffice turns word's text boxes into rectangle shapes holding
+        // the text directly; those read as text boxes too
+        let shape = frame.name == "draw:custom-shape";
+        let content = if shape {
+            frame
+        } else {
+            frame.child("draw:text-box")?
+        };
+        if frame.attr("text:anchor-type") == Some("as-char") || !is_text_box_frame(frame) {
+            return None;
+        }
+        let (horizontal, vertical, wrap) = self.frame_position(frame);
+        let width = frame
+            .attr("svg:width")
+            .or_else(|| content.attr("fo:min-width"))
+            .and_then(parse_length)?;
+        let fixed_height = frame.attr("svg:height").and_then(parse_length);
+        let min_height = content.attr("fo:min-height").and_then(parse_length);
+        let style = frame
+            .attr("draw:style-name")
+            .and_then(|name| self.style(name))
+            .map(|(style, _)| style.clone())
+            .unwrap_or_default();
+        let saved = self.after_space;
+        let mut blocks = Vec::new();
+        for child in content.elements() {
+            if matches!(
+                child.name.as_str(),
+                "text:p" | "text:h" | "text:list" | "table:table" | "text:section"
+            ) {
+                self.read_block(child, xml, &mut blocks);
+            }
+        }
+        self.after_space = saved;
+        let fixed_height = if shape {
+            fixed_height.or(min_height)
+        } else {
+            fixed_height
+        };
+        Some(TextBox {
+            name: frame.attr("draw:name").map(str::to_string),
+            horizontal,
+            vertical,
+            width,
+            height: fixed_height.or(min_height).unwrap_or(720),
+            auto_height: fixed_height.is_none(),
+            wrap,
+            z_order: frame.attr("draw:z-index").and_then(|z| z.parse().ok()),
+            rotation: None,
+            margins: style.box_margins.unwrap_or_default(),
+            border: style.cell_borders.and_then(|borders| borders.top),
+            fill: style.background,
+            blocks,
+            width_emu: None,
+            height_emu: None,
+        })
     }
 
     fn media_for(&mut self, path: &str) -> Option<String> {
@@ -1153,6 +1263,24 @@ impl<'p> OdtReader<'p> {
                 bytes: part.bytes.clone(),
             });
         }
+    }
+}
+
+/// a frame holding a text box, or a plain rectangle shape holding text.
+fn is_text_box_frame(element: &Element) -> bool {
+    match element.name.as_str() {
+        "draw:frame" => element.child("draw:text-box").is_some(),
+        "draw:custom-shape" => {
+            let rectangle = element
+                .child("draw:enhanced-geometry")
+                .and_then(|geometry| geometry.attr("draw:type"))
+                .is_some_and(|kind| matches!(kind, "rectangle" | "ooxml-rect" | "rect"));
+            rectangle
+                && element
+                    .elements()
+                    .any(|child| child.name == "text:p" || child.name == "text:list")
+        }
+        _ => false,
     }
 }
 

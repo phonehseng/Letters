@@ -9,8 +9,8 @@
 use std::collections::HashMap;
 
 use crate::model::{
-    Alignment, Border, CellBorders, FontRef, LineRule, LineSpacing, ParagraphProps, RunProps,
-    Script, TabKind, TabLeader, TabStop, VerticalAlign, Wrap,
+    Alignment, Border, BoxMargins, CellBorders, FontRef, LineRule, LineSpacing, ParagraphProps,
+    RunProps, Script, TabKind, TabLeader, TabStop, VerticalAlign, Wrap,
 };
 use crate::units::{parse_length, points, twips_to_inches};
 use crate::xml::{escape_attribute, Element, XmlDocument};
@@ -34,6 +34,11 @@ pub struct OdtStyle {
     pub width: Option<i32>,
     pub alignment: Option<Alignment>,
     pub wrap: Option<Wrap>,
+    /// a text box frame's inner margins
+    pub box_margins: Option<BoxMargins>,
+    /// what a frame's position is measured from ("page", "paragraph"...)
+    pub horizontal_rel: Option<String>,
+    pub vertical_rel: Option<String>,
 }
 
 /// reads a `style:style` (or `style:default-style`). `fonts` maps font
@@ -72,7 +77,19 @@ pub fn read_style(
             "style:table-column-properties" => {
                 style.width = child.attr("style:column-width").and_then(parse_length);
             }
-            "style:graphic-properties" => style.wrap = graphic_wrap(child),
+            "style:graphic-properties" => {
+                style.wrap = graphic_wrap(child);
+                // a frame's border, fill and padding read like a cell's
+                read_cell_properties(child, &mut style);
+                if child.attr("draw:fill") == Some("none") {
+                    style.background = None;
+                } else if style.background.is_none() {
+                    style.background = child.attr("draw:fill-color").and_then(hex_colour);
+                }
+                style.box_margins = padding(child);
+                style.horizontal_rel = child.attr("style:horizontal-rel").map(str::to_string);
+                style.vertical_rel = child.attr("style:vertical-rel").map(str::to_string);
+            }
             _ => {}
         }
     }
@@ -373,6 +390,27 @@ fn read_border(value: &str) -> Option<Border> {
         style,
         size: width,
         color,
+    })
+}
+
+/// `fo:padding` and its per-side forms as inner margins.
+fn padding(element: &Element) -> Option<BoxMargins> {
+    let all = element.attr("fo:padding").and_then(parse_length);
+    let side = |name: &str| element.attr(name).and_then(parse_length).or(all);
+    let (left, top, right, bottom) = (
+        side("fo:padding-left"),
+        side("fo:padding-top"),
+        side("fo:padding-right"),
+        side("fo:padding-bottom"),
+    );
+    if left.is_none() && top.is_none() && right.is_none() && bottom.is_none() {
+        return None;
+    }
+    Some(BoxMargins {
+        left: left.unwrap_or(0),
+        top: top.unwrap_or(0),
+        right: right.unwrap_or(0),
+        bottom: bottom.unwrap_or(0),
     })
 }
 

@@ -14,6 +14,7 @@ use std::time::Instant;
 use letters_office::model::*;
 use letters_office::{read_docx, write_docx};
 use serde_json::Value;
+use support::fixtures::text_box_document;
 use support::png;
 
 fn work_dir(name: &str) -> PathBuf {
@@ -169,7 +170,7 @@ fn built_document() -> Document {
                     name: None,
                     placement: Placement::Inline,
                     marks: vec![],
-                    original: None,
+                    ..Default::default()
                 }),
             ],
             ..Default::default()
@@ -481,4 +482,270 @@ fn a_document_word_saved_reads_and_survives_our_save() {
     ] {
         assert_eq!(report[key], original_report[key], "{key} differs");
     }
+}
+
+fn shapes(report: &Value) -> Vec<Value> {
+    report["shapeList"].as_array().cloned().unwrap_or_default()
+}
+
+fn near(value: &Value, expected: i64) -> bool {
+    value.as_i64().is_some_and(|v| (v - expected).abs() <= 1)
+}
+
+#[test]
+#[ignore = "needs Microsoft Word"]
+fn word_opens_text_boxes_where_we_put_them() {
+    let dir = work_dir("text-boxes");
+    let file = dir.join("boxes.docx");
+    std::fs::write(&file, write_docx(&text_box_document()).unwrap()).unwrap();
+    let report = word_report(&file);
+    eprintln!("word report of text boxes: {report:#}");
+    assert_eq!(report["repaired"], Value::Bool(false));
+    let shapes = shapes(&report);
+    assert_eq!(shapes.len(), 2);
+    let first = &shapes[0];
+    assert!(
+        near(&first["left"], 2880) && near(&first["top"], 2160),
+        "{first}"
+    );
+    assert!(
+        near(&first["width"], 4320) && near(&first["height"], 1440),
+        "{first}"
+    );
+    assert_eq!(first["relativeHorizontal"], 1, "page");
+    assert!(first["text"].as_str().unwrap().contains("Boxed text"));
+    let second = &shapes[1];
+    assert!(
+        near(&second["left"], 720) && near(&second["top"], 240),
+        "{second}"
+    );
+    assert_eq!(second["relativeHorizontal"], 0, "margin");
+    assert_eq!(second["relativeVertical"], 2, "paragraph");
+    assert_eq!(second["text"], "Second box");
+}
+
+fn picture_document(floating: bool) -> Document {
+    let mut document = Document::new();
+    document.media.push(MediaItem {
+        id: "dot.png".into(),
+        content_type: "image/png".into(),
+        source_path: None,
+        bytes: png(),
+    });
+    let placement = if floating {
+        Placement::Floating {
+            horizontal: FloatPosition::new("page", 2000),
+            vertical: FloatPosition::new("paragraph", 300),
+            wrap: Wrap::Square,
+        }
+    } else {
+        Placement::Inline
+    };
+    document.blocks = vec![Block::Paragraph(Paragraph {
+        content: vec![
+            Inline::text("A picture: "),
+            Inline::Image(Image {
+                media_id: "dot.png".into(),
+                width: 1440,
+                height: 720,
+                placement,
+                lock_aspect_ratio: Some(true),
+                ..Default::default()
+            }),
+            Inline::text(" and text after it."),
+        ],
+        ..Default::default()
+    })];
+    document
+}
+
+#[test]
+#[ignore = "needs Microsoft Word"]
+fn word_shows_a_picture_inline_and_floating() {
+    let dir = work_dir("pictures");
+    let mut floating = picture_document(true);
+    let file = dir.join("floating.docx");
+    std::fs::write(&file, write_docx(&floating).unwrap()).unwrap();
+    let report = word_report(&file);
+    eprintln!("floating: {report:#}");
+    assert_eq!(report["repaired"], Value::Bool(false));
+    assert_eq!(report["pictures"], 0);
+    let shape = &shapes(&report)[0];
+    assert!(
+        near(&shape["left"], 2000) && near(&shape["top"], 300) && near(&shape["width"], 1440),
+        "{shape}"
+    );
+
+    // the same picture toggled into the line
+    letters_office::floating::inline_image(&mut floating, 0, 1, None).unwrap();
+    let file = dir.join("inline.docx");
+    std::fs::write(&file, write_docx(&floating).unwrap()).unwrap();
+    let report = word_report(&file);
+    eprintln!("inline: {report:#}");
+    assert_eq!(report["repaired"], Value::Bool(false));
+    assert_eq!(report["pictures"], 1);
+    assert_eq!(shapes(&report).len(), 0);
+    assert!(near(&report["inlinePictures"][0]["width"], 1440));
+}
+
+#[test]
+#[ignore = "needs Microsoft Word"]
+fn word_opens_a_paragraph_split_into_two_text_boxes() {
+    let mut document = Document::new();
+    document.blocks = vec![Block::text("Move this half. And move this other half.")];
+    letters_office::floating::split_paragraph_into_text_boxes(&mut document, 0, 16).unwrap();
+    let dir = work_dir("split");
+    let file = dir.join("split.docx");
+    std::fs::write(&file, write_docx(&document).unwrap()).unwrap();
+    let report = word_report(&file);
+    eprintln!("split: {report:#}");
+    assert_eq!(report["repaired"], Value::Bool(false));
+    // word lists shapes in its own order, and keeps the space that ended the first half
+    let mut texts: Vec<String> = shapes(&report)
+        .iter()
+        .map(|s| s["text"].as_str().unwrap_or("").trim().to_string())
+        .collect();
+    texts.sort();
+    assert_eq!(texts, ["And move this other half.", "Move this half."]);
+}
+
+#[test]
+#[ignore = "needs Microsoft Word"]
+fn word_opens_our_rtf() {
+    let mut document = built_document();
+    document.blocks.push(Block::Table(Table {
+        rows: vec![TableRow {
+            cells: vec![TableCell::with_text("left"), TableCell::with_text("right")],
+            ..Default::default()
+        }],
+        ..Default::default()
+    }));
+    let dir = work_dir("rtf");
+    let file = dir.join("letters.rtf");
+    std::fs::write(&file, letters_office::rtf::write_rtf(&document)).unwrap();
+    let report = word_report(&file);
+    eprintln!("rtf: {report:#}");
+    assert_eq!(report["repaired"], Value::Bool(false));
+    let texts: Vec<String> = paragraphs(&report)
+        .into_iter()
+        .map(|(text, _, _)| text)
+        .collect();
+    for expected in ["Essay Title", "First item", "The end.", "left", "right"] {
+        assert!(
+            texts.iter().any(|t| t.contains(expected)),
+            "{expected} missing from {texts:?}"
+        );
+    }
+    assert_eq!(report["footnotes"], 1);
+    assert_eq!(report["pictures"], 1);
+}
+
+/// a document of about twenty pages.
+fn long_document() -> Document {
+    let mut document = Document::new();
+    document.blocks.clear();
+    for index in 0..200 {
+        if index % 20 == 0 {
+            document
+                .blocks
+                .push(Block::text(&format!("Part {}", index / 20 + 1)));
+            let last = document.blocks.len() - 1;
+            letters_office::outline::apply_heading(&mut document, last, 1);
+        }
+        document.blocks.push(Block::text(&format!(
+            "Paragraph {index}. {}",
+            "This sentence fills the line with ordinary words for the layout to wrap. ".repeat(5)
+        )));
+    }
+    document.blocks.insert(
+        30,
+        Block::TextBox(TextBox::new(
+            6000,
+            1440,
+            3000,
+            1000,
+            vec![Block::text("boxed")],
+        )),
+    );
+    document
+}
+
+#[test]
+#[ignore = "needs Microsoft Word"]
+fn word_layout_of_a_long_document() {
+    let docx = write_docx(&long_document()).unwrap();
+    let cache = work_dir("layout-cache");
+    let started = Instant::now();
+    let layout = letters_office::bridge::word_layout(&docx, Some(&cache)).unwrap();
+    let first = started.elapsed();
+    let started = Instant::now();
+    let again = letters_office::bridge::word_layout(&docx, Some(&cache)).unwrap();
+    let cached = started.elapsed();
+    let lines: usize = layout.pages.iter().map(|p| p.lines.len()).sum();
+    eprintln!(
+        "word layout: {} pages ({} by word's statistic), {lines} lines, {} shapes; {first:?} in all, {} ms inside word; cached {cached:?}",
+        layout.pages.len(),
+        layout.word_pages,
+        layout.shapes.len(),
+        layout.milliseconds
+    );
+    assert_eq!(again, layout);
+    assert!(layout.pages.len() >= 15, "{}", layout.pages.len());
+    assert_eq!(layout.pages.len() as i64, layout.word_pages);
+    for page in &layout.pages {
+        let main: Vec<_> = page.lines.iter().filter(|l| l.story == 1).collect();
+        assert!(!main.is_empty(), "page {} has no lines", page.number);
+        for pair in main.windows(2) {
+            assert!(
+                pair[1].top >= pair[0].top,
+                "page {}: {} then {}",
+                page.number,
+                pair[0].top,
+                pair[1].top
+            );
+            assert!(pair[1].start >= pair[0].start);
+        }
+        assert!(main
+            .iter()
+            .all(|l| l.top >= 0 && l.top + l.height <= page.height));
+    }
+    let map = letters_office::bridge::word_paragraph_map(&long_document());
+    let last = layout
+        .pages
+        .last()
+        .unwrap()
+        .lines
+        .iter()
+        .rfind(|l| l.story == 1)
+        .unwrap();
+    assert!(last.paragraph >= 0 && (last.paragraph as usize) < map.len());
+    assert_eq!(layout.shapes.len(), 1);
+    assert_eq!(layout.shapes[0].text, "boxed");
+}
+
+#[test]
+#[ignore = "needs Microsoft Word"]
+fn word_prints_and_converts_old_files() {
+    let docx = write_docx(&built_document()).unwrap();
+    let started = Instant::now();
+    let printed = letters_office::bridge::print_pdf(&docx).unwrap();
+    eprintln!(
+        "pdf through {:?} in {:?}, {} bytes",
+        printed.engine,
+        started.elapsed(),
+        printed.pdf.len()
+    );
+    assert!(printed.pdf.starts_with(b"%PDF"));
+    assert!(printed.exact);
+    let (doc, engine) = letters_office::bridge::convert_word_format(&docx, true).unwrap();
+    assert_eq!(engine, letters_office::bridge::Engine::Word);
+    assert!(doc.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]));
+    let reopened = letters_office::formats::open_any(&doc).unwrap();
+    let texts: Vec<String> = reopened
+        .blocks
+        .iter()
+        .filter_map(Block::paragraph)
+        .map(|p| p.plain_text())
+        .collect();
+    assert!(texts.iter().any(|t| t == "Essay Title"), "{texts:?}");
 }

@@ -145,7 +145,10 @@ impl DocxWriter<'_> {
             ordered.push("w:sz", val("w:sz", &size.to_string()));
         }
         if let Some(highlight) = &props.highlight {
-            ordered.push("w:highlight", val("w:highlight", highlight));
+            ordered.push(
+                "w:highlight",
+                val("w:highlight", crate::compat::word_highlight(highlight)),
+            );
         }
         if let Some(underline) = &props.underline {
             ordered.push("w:u", val("w:u", underline));

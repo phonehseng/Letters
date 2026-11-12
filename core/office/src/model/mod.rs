@@ -15,6 +15,7 @@ mod carry;
 mod inline;
 mod media;
 mod numbering;
+mod objects;
 mod section;
 mod style;
 
@@ -30,13 +31,15 @@ pub use carry::{
     PartRoot, Relationship, SourceFormat,
 };
 pub use inline::{
-    merge_adjacent_text, normalize_marks, BreakKind, Change, Field, FieldKind, FloatPosition,
-    Image, ImageGeometry, Inline, LinkTarget, Mark, OriginalDrawing, Placement, Toggle, Wrap,
+    exact_emu, merge_adjacent_text, normalize_marks, BreakKind, Change, Crop, Field, FieldKind,
+    FloatPosition, Image, ImageGeometry, Inline, LinkTarget, Mark, OriginalDrawing, Placement,
+    Toggle, Wrap,
 };
 pub use media::MediaItem;
 pub use numbering::{
     LevelOverride, ListDefinition, ListInstance, ListLevel, NumberFormat, Numbering,
 };
+pub use objects::{BoxMargins, TextBox};
 pub use section::{
     Columns, HeaderFooter, HeaderFooterKind, HeaderFooterRefs, Margins, Orientation, PageSetup,
     Section, SectionStart,

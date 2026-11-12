@@ -49,6 +49,17 @@ pub const NAMESPACES: &[(&str, &str)] = &[
         "http://schemas.microsoft.com/office/word/2010/wordml",
     ),
     (
+        "wps",
+        "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
+    ),
+    (
+        "wp14",
+        "http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing",
+    ),
+    ("v", "urn:schemas-microsoft-com:vml"),
+    ("o", "urn:schemas-microsoft-com:office:office"),
+    ("w10", "urn:schemas-microsoft-com:office:word"),
+    (
         "pr",
         "http://schemas.openxmlformats.org/package/2006/relationships",
     ),

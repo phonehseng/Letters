@@ -381,7 +381,7 @@ impl FieldKind {
 }
 
 /// a picture placed in the text.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Image {
     /// the `MediaItem` holding the picture's bytes
@@ -402,6 +402,27 @@ pub struct Image {
     /// the model does not understand survive
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub original: Option<OriginalDrawing>,
+    /// stacking order among floating objects; higher is in front
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub z_order: Option<i64>,
+    /// clockwise, in degrees
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crop: Option<Crop>,
+    /// resizing keeps the proportions
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lock_aspect_ratio: Option<bool>,
+    /// the exact size in english metric units (914400 to the inch) when
+    /// the file gave one; used while it still matches `width`/`height`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width_emu: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height_emu: Option<i64>,
+    /// the floating geometry a picture had before it was put back in the
+    /// line, so floating it again restores it exactly
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_placement: Option<Box<Placement>>,
 }
 
 impl Image {
@@ -412,8 +433,43 @@ impl Image {
             height: self.height,
             description: self.description.clone(),
             placement: self.placement.clone(),
+            z_order: self.z_order,
+            rotation: self.rotation,
+            crop: self.crop,
+            lock_aspect_ratio: self.lock_aspect_ratio,
         }
     }
+
+    /// width and height in emu: the exact ones while they agree with the twips.
+    pub fn size_emu(&self) -> (i64, i64) {
+        (
+            exact_emu(self.width_emu, self.width),
+            exact_emu(self.height_emu, self.height),
+        )
+    }
+}
+
+/// an emu value that is still exact for `twips`, or `twips` converted.
+pub fn exact_emu(emu: Option<i64>, twips: Twips) -> i64 {
+    match emu {
+        Some(emu) if crate::units::emu_to_twips(emu) == twips => emu,
+        _ => crate::units::twips_to_emu(twips),
+    }
+}
+
+/// how much of the picture is cut away on each side, in thousandths of a
+/// percent of its size (word's unit: 50000 is half).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Crop {
+    #[serde(default)]
+    pub left: i32,
+    #[serde(default)]
+    pub top: i32,
+    #[serde(default)]
+    pub right: i32,
+    #[serde(default)]
+    pub bottom: i32,
 }
 
 /// the parts of a picture the model can change. if these still match what
@@ -427,6 +483,14 @@ pub struct ImageGeometry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub placement: Placement,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub z_order: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crop: Option<Crop>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lock_aspect_ratio: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -462,6 +526,26 @@ pub struct FloatPosition {
     /// "left", "center", "right", "top", "bottom" instead of an offset
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub align: Option<String>,
+    /// the exact offset in english metric units when the file gave one;
+    /// used while it still matches `offset`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset_emu: Option<i64>,
+}
+
+impl FloatPosition {
+    pub fn new(relative_to: &str, offset: Twips) -> FloatPosition {
+        FloatPosition {
+            relative_to: relative_to.into(),
+            offset,
+            align: None,
+            offset_emu: None,
+        }
+    }
+
+    /// the offset in emu: the exact one while it agrees with the twips.
+    pub fn emu(&self) -> i64 {
+        exact_emu(self.offset_emu, self.offset)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

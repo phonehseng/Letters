@@ -335,6 +335,12 @@ fn shape(document: &Document) -> Vec<String> {
                 }
             }
             Block::PageBreak => out.push("page break".into()),
+            Block::TextBox(text_box) => {
+                out.push("text box".into());
+                for block in &text_box.blocks {
+                    block_shape(block, out);
+                }
+            }
             Block::SectionBreak => out.push("section break".into()),
             // a conversion keeps the text of what it cannot convert
             Block::Preserved { xml } => out.push(format!("p {}", xml_text(xml))),
