@@ -85,8 +85,8 @@ impl Markdown<'_> {
             }
             Block::Table(table) => self.table(table, out),
             Block::PageBreak => out.push_str("---\n\n"),
-            Block::TextBox(text_box) => {
-                for inner in &text_box.blocks {
+            Block::TextBox(_) | Block::Shape(_) | Block::Group(_) => {
+                for inner in block.drawing_blocks() {
                     let mut part = String::new();
                     self.block(inner, &mut part);
                     for line in part.lines() {

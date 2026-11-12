@@ -2659,6 +2659,7 @@ dependencies = [
 name = "letters-layout"
 version = "0.1.0"
 dependencies = [
+ "letters-fonts",
  "letters-office",
  "letters-pdf",
  "lopdf",
@@ -2672,6 +2673,7 @@ dependencies = [
  "unicode-bidi",
  "unicode-linebreak",
  "unicode-segmentation",
+ "zip",
 ]
 
 [[package]]
@@ -2694,6 +2696,7 @@ version = "0.1.0"
 dependencies = [
  "crc32fast",
  "flate2",
+ "letters-exact",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

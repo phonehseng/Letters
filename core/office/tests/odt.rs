@@ -233,7 +233,23 @@ fn reads_lists_tables_images_headers_and_keeps_the_unknown() {
     assert_eq!((image.width, image.height), (1440, 720));
     assert_eq!(image.description.as_deref(), Some("A dot"));
     assert_eq!(document.media[0].bytes, png());
-    assert!(matches!(&picture[2], Inline::Preserved { xml } if xml.contains("draw:text-box")));
+    // the text box in the same paragraph is a model object now, placed
+    // just before the paragraph that anchors it and remembering where in
+    // the paragraph it sat
+    let picture_block = find("Picture ");
+    let Block::TextBox(text_box) = &document.blocks[picture_block - 1] else {
+        panic!("{:?}", document.blocks[picture_block - 1])
+    };
+    assert_eq!(
+        text_box.blocks[0].paragraph().unwrap().plain_text(),
+        "In a box"
+    );
+    let anchor = text_box.anchor.as_ref().unwrap();
+    assert_eq!(
+        (anchor.with, anchor.inline_index),
+        (AnchorWith::Next, Some(2))
+    );
+    assert_eq!(picture.len(), 2);
     assert!(
         matches!(document.blocks.last().unwrap(), Block::Preserved { xml } if xml.starts_with("<text:table-of-content"))
     );
@@ -339,6 +355,12 @@ fn shape(document: &Document) -> Vec<String> {
                 out.push("text box".into());
                 for block in &text_box.blocks {
                     block_shape(block, out);
+                }
+            }
+            Block::Shape(_) | Block::Group(_) => {
+                out.push("drawing".into());
+                for inner in block.drawing_blocks() {
+                    block_shape(inner, out);
                 }
             }
             Block::SectionBreak => out.push("section break".into()),

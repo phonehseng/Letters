@@ -38,6 +38,9 @@ pub struct Context<'a> {
     pub unsupported: Vec<Unsupported>,
     /// the style of the table whose cells are being prepared
     pub table_style: Option<crate::style::TableStyleProps>,
+    /// the page count a page count field in body text shows (found by a
+    /// first pass)
+    pub page_count_hint: Option<u32>,
 }
 
 /// a paragraph broken into lines, ready to place.
@@ -190,7 +193,63 @@ pub struct PreviousParagraph {
     pub contextual: bool,
 }
 
+/// what the next content to place is: a body block and, inside it, the
+/// line of a paragraph or the row of a table.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Cursor {
+    pub block: usize,
+    pub line: usize,
+    /// false while placing something a page start cannot resume from
+    /// (a table row split over pages, a paragraph laid out around a
+    /// float, endnotes)
+    pub resumable: bool,
+}
+
+/// how a page began: enough to start placing again from here, or to see
+/// that a new layout has caught up with an old one (incremental relayout).
+#[derive(Clone, Debug, PartialEq)]
+pub struct PageStart {
+    pub cursor: Cursor,
+    pub section: usize,
+    pub number: u32,
+    pub kind: PageKind,
+    pub first_of_section: bool,
+    pub after_hard_break: bool,
+    /// the page has one column, no notes carried from the page before and
+    /// the cursor is resumable
+    pub resumable: bool,
+}
+
+impl PageStart {
+    /// the same start apart from where it is in the document and its
+    /// page number (an edit earlier on shifts both).
+    pub fn same_state(&self, other: &PageStart) -> bool {
+        self.cursor.line == other.cursor.line
+            && self.section == other.section
+            && self.kind == other.kind
+            && self.first_of_section == other.first_of_section
+            && self.after_hard_break == other.after_hard_break
+            && self.resumable
+            && other.resumable
+    }
+}
+
+/// what an incremental relayout looks for while it places: an old page
+/// start that the new layout may meet again after the edited blocks.
+#[derive(Clone, Debug, Default)]
+pub struct ResyncTarget {
+    /// the old run's page starts
+    pub starts: Vec<PageStart>,
+    /// new block indices from here on are unchanged since the old run
+    pub unchanged_from: usize,
+    /// old block index = new block index - shift
+    pub shift: isize,
+    /// even and odd headers: page numbers may only shift by even amounts
+    pub parity_matters: bool,
+}
+
 /// one page while it is being filled.
+#[derive(Clone)]
 pub struct PageState {
     pub page: Page,
     pub section: usize,
@@ -211,6 +270,9 @@ pub struct PageState {
     /// columns of the region being filled: page x and width
     pub columns: Vec<(f64, f64)>,
     pub region_top: f64,
+    /// its notes and column rules are drawn: a page an incremental
+    /// relayout resumes after must not get them twice
+    pub finished: bool,
 }
 
 impl PageState {
@@ -257,6 +319,16 @@ pub struct Flow<'c, 'd> {
     /// a continuous section began: the space after the paragraph before it,
     /// still to be combined with the first paragraph's space before
     pub region_gap: Option<f64>,
+    /// the next content to place, and how every page began
+    pub cursor: Cursor,
+    pub starts: Vec<PageStart>,
+    /// set by an incremental relayout: old page starts to meet again
+    pub resync: Option<ResyncTarget>,
+    /// the old page index the new layout met again: placing stops, and
+    /// the old pages from there on are reused
+    pub stopped: Option<usize>,
+    /// a page or column break character is opening the next page
+    opening_hard_break: bool,
 }
 
 impl<'c, 'd> Flow<'c, 'd> {
@@ -274,6 +346,14 @@ impl<'c, 'd> Flow<'c, 'd> {
             notes: crate::footnotes::NoteCache::default(),
             after_hard_break: false,
             region_gap: None,
+            cursor: Cursor {
+                resumable: true,
+                ..Cursor::default()
+            },
+            starts: Vec::new(),
+            resync: None,
+            stopped: None,
+            opening_hard_break: false,
         }
     }
 
@@ -345,12 +425,65 @@ impl<'c, 'd> Flow<'c, 'd> {
             floats: Vec::new(),
             columns,
             region_top: body_top,
+            finished: false,
         });
         self.column = 0;
         self.y = body_top;
         self.column_empty = true;
         self.previous = None;
+        let carried = !self.carried_notes.is_empty();
         self.place_carried_notes();
+        self.record_start(section_index, number, kind, first_of_section, carried);
+        self.settle_start();
+    }
+
+    /// notes how the page just opened began, and whether an incremental
+    /// relayout has caught up with its old layout here.
+    fn record_start(
+        &mut self,
+        section: usize,
+        number: u32,
+        kind: PageKind,
+        first_of_section: bool,
+        carried_notes: bool,
+    ) {
+        let single_column = self.page_ref().columns.len() == 1;
+        let start = PageStart {
+            cursor: self.cursor,
+            section,
+            number,
+            kind,
+            first_of_section,
+            after_hard_break: self.opening_hard_break,
+            resumable: self.cursor.resumable
+                && single_column
+                && !carried_notes
+                && self.region_gap.is_none(),
+        };
+        self.starts.push(start);
+    }
+
+    /// checks whether an incremental relayout has met its old layout
+    /// again at the page just opened.
+    fn settle_start(&mut self) {
+        let Some(start) = self.starts.last().cloned() else {
+            return;
+        };
+        let Some(target) = &self.resync else {
+            return;
+        };
+        if self.stopped.is_some() || start.cursor.block < target.unchanged_from {
+            return;
+        }
+        let old_block = start.cursor.block as isize - target.shift;
+        let found = target.starts.iter().position(|old| {
+            old.cursor.block as isize == old_block
+                && start.same_state(old)
+                && (!target.parity_matters || (start.number % 2 == old.number % 2))
+        });
+        if let Some(index) = found {
+            self.stopped = Some(index);
+        }
     }
 
     /// the height of a section's header (or footer) for a kind of page,
@@ -454,21 +587,54 @@ impl<'c, 'd> Flow<'c, 'd> {
     /// by widow/orphan control and keep-lines-together. `need_after` is the
     /// room the following content needs on the same page (keep with next).
     pub fn place_paragraph(&mut self, paragraph: &PreparedParagraph, need_after: f64) {
-        if paragraph.style.page_break_before && !self.page_is_empty() {
-            self.new_page(false);
-        }
-        if let Some(after) = self.region_gap.take() {
-            let gap = spacing_between(after, paragraph.style.space_before);
-            self.y += gap;
-            self.page().region_top = self.y;
+        self.place_paragraph_from(paragraph, need_after, 0);
+    }
+
+    /// places a paragraph's lines from `first_line` on (an incremental
+    /// relayout resumes at the line a page started with).
+    pub fn place_paragraph_from(
+        &mut self,
+        paragraph: &PreparedParagraph,
+        need_after: f64,
+        first_line: usize,
+    ) {
+        self.cursor.line = first_line;
+        if first_line == 0 {
+            if paragraph.style.page_break_before && !self.page_is_empty() {
+                self.new_page(false);
+                if self.stopped.is_some() {
+                    return;
+                }
+            }
+            if let Some(after) = self.region_gap.take() {
+                let gap = spacing_between(after, paragraph.style.space_before);
+                self.y += gap;
+                self.page().region_top = self.y;
+            }
         }
         let first_before = self.space_before(&paragraph.style);
-        self.place_anchored_objects(paragraph, self.y + first_before);
-        let paragraph = self.with_wrapping(paragraph, first_before);
-        let paragraph = &*paragraph;
+        if first_line == 0 {
+            self.place_anchored_objects(paragraph, self.y + first_before);
+        }
+        let wrapped = self.with_wrapping(paragraph, first_before);
+        // a paragraph laid out around a float keeps its own line breaks
+        // across the page: a page starting inside it cannot be resumed
+        // so does one whose floating objects were placed on the page where
+        // it began, before its lines moved on
+        let resumable = self.cursor.resumable;
+        let anchors = paragraph
+            .text
+            .clusters
+            .iter()
+            .any(|c| matches!(c.kind, ClusterKind::Anchor(_)));
+        if matches!(wrapped, std::borrow::Cow::Owned(_)) || anchors {
+            self.cursor.resumable = false;
+        }
+        let paragraph = &*wrapped;
         let count = paragraph.layout.lines.len();
-        let mut index = 0;
+        let mut index = first_line.min(count);
         while index < count {
+            self.cursor.line = index;
             let before = if index == 0 {
                 self.space_before(&paragraph.style)
             } else {
@@ -478,6 +644,9 @@ impl<'c, 'd> Flow<'c, 'd> {
             let wanted = self.lines_to_place(paragraph, index, fitting, before, need_after);
             if wanted == 0 {
                 self.next_column();
+                if self.stopped.is_some() {
+                    return;
+                }
                 continue;
             }
             if index == 0 {
@@ -492,9 +661,15 @@ impl<'c, 'd> Flow<'c, 'd> {
             }
             index += placed;
             if index < count {
+                self.cursor.line = index;
                 self.next_column();
+                if self.stopped.is_some() {
+                    return;
+                }
             }
         }
+        self.cursor.resumable = resumable;
+        self.cursor.line = 0;
         self.y = self.y.max(self.page_ref().region_top);
         self.previous = Some(PreviousParagraph {
             style_id: paragraph.style.style_id.clone(),
@@ -508,16 +683,20 @@ impl<'c, 'd> Flow<'c, 'd> {
             .last()
             .and_then(|line| line.forced_break)
         {
+            // the page after the break starts with the next block
+            self.cursor.block += 1;
             self.hard_break(kind);
         }
     }
 
     /// a page or column break character at the end of the paragraph.
     pub fn hard_break(&mut self, kind: ClusterKind) {
+        self.opening_hard_break = true;
         match kind {
             ClusterKind::ColumnBreak => self.next_column(),
             _ => self.new_page(false),
         }
+        self.opening_hard_break = false;
         self.after_hard_break = true;
     }
 
@@ -684,18 +863,30 @@ impl<'c, 'd> Flow<'c, 'd> {
     /// puts the section's header and footer on every finished page, and
     /// its footnotes. called once at the end.
     pub fn finish(mut self) -> Vec<Page> {
+        let states = self.finish_body();
+        self.draw_all_parts(states)
+    }
+
+    /// the body pages, footnotes drawn, before headers and footers (which
+    /// depend on the page count): what an incremental relayout keeps.
+    pub fn finish_body(&mut self) -> Vec<PageState> {
+        self.cursor.resumable = false;
         self.finish_page();
         while !self.carried_notes.is_empty() {
             // notes that never found room get pages of their own
             self.new_page(false);
             self.finish_page();
         }
-        let total = self.pages.len() as u32;
-        let mut pages = std::mem::take(&mut self.pages);
-        for state in &mut pages {
+        std::mem::take(&mut self.pages)
+    }
+
+    /// headers and footers drawn on finished body pages.
+    pub fn draw_all_parts(&mut self, mut states: Vec<PageState>) -> Vec<Page> {
+        let total = states.len() as u32;
+        for state in &mut states {
             self.draw_parts(state, total);
         }
-        pages.into_iter().map(|state| state.page).collect()
+        states.into_iter().map(|state| state.page).collect()
     }
 
     /// draws footnotes and the column separator of the page being left.
@@ -703,9 +894,12 @@ impl<'c, 'd> Flow<'c, 'd> {
         let Some(mut state) = self.pages.pop() else {
             return;
         };
-        crate::footnotes::draw_notes(self, &mut state);
-        if state.geometry.column_separator && state.columns.len() > 1 {
-            draw_column_separators(&mut state);
+        if !state.finished {
+            crate::footnotes::draw_notes(self, &mut state);
+            if state.geometry.column_separator && state.columns.len() > 1 {
+                draw_column_separators(&mut state);
+            }
+            state.finished = true;
         }
         self.pages.push(state);
     }
@@ -729,11 +923,7 @@ impl<'c, 'd> Flow<'c, 'd> {
             } else {
                 Story::Header { id }
             };
-            let height = self
-                .part_heights
-                .get(&(state.section, state.kind, footer))
-                .copied()
-                .unwrap_or(0.0);
+            let height = self.part_height(state.section, state.kind, footer, &geometry);
             let top = if footer {
                 geometry.height - geometry.footer_distance - height
             } else {

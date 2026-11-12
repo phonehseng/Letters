@@ -33,6 +33,12 @@ works on the model as JSON; this crate never draws anything.
 | `numbering::list_labels(&doc)`, `numbering::ListCounter` | the label each list paragraph shows ("2.", "b)", "iv.") |
 | `styles::{resolved_paragraph_props, resolved_run_props, heading_level}` | style inheritance resolved |
 | `export::{to_plain_text, to_html}`, `import::{from_plain_text, from_html}` | conversion and paste |
+| `freeform::canvas_page_from_objects(PageSetup, Vec<CanvasObject>) -> CanvasPage`, `freeform::append_canvas_page` | a page of positioned objects with no text flow |
+| `freeform::table_to_text_boxes(&mut doc, block, Option<&TableGeometry>)`, `freeform::text_boxes_to_table(&mut doc, &[usize])` | a table pulled apart into text boxes at the cells' places, and snapped back |
+| `freeform::columns_to_linked_boxes(&mut doc, section)`, `freeform::linked_boxes_to_columns(&mut doc, chain)` | a section's columns as a chain of linked text boxes, and back |
+| `tidy::tidy(&doc, &TidyOptions) -> (Document, TidyReport)` | a cleaner copy that looks the same |
+| `compat::word_compatibility`, `compat::libreoffice_compatibility`, `compat::feature_matrix` | what each application would change, before saving |
+| `shapes::{odf_type, preset_for_odf_type, nearest_odf_type}` | preset shape names between drawingml and opendocument |
 
 Every error is an `OfficeError` whose message is written for the person
 using the app. No input makes the crate panic (see the tests).
@@ -45,8 +51,8 @@ using the app. No input makes the crate panic (see the tests).
 
 - **Blocks** (`{"type": ...}`): `paragraph`, `heading` (level 1-6, the
   paragraph's fields flattened in), `table`, `pageBreak`, `sectionBreak`,
-  `preserved`. There is one more `Section` than `sectionBreak` blocks;
-  section *i* ends at the *i*-th break.
+  `textBox`, `shape`, `group`, `preserved`. There is one more `Section`
+  than `sectionBreak` blocks; section *i* ends at the *i*-th break.
 - **Paragraph**: `styleId`, `props` (alignment; indent left/right/first
   line/hanging; spacing before/after/line with auto/exact/at-least;
   keep with next; keep lines together; page break before; list id + level;
@@ -64,6 +70,11 @@ using the app. No input makes the crate panic (see the tests).
   (height, header, can't split); cells (column span, row span, width,
   borders, shading, vertical alignment, nested blocks). Covered cells are
   left out, as in HTML; `tables::grid` puts them back for the writers.
+  Freeform tables add `position` (floating: `horizontal`, `vertical`,
+  `distance`, `overlap`, `anchor`), `fixedLayout`, `cellMargins` and
+  `indent` on the table, `heightRule` (`atLeast` or `exact`) on rows, and
+  `margins` and `textDirection` (`horizontal`, `upward`, `downward`) on
+  cells.
 - **Images**: media id, size, alt text, name, inline or floating (position
   relative to page/margin/column/paragraph, offset or alignment, wrap:
   square, tight, through, top and bottom, behind, in front). Bytes live
@@ -77,6 +88,11 @@ using the app. No input makes the crate panic (see the tests).
 - **Sections**: page size, orientation, margins (header and footer
   distance, gutter), columns, how the section starts, headers and footers
   for default/first/even pages, different first page, page number start.
+  `columnWidths` (`[{width, space}]`) gives unequal columns their own
+  widths and gaps; `canvas` marks a page of positioned objects only.
+- **Drawings** (see below): `shape`, `group` and `textBox` blocks, each
+  with an optional `anchor` (which paragraph holds it) and `original` (the
+  xml it was read from, written back unchanged while the object is).
 
 ## Round-trip safety
 
@@ -107,6 +123,11 @@ anything the model does not understand.
   they cannot clash. `settings.xml`, thumbnails, `Configurations2` and
   other parts are copied byte for byte and listed in the manifest again.
   `mimetype` is the first entry, stored, with no extra field.
+- **Drawings** (shapes, groups, text boxes) remember the XML they were
+  read from and a fingerprint of their model. While the fingerprint still
+  matches, the writer puts that XML back byte for byte, so a file opened
+  and saved, or one where another object was edited, keeps every
+  untouched drawing exactly. Changing an object rewrites only that object.
 - Converting between formats keeps the model's content; preserved XML from
   the other format cannot be carried over, so only its text is kept.
 
@@ -128,9 +149,14 @@ anything the model does not understand.
 | Headers and footers, first page, even pages | modelled | modelled through master pages |
 | Sections: size, orientation, margins, columns, start | modelled (line numbering, page borders, doc grid preserved) | modelled (master page per section) |
 | Pictures, inline and floating | modelled, original XML reused while unchanged | modelled, original frame reused while unchanged |
-| Text boxes: position (page, margin, column or paragraph), size or grow-to-fit, wrap, stacking order, rotation, inner margins, line, fill, any content | modelled; written as a shape for Word 2010+ with a VML copy for older Word | modelled as a frame with a text box (rotation not kept) |
-| Floating picture geometry: exact EMU size and offsets, stacking order, rotation, crop, aspect lock, alt text | modelled | position, size, wrap, order and alt text modelled; rotation and crop not kept |
-| Shapes, charts, SmartArt, equations, content controls, fields not listed | preserved | preserved |
+| Text boxes: position (page, margin, column or paragraph), size or grow-to-fit, wrap, stacking order, rotation, inner margins, vertical alignment, line, fill, any content | modelled; written as a shape for Word 2010+ with a VML copy for older Word | modelled as a frame with a text box; rotation is written as a `draw:transform` but strict Word mode still counts it as Word-only until that is checked in the applications |
+| Linked text boxes (text flowing from one box to the next) | modelled (`wps:txbx` id and `wps:linkedTxbx` sequence; VML `o:spid` chains read) | modelled (`draw:chain-next-name`) |
+| Floating picture geometry: exact EMU size and offsets, stacking order, rotation, crop, aspect lock, alt text | modelled | position, size, wrap, order and alt text modelled; crop not kept |
+| Shapes: preset outlines with their handles, free paths (lines, curves, arcs), fill (none, solid, gradient, picture), line (colour, width, dash, caps, joins, arrowheads), transparency, rotation, flips, text inside, name and alt text | modelled (`wps:wsp` with a VML copy; VML-only shapes read); shadows, glow and 3-D kept as preserved XML | modelled (`draw:custom-shape` with enhanced geometry, `draw:rect`, `draw:ellipse`, `draw:line`, `draw:path`, `draw:polygon`); graphic style properties not modelled are kept |
+| Groups (nested, with child coordinates), connectors as lines with their ends | modelled (`wpg:wgp`) | modelled (`draw:g`; connector glue points kept only by name) |
+| Floating tables, exact row heights, cell margins and text direction, fixed layout, table indent | modelled (`w:tblpPr`, `w:trHeight w:hRule`, `w:tcMar`, `w:textDirection`) | modelled (a floating table is written in a frame) |
+| Columns of unequal width, column breaks, continuous section breaks | modelled | modelled (`style:column` relative widths, `fo:break-before="column"`, `text:section`) |
+| Charts, SmartArt, OLE objects, equations, content controls, fields not listed | preserved | preserved |
 | Fields: page number, page count, date, table of contents | modelled | page number, count, date modelled; table of contents preserved as a block |
 | Metadata | title, subject, author, keywords, description, dates, language modelled; other core properties preserved | same; other meta elements preserved |
 | Unknown package parts | byte for byte | byte for byte |
@@ -146,10 +172,17 @@ Known losses (by design, for now):
 - Covered cells of a vertical merge lose any content they had (word shows
   none either). A `gridBefore` row offset is kept but not used when
   placing merged cells.
-- Odt: `text:section` wrappers are dropped (their content is kept);
-  a page break inside a line becomes a line break; continuous section
-  changes are not modelled; tracked deletions spanning paragraphs are
-  joined with line breaks; date field formats are lost.
+- Odt: `text:section` wrappers without columns are dropped (their content
+  is kept); a page break inside a line becomes a line break; tracked
+  deletions spanning paragraphs are joined with line breaks; date field
+  formats are lost.
+- Word's kerning, ligatures and character spacing (`w:kern`,
+  `w14:ligatures`, `w:spacing` on runs) are kept in docx but have no
+  opendocument equivalent here, so a docx taken through odt can shift its
+  lines by a couple of points.
+- A floating table taken through odt lands in a frame, which Word and
+  LibreOffice place differently from `w:tblpPr`; Word's own conversion
+  does no better (see `ROUNDTRIP_REPORT.md`).
 - Odt: a comment range inside a header, footer or note shrinks to its
   first piece of text (ranges are tracked for the main text only).
 
@@ -172,6 +205,53 @@ Known losses (by design, for now):
   address. `clipboard::copy_blocks` gives HTML, plain text and, for a lone
   picture, its bytes.
 
+## Freeform objects and canvas pages
+
+The goal is that a file can go between Word, LibreOffice and Letters, and
+between docx and odt, and still look the same. So drawings are part of the
+model rather than opaque XML:
+
+- A **shape** (`{"type": "shape"}`) has a position and size like a text
+  box (twips, with `widthEmu`/`heightEmu` for exactness), `geometry`
+  (`{"type": "preset", "name": "roundRect", "adjust": [...]}` or
+  `{"type": "path", "paths": [{width, height, fill, stroke, commands}]}`
+  where a command is `{"op": "move"|"line"|"cubic"|"quadratic"|"close"}`),
+  `fill` (`none`, `solid`, `gradient` with stops, `picture`), `stroke`,
+  optional `text` (blocks, margins, alignment, colour), `connector`,
+  `rotation`, flips, `zOrder`, `wrap`, `name`, `title` and `description`.
+- A **group** holds `children` (shapes, text boxes, pictures, groups) in
+  its own coordinate space (`childOffsetX/Y`, `childWidth/Height`).
+- Every drawing has an `anchor`: whether it sits in its own paragraph, the
+  previous or the next one, or on the page, the paragraph itself when it
+  is its own, and where in the line it was. Readers and writers use it to
+  put the object back exactly where it was in the text.
+- Charts, SmartArt, OLE objects and equations stay opaque (preserved).
+
+A **canvas page** is a section with `canvas: true` holding positioned
+objects only, the way a poster or a PDF page converted to an editable
+document is built. `canvas_page_from_objects` makes one from a page size
+and objects given back to front; their stacking numbers start at
+`CANVAS_FIRST_Z` (1) and go up by one, per page. The drawings are anchored
+to one tiny paragraph (no spacing, a one-point exact line) that also holds
+the floating pictures, so the page never grows a second page. Readers mark
+such sections as canvas pages again (`mark_canvas_sections`). The exact
+PDF converter's frames, per-run spacing and embedded fonts fit this model
+without loss; its docx survives an untouched save in Word unchanged.
+
+`table_to_text_boxes` pulls a table apart into one text box per cell at
+the cell's place (each box remembers its cell, row and table), and
+`text_boxes_to_table` puts them back as the same table. A table in the
+flow needs `TableGeometry` (its corner and row heights from a layout).
+`columns_to_linked_boxes` turns a section's columns into a chain of
+linked text boxes, and `linked_boxes_to_columns` turns a chain back.
+
+`tidy::tidy` makes a cleaner copy that looks the same: neighbouring runs
+with equal formatting merged, formatting and paragraph properties that
+repeat the style dropped, emu values the twips already say dropped,
+unused styles, lists and pictures removed, and, when asked, a stack of
+one-line text boxes made into one box. Drawings that still carry their
+original XML are left alone. The report counts each change.
+
 ## Strict Word mode
 
 `compat::word_compatibility(&doc)` lists everything Word would not keep
@@ -182,7 +262,13 @@ differently), each with a plain sentence and, where possible, a fix that
 `compat::apply_fixes` applies. `compat::feature_matrix()` says for every
 editor feature whether it is exact in both formats, Word-exact, ODT-exact
 or approximate; strict Word mode offers only the Word-exact ones, so the
-report stays empty.
+report stays empty. `compat::libreoffice_compatibility(&doc)` is the same
+for LibreOffice. Both also list what an application changes in drawings
+and layout: preset shapes with no opendocument name, gradients with more
+than two stops or with transparency, arrowhead sizes, dash patterns,
+connector glue, turned or flipped groups, text boxes inside groups,
+floating tables, self-sizing tables, unequal columns, continuous sections
+that change the page size, and Word's character shaping.
 
 **Letters has no page layout of its own**, so by itself it can't promise
 Word's line and page breaks. `bridge::word_layout(docx, cache)` asks Word
@@ -258,6 +344,24 @@ LibreOffice: it converts our ODT to PDF and text, reads an ODT that
 LibreOffice wrote from our DOCX, round-trips text boxes and floating
 pictures through it, and uses it to print and to convert `.doc` files.
 
+`tests/freeform.rs` checks every freeform object through docx, odt and
+docx to odt to docx, that a second save is byte identical, that editing
+one drawing leaves every other drawing's bytes alone, canvas pages,
+unequal columns and column sections. `tests/freeform_apps.rs` (ignored)
+uses Word and LibreOffice together: it makes a corpus in each application
+(`tests/tools/word_corpus.ps1`, `tests/support/lo_corpus.rs`), renders
+each file and our save of it to PDF in the same application and compares
+every glyph and object box ("nothing moves"), runs the back-and-forth
+matrix against the applications' own conversions, round-trips the exact
+converter's docx, and checks that `tidy` never changes a rendering. Word
+runs as one private instance for a whole batch (`bridge::word_batch`),
+LibreOffice converts many files per start. Results are written to
+`%TEMP%\letters-freeform\results` and summarised in `ROUNDTRIP_REPORT.md`.
+
+```
+cargo test -p letters-office --test freeform_apps -- --ignored --nocapture --test-threads 1
+```
+
 ## Libraries
 
 | Library | Used for | License |
@@ -266,6 +370,7 @@ pictures through it, and uses it to print and to convert `.doc` files.
 | [flate2](https://crates.io/crates/flate2), [zlib-rs](https://crates.io/crates/zlib-rs), crc32fast | deflate, in pure Rust | MIT or Apache-2.0; Zlib |
 | [serde](https://serde.rs) | the model as JSON | MIT or Apache-2.0 |
 | [thiserror](https://crates.io/crates/thiserror) | error messages | MIT or Apache-2.0 |
+| letters-exact (tests only) | reading the PDFs the applications render, for the comparisons | the repository's own crate |
 
 XML is read and written by the crate's own small reader (`src/xml`),
 because preservation needs each element's exact source text. Nothing here

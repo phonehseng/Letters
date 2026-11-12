@@ -8,7 +8,8 @@
 use std::collections::HashMap;
 
 use crate::model::{
-    Attribute, Border, CellBorders, Preserved, Table, TableCell, TableRow, VerticalAlign,
+    Attribute, Border, CellBorders, CellMargins, Distances, FloatPosition, HeightRule, Preserved,
+    Table, TableCell, TablePosition, TableRow, TextDirection, VerticalAlign,
 };
 use crate::xml::Element;
 
@@ -135,12 +136,113 @@ fn read_table_props(tblpr: &Element, story: &mut Story, table: &mut Table) {
                 }
                 None => false,
             },
+            "w:tblpPr" => match read_table_position(child) {
+                Some(position) => {
+                    table.position = Some(position);
+                    true
+                }
+                None => false,
+            },
+            "w:tblLayout" if only_attributes(child, &["w:type"]) => {
+                table.fixed_layout = match child.attr("w:type") {
+                    Some("fixed") => Some(true),
+                    Some("autofit") => Some(false),
+                    _ => None,
+                };
+                table.fixed_layout.is_some()
+            }
+            "w:tblCellMar" => match read_cell_margins(child) {
+                Some(margins) => {
+                    table.cell_margins = Some(margins);
+                    true
+                }
+                None => false,
+            },
+            "w:tblInd" if child.attr("w:type") == Some("dxa") => {
+                table.indent = twips(child, "w:w");
+                table.indent.is_some()
+            }
             _ => false,
         };
         if !understood {
             table.preserved.children.push(story.keep(child));
         }
     }
+    // the overlap rule belongs to the position, so it is read after it
+    let overlap = table
+        .preserved
+        .children
+        .iter()
+        .position(|xml| xml.starts_with("<w:tblOverlap"));
+    if let (Some(at), Some(position)) = (overlap, table.position.as_mut()) {
+        position.overlap = !table.preserved.children[at].contains("never");
+        table.preserved.children.remove(at);
+    }
+}
+
+/// `w:tblpPr`: where a floating table sits. word measures horizontally
+/// from the page, the margin or the column ("text") and vertically from
+/// the page, the margin or the paragraph ("text").
+fn read_table_position(element: &Element) -> Option<TablePosition> {
+    const KNOWN: &[&str] = &[
+        "w:leftFromText",
+        "w:rightFromText",
+        "w:topFromText",
+        "w:bottomFromText",
+        "w:vertAnchor",
+        "w:horzAnchor",
+        "w:tblpX",
+        "w:tblpY",
+        "w:tblpXSpec",
+        "w:tblpYSpec",
+    ];
+    if !only_attributes(element, KNOWN) {
+        return None;
+    }
+    let anchor = |name: &str, vertical: bool| match element.attr(name) {
+        Some("page") => "page",
+        Some("margin") => "margin",
+        _ if vertical => "paragraph",
+        _ => "column",
+    };
+    let position = |relative_to: &str, offset: &str, spec: &str| FloatPosition {
+        relative_to: relative_to.to_string(),
+        offset: twips(element, offset).unwrap_or(0),
+        align: element.attr(spec).map(str::to_string),
+        offset_emu: None,
+    };
+    let distance = |name: &str| twips(element, name).unwrap_or(0);
+    Some(TablePosition {
+        horizontal: position(anchor("w:horzAnchor", false), "w:tblpX", "w:tblpXSpec"),
+        vertical: position(anchor("w:vertAnchor", true), "w:tblpY", "w:tblpYSpec"),
+        distance: Distances {
+            left: distance("w:leftFromText"),
+            top: distance("w:topFromText"),
+            right: distance("w:rightFromText"),
+            bottom: distance("w:bottomFromText"),
+        },
+        overlap: true,
+        anchor: None,
+    })
+}
+
+/// `w:tblCellMar` or `w:tcMar`, when every side is a plain length.
+fn read_cell_margins(element: &Element) -> Option<CellMargins> {
+    let mut margins = CellMargins::default();
+    for side in element.elements() {
+        if side.attr("w:type") != Some("dxa") || !only_attributes(side, &["w:w", "w:type"]) {
+            return None;
+        }
+        let value = twips(side, "w:w");
+        match side.name.as_str() {
+            "w:top" => margins.top = value,
+            "w:bottom" => margins.bottom = value,
+            "w:left" | "w:start" => margins.left = value,
+            "w:right" | "w:end" => margins.right = value,
+            _ => return None,
+        }
+    }
+    Some(margins)
 }
 
 /// returns how many grid columns the row skips before its first cell.
@@ -149,13 +251,14 @@ fn read_row_props(trpr: &Element, story: &mut Story, row: &mut TableRow) -> usiz
     for child in trpr.elements() {
         let understood = match child.name.as_str() {
             "w:trHeight" if only_attributes(child, &["w:val", "w:hRule"]) => {
-                // an exact height is kept as xml so its rule is not lost
-                if child.attr("w:hRule") == Some("exact") {
-                    false
-                } else {
-                    row.height = twips(child, "w:val");
-                    row.height.is_some()
-                }
+                row.height = twips(child, "w:val");
+                row.height_rule = match child.attr("w:hRule") {
+                    Some("exact") => Some(HeightRule::Exact),
+                    Some("atLeast") => Some(HeightRule::AtLeast),
+                    _ => None,
+                };
+                // "auto" ignores the height, which the model cannot say
+                row.height.is_some() && child.attr("w:hRule") != Some("auto")
             }
             "w:tblHeader" => {
                 row.header = on_off(child);
@@ -215,6 +318,22 @@ fn read_cell_props(tcpr: &Element, story: &mut Story, cell: &mut TableCell) -> M
                 }
                 _ => false,
             },
+            "w:tcMar" => match read_cell_margins(child) {
+                Some(margins) => {
+                    cell.margins = Some(margins);
+                    true
+                }
+                None => false,
+            },
+            "w:textDirection" => {
+                cell.text_direction = match child.attr("w:val") {
+                    Some("lrTb") => Some(TextDirection::Horizontal),
+                    Some("btLr") => Some(TextDirection::Upward),
+                    Some("tbRl") => Some(TextDirection::Downward),
+                    _ => None,
+                };
+                cell.text_direction.is_some()
+            }
             "w:vAlign" => {
                 cell.vertical_align = match child.attr("w:val") {
                     Some("top") => Some(VerticalAlign::Top),

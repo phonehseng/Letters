@@ -67,6 +67,12 @@ pub struct LoadedFace {
     pub metrics: FaceMetrics,
     pub has_glyf_outlines: bool,
     pub glyph_count: u16,
+    /// the variation instance laid out (a variable font at another weight)
+    pub variations: Vec<([u8; 4], f32)>,
+    /// the instance is bolder than the outlines the file draws by default:
+    /// the pdf strokes its glyphs, as for a made-up bold (the advances are
+    /// the instance's own, so lines break as with the real bold)
+    pub stroke_for_weight: bool,
     /// glyph id and advance (font units) for each character below TABLE_SIZE;
     /// glyph 0 means the face cannot draw it
     table: Vec<(u16, u16)>,
@@ -75,7 +81,32 @@ pub struct LoadedFace {
 impl LoadedFace {
     /// parses a face; `None` when the bytes are not a usable font.
     pub fn load(bytes: Arc<Vec<u8>>, index: u32, origin: FontOrigin) -> Option<LoadedFace> {
-        let face = ttf_parser::Face::parse(&bytes, index).ok()?;
+        LoadedFace::load_with(bytes, index, origin, Vec::new())
+    }
+
+    /// a variable font at one weight: advances (hvar) of that instance.
+    pub fn load_instance(
+        bytes: Arc<Vec<u8>>,
+        index: u32,
+        origin: FontOrigin,
+        weight: f32,
+    ) -> Option<LoadedFace> {
+        let mut face = LoadedFace::load_with(bytes, index, origin, vec![(*b"wght", weight)])?;
+        face.bold = weight >= 600.0;
+        face.stroke_for_weight = weight >= 600.0;
+        Some(face)
+    }
+
+    fn load_with(
+        bytes: Arc<Vec<u8>>,
+        index: u32,
+        origin: FontOrigin,
+        variations: Vec<([u8; 4], f32)>,
+    ) -> Option<LoadedFace> {
+        let mut face = ttf_parser::Face::parse(&bytes, index).ok()?;
+        for (tag, value) in &variations {
+            face.set_variation(ttf_parser::Tag::from_bytes(tag), *value);
+        }
         let metrics = read_metrics(&face);
         let mut table = vec![(0u16, 0u16); TABLE_SIZE];
         for (code, slot) in table.iter_mut().enumerate() {
@@ -101,13 +132,20 @@ impl LoadedFace {
             metrics,
             has_glyf_outlines,
             glyph_count,
+            variations,
+            stroke_for_weight: false,
             table,
         })
     }
 
-    /// a ttf-parser view of the face, for the rarer questions.
+    /// a ttf-parser view of the face (at its instance), for the rarer
+    /// questions.
     pub fn parse(&self) -> Option<ttf_parser::Face<'_>> {
-        ttf_parser::Face::parse(&self.bytes, self.index).ok()
+        let mut face = ttf_parser::Face::parse(&self.bytes, self.index).ok()?;
+        for (tag, value) in &self.variations {
+            face.set_variation(ttf_parser::Tag::from_bytes(tag), *value);
+        }
+        Some(face)
     }
 
     /// glyph id and advance in font units, or `None` when the face has no

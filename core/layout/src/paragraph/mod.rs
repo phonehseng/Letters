@@ -64,6 +64,10 @@ pub struct LineSpace {
     pub left: f64,
     pub width: f64,
     pub move_down: f64,
+    /// a second piece of the same line (left, width) right of a float
+    /// that stands inside the column: text fills `left..left + width`
+    /// first, then goes on here at the same height
+    pub second: Option<(f64, f64)>,
 }
 
 /// lays a paragraph out in a column of `width` points.
@@ -77,6 +81,7 @@ pub fn layout_paragraph(
         left: 0.0,
         width,
         move_down: 0.0,
+        second: None,
     })
 }
 
@@ -98,8 +103,25 @@ pub fn layout_paragraph_in(
     let mut start = 0;
     let mut top = 0.0;
     loop {
+        let mut room = space(layout.lines.len(), top);
+        if let Some(second) = room.second.take() {
+            // the piece left of the float, when its first word fits there;
+            // it takes no height: the piece right of it carries the line
+            if first_word_fits(text, style, start, room, layout.lines.is_empty()) {
+                let mut piece = place_piece(text, style, &mut layout, start, room, flavor);
+                piece.vertical.height = 0.0;
+                piece.vertical.fit_height = 0.0;
+                piece.vertical.baseline += room.move_down;
+                start = piece.end;
+                layout.lines.push(piece);
+                if start >= count {
+                    break;
+                }
+            }
+            room.left = second.0;
+            room.width = second.1;
+        }
         let first = layout.lines.is_empty();
-        let room = space(layout.lines.len(), top);
         let indent_left = style.left + if first { style.first_line } else { 0.0 };
         let line_left = room.left + indent_left;
         let line_right = room.left + room.width - style.right;
@@ -127,6 +149,47 @@ pub fn layout_paragraph_in(
         }
     }
     layout
+}
+
+/// one line of a paragraph in `room`, from `start`.
+fn place_piece(
+    text: &ParagraphText,
+    style: &ParaStyle,
+    layout: &mut ParagraphLayout,
+    start: usize,
+    room: LineSpace,
+    flavor: Flavor,
+) -> LineLayout {
+    let first = layout.lines.is_empty();
+    let indent_left = style.left + if first { style.first_line } else { 0.0 };
+    let line_left = room.left + indent_left;
+    let line_right = room.left + room.width - style.right;
+    let end = find_line_end(text, style, start, line_left, line_right, first, flavor);
+    place_line(
+        text, style, layout, start, end, line_left, line_right, first, flavor,
+    )
+}
+
+/// whether the word starting at `start` fits whole in `room`: a piece of
+/// a line beside a float is used only then, never for half a word.
+fn first_word_fits(
+    text: &ParagraphText,
+    style: &ParaStyle,
+    start: usize,
+    room: LineSpace,
+    first: bool,
+) -> bool {
+    let indent = style.left + style.right + if first { style.first_line } else { 0.0 };
+    let mut width = 0.0;
+    for (index, cluster) in text.clusters.iter().enumerate().skip(start) {
+        if index > start && cluster.break_before != Break::None {
+            break;
+        }
+        if cluster.kind != ClusterKind::Space {
+            width += cluster.width;
+        }
+    }
+    width + indent <= room.width + FIT_TOLERANCE
 }
 
 /// where the line starting at `start` ends: the furthest break

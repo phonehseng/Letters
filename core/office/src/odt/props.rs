@@ -28,6 +28,9 @@ pub struct OdtStyle {
     pub paragraph: ParagraphProps,
     pub run: RunProps,
     pub break_after_page: bool,
+    /// `fo:break-before="column"`: the paragraph starts a new column,
+    /// which word writes as a column break at the paragraph's start
+    pub break_before_column: bool,
     pub cell_borders: Option<CellBorders>,
     pub background: Option<String>,
     pub vertical_align: Option<VerticalAlign>,
@@ -39,6 +42,13 @@ pub struct OdtStyle {
     /// what a frame's position is measured from ("page", "paragraph"...)
     pub horizontal_rel: Option<String>,
     pub vertical_rel: Option<String>,
+    /// every attribute of `style:graphic-properties`, for drawings,
+    /// which read them through the style's parents (see
+    /// `graphic_properties` in the reader)
+    pub graphic: Vec<(String, String)>,
+    /// layout-table properties (rows, cell padding, text direction); see
+    /// `table_props`
+    pub table_layout: super::table_props::TableLayout,
 }
 
 /// reads a `style:style` (or `style:default-style`). `fonts` maps font
@@ -69,10 +79,20 @@ pub fn read_style(
         match child.name.as_str() {
             "style:paragraph-properties" => read_paragraph_properties(child, xml, &mut style),
             "style:text-properties" => read_text_properties(child, fonts, &mut style.run),
-            "style:table-cell-properties" => read_cell_properties(child, &mut style),
+            "style:table-cell-properties" => {
+                read_cell_properties(child, &mut style);
+                super::table_props::read_cell(child, &mut style.table_layout);
+            }
+            "style:table-row-properties" => {
+                super::table_props::read_row(child, &mut style.table_layout)
+            }
             "style:table-properties" => {
                 style.width = child.attr("style:width").and_then(parse_length);
                 style.alignment = child.attr("table:align").and_then(odt_alignment);
+                super::table_props::read_table(child, &mut style.table_layout);
+            }
+            "style:section-properties" => {
+                super::table_props::read_section(child, &mut style.table_layout)
             }
             "style:table-column-properties" => {
                 style.width = child.attr("style:column-width").and_then(parse_length);
@@ -89,6 +109,7 @@ pub fn read_style(
                 style.box_margins = padding(child);
                 style.horizontal_rel = child.attr("style:horizontal-rel").map(str::to_string);
                 style.vertical_rel = child.attr("style:vertical-rel").map(str::to_string);
+                style.graphic = child.attributes.clone();
             }
             _ => {}
         }
@@ -149,6 +170,7 @@ fn read_paragraph_properties(element: &Element, xml: &XmlDocument, style: &mut O
     props.keep_lines_together = element.attr("fo:keep-together").map(|v| v == "always");
     props.page_break_before = element.attr("fo:break-before").map(|v| v == "page");
     style.break_after_page = element.attr("fo:break-after") == Some("page");
+    style.break_before_column = element.attr("fo:break-before") == Some("column");
     for child in element.elements() {
         if child.name == "style:tab-stops" {
             props.tabs = read_tab_stops(child, props.indent.left.unwrap_or(0));
@@ -437,11 +459,14 @@ fn graphic_wrap(element: &Element) -> Option<Wrap> {
 
 /// `style:paragraph-properties` attributes and children for `props`.
 /// `native` says whether preserved pieces came from an odt file.
-pub fn paragraph_properties(
-    props: &ParagraphProps,
-    break_after_page: bool,
-    native: bool,
-) -> String {
+/// the breaks around a paragraph that live in its odt properties.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Breaks {
+    pub page_after: bool,
+    pub column_before: bool,
+}
+
+pub fn paragraph_properties(props: &ParagraphProps, breaks: Breaks, native: bool) -> String {
     let mut attributes: Vec<(String, String)> = Vec::new();
     let mut push = |name: &str, value: String| attributes.push((name.to_string(), value));
     if let Some(alignment) = props.alignment {
@@ -494,8 +519,10 @@ pub fn paragraph_properties(
     }
     if props.page_break_before == Some(true) {
         push("fo:break-before", "page".into());
+    } else if breaks.column_before {
+        push("fo:break-before", "column".into());
     }
-    if break_after_page {
+    if breaks.page_after {
         push("fo:break-after", "page".into());
     }
     let mut children = String::new();

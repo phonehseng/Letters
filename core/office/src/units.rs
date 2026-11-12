@@ -54,6 +54,43 @@ pub fn twips_to_inches(twips: Twips) -> String {
     format!("{text}in")
 }
 
+/// a length with a unit in emu, for drawings: twips would round word's
+/// positions by up to half a twip, which shows up after a round trip.
+pub fn parse_length_emu(text: &str) -> Option<i64> {
+    let text = text.trim();
+    let split = text
+        .find(|c: char| c.is_ascii_alphabetic() || c == '%')
+        .unwrap_or(text.len());
+    let (number, unit) = text.split_at(split);
+    let value: f64 = number.trim().parse().ok()?;
+    let per_unit = match unit.trim() {
+        "" => EMU_PER_TWIP as f64,
+        "in" => 914_400.0,
+        "cm" => 360_000.0,
+        "mm" => 36_000.0,
+        "pt" => 12_700.0,
+        "pc" | "pi" => 152_400.0,
+        "px" => 9_525.0,
+        _ => return None,
+    };
+    let emu = value * per_unit;
+    (emu.is_finite() && emu.abs() < 1.0e15).then(|| emu.round() as i64)
+}
+
+/// emu as inches for odt drawings. six decimals keep every emu (an emu
+/// is 0.0000011 inch), so the exact value comes back.
+pub fn emu_to_inches(emu: i64) -> String {
+    let inches = emu as f64 / 914_400.0;
+    let mut text = format!("{inches:.7}");
+    while text.contains('.') && (text.ends_with('0') || text.ends_with('.')) {
+        text.pop();
+    }
+    if text == "-0" {
+        text = "0".into();
+    }
+    format!("{text}in")
+}
+
 /// twips as points for odt font sizes and border widths.
 pub fn points(value: f64) -> String {
     let mut text = format!("{value:.2}");
@@ -85,6 +122,14 @@ mod tests {
             assert_eq!(parse_length(&twips_to_inches(twips)), Some(twips));
         }
         assert_eq!(twips_to_inches(720), "0.5in");
+    }
+
+    #[test]
+    fn emu_come_back_exactly_through_inches() {
+        for emu in [0, 1, 635, 1_905_000, 2_895_600, 914_401, -12_700] {
+            assert_eq!(parse_length_emu(&emu_to_inches(emu)), Some(emu));
+        }
+        assert_eq!(parse_length_emu("1cm"), Some(360_000));
     }
 
     #[test]

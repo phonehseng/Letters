@@ -1,6 +1,7 @@
 //! word documents (wordprocessingml, ecma-376), read into and written
 //! from the shared model.
 
+pub(crate) mod drawingml;
 pub(crate) mod names;
 pub(crate) mod order;
 mod read;

@@ -251,7 +251,12 @@ impl Flow<'_, '_> {
     }
 }
 
-/// the room a line between `top` and `top + height` has beside the floats.
+/// the room a line between `top` and `top + height` has beside the floats:
+/// the free part of the column left of the floats it meets and, when there
+/// is room on both sides, the part right of them as a second piece of the
+/// same line. word wraps square text on both sides by default (wrapText
+/// "bothSides"): w_floating_aptos put words left of a picture standing
+/// 60 pt into the column and went on right of it on the same baseline.
 fn room_beside(
     floats: &[FloatBox],
     column_left: f64,
@@ -259,9 +264,8 @@ fn room_beside(
     top: f64,
     height: f64,
 ) -> LineSpace {
-    let mut left = 0.0;
-    let mut right = column_width;
     let mut move_down: f64 = 0.0;
+    let mut blocked: Vec<(f64, f64)> = Vec::new();
     for float in floats {
         if !float.overlaps_vertically(top + move_down, top + move_down + height) {
             continue;
@@ -272,19 +276,36 @@ fn room_beside(
         }
         let start = float.x - SIDE_DISTANCE - column_left;
         let end = float.x + float.width + SIDE_DISTANCE - column_left;
-        let room_left = start - left;
-        let room_right = right - end;
-        if room_right >= room_left {
-            left = left.max(end);
-        } else {
-            right = right.min(start);
-        }
+        blocked.push((start.max(0.0), end.min(column_width)));
     }
+    let free = free_parts(&blocked, column_width);
+    let mut parts = free.into_iter().filter(|(_, width)| *width > 0.0);
+    let first = parts.next().unwrap_or((0.0, 0.0));
     LineSpace {
-        left,
-        width: (right - left).max(0.0),
+        left: first.0,
+        width: first.1,
         move_down,
+        second: parts.next(),
     }
+}
+
+/// the parts of `0..width` no blocked interval covers, left to right, as
+/// (left, width).
+fn free_parts(blocked: &[(f64, f64)], width: f64) -> Vec<(f64, f64)> {
+    let mut sorted = blocked.to_vec();
+    sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut parts = Vec::new();
+    let mut from = 0.0;
+    for (start, end) in sorted {
+        if start > from {
+            parts.push((from, start - from));
+        }
+        from = f64::max(from, end);
+    }
+    if width > from {
+        parts.push((from, width - from));
+    }
+    parts
 }
 
 #[cfg(test)]
@@ -302,15 +323,23 @@ mod tests {
     }
 
     #[test]
-    fn text_goes_to_the_wider_side() {
+    fn text_goes_beside_a_picture_at_either_edge() {
         // a picture at the left of a column from 72 to 540
         let room = room_beside(&[square(72.0, 100.0)], 72.0, 468.0, 110.0, 14.0);
         assert_eq!(room.left, 109.0);
         assert_eq!(room.width, 359.0);
+        assert_eq!(room.second, None);
         // and one at the right
         let room = room_beside(&[square(440.0, 100.0)], 72.0, 468.0, 110.0, 14.0);
         assert_eq!(room.left, 0.0);
         assert_eq!(room.width, 359.0);
+    }
+
+    #[test]
+    fn a_picture_in_the_middle_leaves_room_on_both_sides() {
+        let room = room_beside(&[square(200.0, 100.0)], 72.0, 468.0, 110.0, 14.0);
+        assert_eq!((room.left, room.width), (0.0, 119.0));
+        assert_eq!(room.second, Some((237.0, 231.0)));
     }
 
     #[test]

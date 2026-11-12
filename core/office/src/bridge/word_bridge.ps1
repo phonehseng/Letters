@@ -1,20 +1,33 @@
+# what letters asks of a private, hidden microsoft word: layout, pdf, conversions and batches.
 <#
-what letters asks of microsoft word, when it is installed:
+the modes, used only when word is installed:
 
   -Mode layout  -Path in.docx -Out layout.json   where word puts every line
                                                  and floating object
   -Mode pdf     -Path in.docx -Out out.pdf       the print-ready pdf
   -Mode convert -Path in -Out out -Format N      save in another format
-                                                 (16 docx, 0 doc, 6 rtf)
+                                                 (16 docx, 0 doc, 6 rtf,
+                                                 23 odt)
+  -Mode batch   -Path jobs.json -Out results.json
+                                                 many pdf and convert jobs
+                                                 in one private word: a
+                                                 json list of { op ("pdf" or
+                                                 "convert"), in, out,
+                                                 format }; results.json says
+                                                 per job "ok" or the error
 
 files are opened read-only in a private hidden word (see word_session.ps1).
 #>
 param(
-    [Parameter(Mandatory = $true)][ValidateSet("layout", "pdf", "convert")][string]$Mode,
+    [Parameter(Mandatory = $true)][ValidateSet("layout", "pdf", "convert", "batch")][string]$Mode,
     [Parameter(Mandatory = $true)][string]$Path,
     [Parameter(Mandatory = $true)][string]$Out,
     [int]$Format = 16
 )
+
+# a batch job is given this long on top of the start, and each job its own
+# share, so a hang is ended by the watchdog instead of waiting forever
+$SecondsPerBatchJob = 40
 
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\word_session.ps1"
@@ -84,11 +97,57 @@ function Get-Layout($word, $file) {
     }
 }
 
+
+# windows powershell 5.1 passes a json array down a pipeline as one item,
+# so the list is converted as an argument, which gives the jobs one by one
+function Read-Jobs($file) {
+    return ConvertFrom-Json -InputObject (Get-Content -Raw -Path $file)
+}
+
+function Invoke-Job($word, $job) {
+    $doc = Open-ReadOnly $word $job.in
+    try {
+        if ($job.op -eq "pdf") {
+            $doc.ExportAsFixedFormat([IO.Path]::GetFullPath($job.out), 17)
+        }
+        else {
+            $doc.SaveAs2([IO.Path]::GetFullPath($job.out), [int]$job.format)
+        }
+    }
+    finally { $doc.Close(0) }
+}
+
+# one failing document must not stop the others, so each job reports its
+# own result
+function Invoke-Batch($word, $file, $results) {
+    $jobs = Read-Jobs $file
+    $outcome = @()
+    foreach ($job in $jobs) {
+        try {
+            Invoke-Job $word $job
+            $outcome += "ok"
+        }
+        catch {
+            $outcome += $_.Exception.Message
+        }
+    }
+    ConvertTo-Json -InputObject @($outcome) -Compress | Out-File -FilePath $results -Encoding utf8
+}
+
+$watchdog = 300
+if ($Mode -eq "batch") {
+    $count = @(Read-Jobs $Path).Count
+    $watchdog = 60 + $SecondsPerBatchJob * $count
+}
+
 $session = $null
 $failed = $false
 try {
-    $session = Start-PrivateWord
+    $session = Start-PrivateWord $watchdog
     switch ($Mode) {
+        "batch" {
+            Invoke-Batch $session.Word $Path $Out
+        }
         "layout" {
             $layout = Get-Layout $session.Word $Path
             $layout | ConvertTo-Json -Depth 8 -Compress | Out-File -FilePath $Out -Encoding utf8

@@ -90,6 +90,12 @@ pub const STORY_NAMESPACES: &[(&str, &str)] = &[
         "xmlns:mc",
         "http://schemas.openxmlformats.org/markup-compatibility/2006",
     ),
+    // groups are written for word 2010 and later inside a compatibility
+    // wrapper that names this prefix
+    (
+        "xmlns:wpg",
+        "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup",
+    ),
     (
         "xmlns:w14",
         "http://schemas.microsoft.com/office/word/2010/wordml",

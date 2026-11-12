@@ -9,6 +9,7 @@
 //!   uses: styles, lists, outline, typing helpers, presets, counts,
 //!   plain text and html export and import
 
+mod anchors;
 pub mod base64;
 pub mod bridge;
 pub mod clipboard;
@@ -19,6 +20,7 @@ mod error;
 pub mod export;
 pub mod floating;
 pub mod formats;
+pub mod freeform;
 pub mod import;
 pub mod indent;
 pub mod markdown;
@@ -30,8 +32,10 @@ pub mod package;
 pub mod presets;
 pub mod rtf;
 pub mod ruler;
+pub mod shapes;
 pub mod styles;
 pub mod tables;
+pub mod tidy;
 pub mod typing;
 pub mod units;
 pub mod xml;

@@ -1,6 +1,6 @@
+# checks docx files against microsoft word for the ignored tests in tests/word_com.rs.
 <#
-checks docx files against microsoft word through com, for the ignored
-integration tests in tests/word_com.rs.
+it talks to word through com.
 
   -Mode verify -Path in.docx -Out report.json
       opens the file read-only and reports what word sees: whether it had

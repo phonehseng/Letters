@@ -3,7 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::block::{Block, Border};
+use super::block::{Block, Border, Table, TableCell, TableRow, VerticalAlign};
+use super::drawing::{DrawingPreserved, ObjectAnchor, OriginalObject};
 use super::inline::{exact_emu, FloatPosition, Wrap};
 use super::Twips;
 
@@ -44,6 +45,48 @@ pub struct TextBox {
     pub width_emu: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub height_emu: Option<i64>,
+    /// where the text sits inside the box; `None` is the top
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vertical_align: Option<VerticalAlign>,
+    /// linked boxes: one story flowing through a chain of boxes
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chain: Option<TextChain>,
+    /// the table cell this box was pulled out of (see
+    /// `freeform::table_to_text_boxes`), so it snaps back exactly
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table_cell: Option<Box<TableCellOrigin>>,
+    #[serde(default, skip_serializing_if = "DrawingPreserved::is_empty")]
+    pub preserved: DrawingPreserved,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<ObjectAnchor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original: Option<OriginalObject>,
+}
+
+/// a text box's place in a chain of linked boxes. all boxes of a chain
+/// share `id`; the box with `sequence` 0 holds the whole story in its
+/// `blocks` and the text flows on into sequence 1, 2... (whose `blocks`
+/// stay empty), the way word and opendocument both store it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextChain {
+    pub id: String,
+    #[serde(default)]
+    pub sequence: u32,
+}
+
+/// what a text box remembers of the table cell it was made from.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TableCellOrigin {
+    /// the cell's own formatting (its blocks are the box's)
+    pub cell: TableCell,
+    /// the row's formatting, without its cells
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row: Option<TableRow>,
+    /// the table's formatting, without its rows, on the first cell's box
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table: Option<Table>,
 }
 
 impl TextBox {
@@ -70,7 +113,18 @@ impl TextBox {
             blocks,
             width_emu: None,
             height_emu: None,
+            vertical_align: None,
+            chain: None,
+            table_cell: None,
+            preserved: DrawingPreserved::default(),
+            anchor: None,
+            original: None,
         }
+    }
+
+    /// the box holds the story of a chain (or is not linked at all).
+    pub fn holds_story(&self) -> bool {
+        self.chain.as_ref().is_none_or(|chain| chain.sequence == 0)
     }
 
     pub fn size_emu(&self) -> (i64, i64) {

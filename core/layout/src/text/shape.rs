@@ -93,7 +93,16 @@ fn shape_with_rustybuzz(
     text: &[char],
     options: ShapeOptions,
 ) -> Option<Vec<ShapedGlyph>> {
-    let buzz = rustybuzz::Face::from_slice(&face.bytes, face.index)?;
+    let mut buzz = rustybuzz::Face::from_slice(&face.bytes, face.index)?;
+    let variations: Vec<rustybuzz::Variation> = face
+        .variations
+        .iter()
+        .map(|(tag, value)| rustybuzz::Variation {
+            tag: rustybuzz::ttf_parser::Tag::from_bytes(tag),
+            value: *value,
+        })
+        .collect();
+    buzz.set_variations(&variations);
     let string: String = text.iter().collect();
     // byte offsets of each char, to turn rustybuzz clusters back into chars
     let starts: Vec<usize> = string.char_indices().map(|(at, _)| at).collect();

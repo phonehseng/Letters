@@ -69,6 +69,12 @@ fn collect_blocks(blocks: &[Block], pieces: &mut Vec<String>) {
     for block in blocks {
         match block {
             Block::Preserved { xml } => pieces.push(xml.clone()),
+            // a drawing read into the model keeps its original xml, which
+            // must come back byte for byte while it is unchanged
+            Block::Shape(Shape {
+                original: Some(original),
+                ..
+            }) => pieces.push(original.xml.clone()),
             Block::Table(table) => {
                 pieces.extend(table.preserved.children.iter().cloned());
                 for row in &table.rows {

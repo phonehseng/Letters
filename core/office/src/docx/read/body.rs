@@ -9,6 +9,7 @@ use crate::xml::{Element, Node};
 
 use super::props::{read_paragraph_props, read_run_props};
 use super::{DocxReader, Story};
+use crate::anchors::{place_drawings, placeholder, take_drawings};
 
 /// a run's content before fields are recognised. a complex field is
 /// spread over several runs (begin, code, separator, result, end), so
@@ -72,9 +73,6 @@ impl DocxReader<'_> {
         sections: &mut Vec<Section>,
         blocks: &mut Vec<Block>,
     ) {
-        if self.read_text_box_paragraph(element, story, blocks) {
-            return;
-        }
         let mut paragraph = Paragraph::default();
         let mut section_element = None;
         if let Some(ppr) = element.child("w:pPr") {
@@ -89,9 +87,13 @@ impl DocxReader<'_> {
             .map(|(name, value)| Attribute::new(name, value))
             .collect();
         let mut pieces = Vec::new();
+        let first_drawing = self.pending_objects.len();
         self.read_inlines(element, story, &[], &mut pieces);
-        paragraph.content = merge_adjacent_text(assemble_fields(pieces));
-        blocks.push(self.classify(paragraph));
+        let content = merge_adjacent_text(assemble_fields(pieces));
+        let (content, drawings) = take_drawings(content, &mut self.pending_objects, first_drawing);
+        paragraph.content = content;
+        let block = self.classify(paragraph.clone());
+        place_drawings(block, &paragraph, drawings, blocks);
         if let Some(section) = section_element {
             if story.is_main {
                 let section = self.read_section(section, story);
@@ -99,35 +101,6 @@ impl DocxReader<'_> {
                 blocks.push(Block::SectionBreak);
             }
         }
-    }
-
-    /// a paragraph that only anchors text boxes becomes those text boxes.
-    /// one that also ends a section stays a paragraph, so the break is
-    /// not lost.
-    fn read_text_box_paragraph(
-        &mut self,
-        element: &Element,
-        story: &mut Story,
-        blocks: &mut Vec<Block>,
-    ) -> bool {
-        let ends_section = element
-            .child("w:pPr")
-            .is_some_and(|ppr| ppr.child("w:sectPr").is_some());
-        let Some(found) = super::drawing::text_box_elements(element) else {
-            return false;
-        };
-        if ends_section {
-            return false;
-        }
-        let mut boxes = Vec::new();
-        for anchor in found {
-            match self.read_text_box(anchor, story) {
-                Some(text_box) => boxes.push(Block::TextBox(text_box)),
-                None => return false,
-            }
-        }
-        blocks.extend(boxes);
-        true
     }
 
     /// a paragraph becomes a heading when its outline level (its own or
@@ -287,7 +260,23 @@ impl DocxReader<'_> {
             "w:commentReference" => Inline::CommentReference {
                 comment_id: child.attr("w:id").unwrap_or_default().to_string(),
             },
-            "w:drawing" => self.read_drawing(child, story, marks),
+            "w:drawing" | "mc:AlternateContent" | "w:pict" => {
+                if let Some(object) = self.read_object(child, story) {
+                    let number = self.pending_objects.len();
+                    self.pending_objects.push((object, marks));
+                    // a placeholder marks where the drawing sat, so the
+                    // paragraph can say which inline it came before
+                    return Some(Piece::Inline(placeholder(number)));
+                }
+                if child.name == "w:drawing" {
+                    self.read_drawing(child, story, marks)
+                } else {
+                    Inline::PreservedRun {
+                        xml: story.keep(child),
+                        marks,
+                    }
+                }
+            }
             "w:fldChar" => return Some(field_char(child, story, marks)),
             "w:instrText" | "w:delInstrText" => {
                 return Some(Piece::FieldCode {

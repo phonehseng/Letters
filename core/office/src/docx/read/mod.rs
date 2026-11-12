@@ -11,8 +11,10 @@ mod meta;
 mod notes;
 mod props;
 mod section;
+mod shapes;
 mod styles;
 mod table;
+mod vml;
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -96,6 +98,11 @@ pub(crate) struct DocxReader<'p> {
     consumed: BTreeSet<String>,
     media_by_path: HashMap<String, String>,
     headers_by_path: HashMap<String, String>,
+    /// the theme's colours, which shapes refer to
+    palette: crate::docx::drawingml::Palette,
+    /// drawings read from the paragraph being read, each with its run's
+    /// marks, until the paragraph places them
+    pending_objects: Vec<(crate::model::Block, Vec<crate::model::Mark>)>,
 }
 
 impl<'p> DocxReader<'p> {
@@ -136,6 +143,8 @@ impl<'p> DocxReader<'p> {
             consumed,
             media_by_path: HashMap::new(),
             headers_by_path: HashMap::new(),
+            palette: crate::docx::drawingml::Palette::default(),
+            pending_objects: Vec::new(),
         })
     }
 
@@ -150,6 +159,7 @@ impl<'p> DocxReader<'p> {
         self.read_core_properties()?;
         self.carry_unread_parts();
         self.doc.normalize_sections();
+        crate::freeform::mark_canvas_sections(&mut self.doc);
         Ok(self.doc)
     }
 

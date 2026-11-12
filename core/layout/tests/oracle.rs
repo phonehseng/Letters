@@ -1,16 +1,20 @@
 //! the oracle harness: lays the corpus out with word, libreoffice and our
 //! engine, and scores how close they are. every test here is ignored by
 //! default because it needs the oracles' pdfs; `tests/oracle/run.ps1` runs
-//! the whole loop (generate, export with both oracles, score).
+//! the whole loop (generate, author, export with both oracles, score).
 
 #[path = "oracle/analysis.rs"]
 pub mod analysis;
 #[path = "oracle/corpus.rs"]
 pub mod corpus;
+#[path = "oracle/corpus2.rs"]
+pub mod corpus2;
 #[path = "oracle/lines.rs"]
 pub mod lines;
 #[path = "oracle/pdf_glyphs.rs"]
 pub mod pdf_glyphs;
+#[path = "oracle/probes.rs"]
+pub mod probes;
 #[path = "oracle/render.rs"]
 pub mod render;
 #[path = "oracle/report.rs"]
@@ -18,7 +22,11 @@ pub mod report;
 #[path = "oracle/score.rs"]
 pub mod score;
 
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
+
+use letters_layout::{layout, Flavor, LayoutOptions};
 
 pub fn out_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/oracle/out")
@@ -34,6 +42,16 @@ fn generate_corpus() {
         let bytes = letters_office::write_docx(&item.document).expect("docx");
         std::fs::write(folder.join(format!("{}.docx", item.name)), bytes).expect("write");
     }
+    for entry in corpus2::corpus2() {
+        let bytes = letters_office::write_docx(&entry.document.document).expect("docx");
+        let bytes = if entry.patches.is_empty() {
+            bytes
+        } else {
+            patch_docx(&bytes, &entry.patches)
+        };
+        let path = folder.join(format!("{}.docx", entry.document.name));
+        std::fs::write(path, bytes).expect("write");
+    }
     // word-made documents from the fidelity work (read only): real files
     // with word's own styles, settings and theme
     let fidelity = Path::new("C:/Letters-fidelity/tools/fidelity/corpus");
@@ -45,22 +63,300 @@ fn generate_corpus() {
     }
 }
 
-/// the class each corpus document is scored in.
-fn class_of(name: &str) -> String {
-    if name.starts_with("real_") {
-        return "word-made documents".into();
+/// writes the probe documents into out/probes (exported by run.ps1 but
+/// never scored with the corpus).
+#[test]
+#[ignore = "writes the probes; run by tests/oracle/run.ps1"]
+fn generate_probes() {
+    let folder = out_dir().join("probes");
+    std::fs::create_dir_all(&folder).expect("probes folder");
+    for probe in probes::probes() {
+        let bytes = letters_office::write_docx(&probe.document).expect("docx");
+        let bytes = patch_docx(&bytes, &probe.patches);
+        std::fs::write(folder.join(format!("{}.docx", probe.name)), bytes).expect("write");
     }
-    corpus::corpus()
+}
+
+/// for every table probe: the column widths each application chose, the
+/// narrowest and natural widths our engine measures for each column, and
+/// what candidate autofit rules give. this is how the autofit rule was
+/// chosen (see tables.rs).
+#[test]
+#[ignore = "needs the probes' pdfs"]
+fn fit_table_probes() {
+    for probe in probes::probes() {
+        let path = out_dir()
+            .join("probes")
+            .join(format!("{}.docx", probe.name));
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        let document = letters_office::open(&bytes).expect("probe");
+        let tables: Vec<usize> = document
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| matches!(b, letters_office::model::Block::Table(_)))
+            .map(|(i, _)| i)
+            .collect();
+        for oracle in ["probes_word", "probes_lo"] {
+            let Ok(pages) = pdf_glyphs::read_pdf(
+                &out_dir()
+                    .join(oracle)
+                    .join(format!("{}_docx.pdf", probe.name)),
+            ) else {
+                continue;
+            };
+            println!("== {} {oracle}", probe.name);
+            for (number, block) in tables.iter().enumerate() {
+                let Some(page) = pages.get(number) else {
+                    continue;
+                };
+                let mut edges = page.vertical_rules.clone();
+                edges.sort_by(f64::total_cmp);
+                edges.dedup_by(|a, b| (*a - *b).abs() < 0.33);
+                let widths: Vec<f64> = edges.windows(2).map(|w| w[1] - w[0]).collect();
+                let measured = letters_layout::tables::column_content_widths(
+                    &document,
+                    *block,
+                    letters_layout::Flavor::Word,
+                );
+                // the first glyph of the table's first cell, from its left edge
+                let inset = edges.first().and_then(|left| {
+                    page.glyphs
+                        .iter()
+                        .filter(|g| g.x > *left && g.y > 90.0)
+                        .map(|g| g.x - left)
+                        .reduce(f64::min)
+                });
+                println!(
+                    "  probe {number:2}: edges {:?} widths {:?} inset {:?}\n            ours (min, max): {:?}",
+                    edges.iter().map(|e| (e * 100.0).round() / 100.0).collect::<Vec<_>>(),
+                    widths.iter().map(|w| (w * 100.0).round() / 100.0).collect::<Vec<_>>(),
+                    inset.map(|i| (i * 100.0).round() / 100.0),
+                    measured
+                        .iter()
+                        .map(|(a, b)| ((a * 100.0).round() / 100.0, (b * 100.0).round() / 100.0))
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+    }
+}
+
+/// for every justification probe paragraph: how far its first line with
+/// the next word is over the measure, as a share of the line's spaces,
+/// and whether each application squeezed that word in. prints, per probe
+/// and application, the largest share squeezed and the smallest refused:
+/// the squeeze rule lies between them.
+#[test]
+#[ignore = "needs the oracles' pdfs"]
+fn fit_justify_probes() {
+    for file in corpus_files()
         .into_iter()
-        .find(|item| item.name == name)
-        .map(|item| item.class.to_string())
-        .unwrap_or_else(|| "other".into())
+        .filter(|f| f.name.starts_with("justify_probe"))
+    {
+        let document = letters_office::open(&std::fs::read(&file.path).unwrap()).unwrap();
+        let shares = probe_shares(&document);
+        for oracle in ["word", "lo"] {
+            let Some(laid) = oracle_laid(oracle, &file.name, "docx") else {
+                continue;
+            };
+            let (mut squeezed, mut refused) = (0.0_f64, f64::INFINITY);
+            let mut next_line = 0;
+            for (share, words, _) in &shares {
+                // paragraphs come in order: look from the last match on, by
+                // the first three words (random words repeat)
+                let opening: String = words.iter().take(3).map(String::as_str).collect();
+                let Some(found) = laid.lines[next_line..]
+                    .iter()
+                    .position(|l| l.text.starts_with(opening.as_str()))
+                else {
+                    continue;
+                };
+                let line = &laid.lines[next_line + found];
+                next_line += found + 1;
+                let joined: String = words.concat();
+                if std::env::var("ORACLE_VERBOSE").is_ok() {
+                    println!(
+                        "    {share:.3} {} spaces {}",
+                        if line.text.len() >= joined.len() {
+                            "in "
+                        } else {
+                            "out"
+                        },
+                        words.len() - 1
+                    );
+                }
+                if line.text.len() >= joined.len() {
+                    squeezed = squeezed.max(*share);
+                } else {
+                    refused = refused.min(*share);
+                }
+            }
+            println!(
+                "{:28} {oracle:5}: squeezed up to {squeezed:.3}, refused from {refused:.3}",
+                file.name
+            );
+        }
+    }
+}
+
+/// each probe paragraph's overflow share, its first line's words with the
+/// word that may join it, and its first word.
+fn probe_shares(document: &letters_office::model::Document) -> Vec<(f64, Vec<String>, String)> {
+    let family = document
+        .styles
+        .defaults
+        .run
+        .font
+        .as_ref()
+        .map(|f| f.name.clone())
+        .unwrap_or_default();
+    let size = f64::from(document.styles.defaults.run.size.unwrap_or(24)) / 2.0;
+    let mut library = letters_layout::fonts::FontLibrary::system();
+    let id = library.resolve(&family, false, false).expect("font");
+    let face = library.font(id).face.clone();
+    let width = |text: &str| -> f64 {
+        text.chars()
+            .map(|ch| f64::from(face.glyph(ch).map_or(0, |g| g.1)) * face.scale(size))
+            .sum()
+    };
+    let space = width(" ");
+    let mut out = Vec::new();
+    for block in &document.blocks {
+        let Some(paragraph) = block.paragraph() else {
+            continue;
+        };
+        let text = paragraph.plain_text();
+        let words: Vec<&str> = text.split(' ').collect();
+        let mut line = 0.0;
+        for (index, word) in words.iter().enumerate() {
+            let with = if index == 0 {
+                width(word)
+            } else {
+                line + space + width(word)
+            };
+            if with > 468.0 && index > 0 {
+                let share = (with - 468.0) / (index as f64 * space);
+                let first: Vec<String> = words[..=index].iter().map(|w| w.to_string()).collect();
+                out.push((share, first, words[0].to_string()));
+                break;
+            }
+            line = with;
+        }
+    }
+    out
+}
+
+/// rewrites word/document.xml of a package with the patches.
+fn patch_docx(bytes: &[u8], patches: &[corpus2::Patch]) -> Vec<u8> {
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).expect("our docx");
+    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    for index in 0..archive.len() {
+        let mut file = archive.by_index(index).expect("entry");
+        let name = file.name().map(|n| n.to_string()).expect("entry name");
+        let mut content = Vec::new();
+        file.read_to_end(&mut content).expect("read entry");
+        if name == "word/document.xml" {
+            let text = String::from_utf8(content).expect("utf-8 xml");
+            content = corpus2::apply_patches(&text, patches).into_bytes();
+        }
+        out.start_file(name, options).expect("start");
+        out.write_all(&content).expect("write entry");
+    }
+    out.finish().expect("finish").into_inner()
+}
+
+/// one document every application lays out.
+#[derive(Clone, Debug)]
+pub struct CorpusFile {
+    pub name: String,
+    pub class: String,
+    pub held_out: bool,
+    pub path: PathBuf,
+    /// "docx" or "odt"
+    pub format: &'static str,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ManifestEntry {
+    name: String,
+    class: String,
+    held_out: bool,
+    status: String,
+}
+
+/// every document of the corpus: ours (out/corpus), the ones word and
+/// libreoffice made themselves (out/authored_word, out/authored_lo).
+pub fn corpus_files() -> Vec<CorpusFile> {
+    let first: Vec<(String, &'static str)> = corpus::corpus()
+        .into_iter()
+        .map(|item| (item.name, item.class))
+        .collect();
+    let second: Vec<(String, &'static str, bool)> = corpus2::corpus2()
+        .into_iter()
+        .map(|entry| (entry.document.name, entry.document.class, entry.held_out))
+        .collect();
+    let mut files = Vec::new();
+    let folder = out_dir().join("corpus");
+    let mut names: Vec<String> = std::fs::read_dir(&folder)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "docx"))
+        .map(|path| path.file_stem().unwrap().to_string_lossy().to_string())
+        .collect();
+    names.sort();
+    for name in names {
+        let (class, held_out) = if name.starts_with("real_") {
+            ("word-made documents".to_string(), false)
+        } else if let Some((_, class)) = first.iter().find(|(n, _)| *n == name) {
+            (class.to_string(), false)
+        } else if let Some((_, class, held)) = second.iter().find(|(n, _, _)| *n == name) {
+            (class.to_string(), *held)
+        } else {
+            continue;
+        };
+        files.push(CorpusFile {
+            path: folder.join(format!("{name}.docx")),
+            name,
+            class,
+            held_out,
+            format: "docx",
+        });
+    }
+    for (folder, format) in [("authored_word", "docx"), ("authored_lo", "odt")] {
+        let folder = out_dir().join(folder);
+        let Ok(text) = std::fs::read_to_string(folder.join("manifest.json")) else {
+            continue;
+        };
+        let entries: Vec<ManifestEntry> = serde_json::from_str(&text).unwrap_or_default();
+        for entry in entries.into_iter().filter(|e| e.status == "ok") {
+            files.push(CorpusFile {
+                path: folder.join(format!("{}.{format}", entry.name)),
+                name: entry.name,
+                class: entry.class,
+                held_out: entry.held_out,
+                format,
+            });
+        }
+    }
+    files
+}
+
+fn oracle_laid(folder: &str, stem: &str, suffix: &str) -> Option<score::Laid> {
+    let path = out_dir().join(folder).join(format!("{stem}_{suffix}.pdf"));
+    let pages = pdf_glyphs::read_pdf(&path).ok()?;
+    Some(score::Laid::of_pdf(&pages))
 }
 
 fn oracle_lines(folder: &str, stem: &str, suffix: &str) -> Option<(usize, Vec<lines::TextLine>)> {
-    let path = out_dir().join(folder).join(format!("{stem}_{suffix}.pdf"));
-    let pages = pdf_glyphs::read_pdf(&path).ok()?;
-    Some((pages.len(), lines::lines_of_document(&pages)))
+    oracle_laid(folder, stem, suffix).map(|laid| (laid.pages, laid.lines))
 }
 
 fn body_zone(document: &letters_office::model::Document) -> score::BodyZone {
@@ -73,16 +369,51 @@ fn body_zone(document: &letters_office::model::Document) -> score::BodyZone {
 }
 
 fn compare(
-    reference: &Option<(usize, Vec<lines::TextLine>)>,
-    candidate: &Option<(usize, Vec<lines::TextLine>)>,
+    reference: &Option<score::Laid>,
+    candidate: &Option<score::Laid>,
     zone: score::BodyZone,
 ) -> Option<score::Score> {
-    let (reference, candidate) = (reference.as_ref()?, candidate.as_ref()?);
-    Some(score::score(
-        (reference.0, &reference.1),
-        (candidate.0, &candidate.1),
-        zone,
-    ))
+    Some(score::score(reference.as_ref()?, candidate.as_ref()?, zone))
+}
+
+/// the open fonts that come with letters, and nothing else: a computer
+/// without microsoft's fonts (vendor/fonts; tools/fetch-fonts.ps1 fills it).
+pub fn open_fonts() -> Arc<letters_layout::fonts::LibraryFonts> {
+    static FONTS: OnceLock<Arc<letters_layout::fonts::LibraryFonts>> = OnceLock::new();
+    FONTS
+        .get_or_init(|| {
+            let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vendor/fonts");
+            Arc::new(letters_layout::fonts::LibraryFonts::bundled_only(&folder))
+        })
+        .clone()
+}
+
+fn open_fonts_options(flavor: Flavor) -> LayoutOptions {
+    LayoutOptions {
+        flavor,
+        fonts: open_fonts(),
+        ..LayoutOptions::default()
+    }
+}
+
+/// lays a document out, writes our pdf and reads it back like an oracle's.
+fn ours(
+    document: &letters_office::model::Document,
+    options: &LayoutOptions,
+    pdf_name: &str,
+) -> (
+    Option<score::Laid>,
+    Option<PathBuf>,
+    letters_layout::LayoutResult,
+) {
+    let result = layout(document, options);
+    let pdf = write_our_pdf(pdf_name, &result, document);
+    let laid = pdf
+        .as_ref()
+        .and_then(|path| pdf_glyphs::read_pdf(path).ok())
+        .map(|pages| score::Laid::of_pdf(&pages))
+        .or_else(|| Some(score::lines_of_result(&result)));
+    (laid, pdf, result)
 }
 
 /// lays every corpus document out with both flavors, scores them against
@@ -90,92 +421,92 @@ fn compare(
 #[test]
 #[ignore = "needs the oracles' pdfs; run by tests/oracle/run.ps1"]
 fn score_corpus() {
-    use letters_layout::{layout, Flavor, LayoutOptions};
-    let corpus_folder = out_dir().join("corpus");
-    let mut names: Vec<String> = std::fs::read_dir(&corpus_folder)
-        .expect("generate the corpus first")
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == "docx"))
-        .map(|path| path.file_stem().unwrap().to_string_lossy().to_string())
-        .collect();
-    names.sort();
     let only = std::env::var("ORACLE_ONLY").ok();
     let mut documents = Vec::new();
-    for name in names {
+    for file in corpus_files() {
         if only
             .as_ref()
-            .is_some_and(|only| !name.contains(only.as_str()))
+            .is_some_and(|only| !file.name.contains(only.as_str()))
         {
             continue;
         }
-        let bytes = std::fs::read(corpus_folder.join(format!("{name}.docx"))).expect("read");
-        let Ok(document) = letters_office::open(&bytes) else {
-            println!("{name}: could not be read");
+        let Ok(bytes) = std::fs::read(&file.path) else {
             continue;
         };
+        let Ok(document) = letters_office::open(&bytes) else {
+            println!("{}: could not be read", file.name);
+            continue;
+        };
+        let name = &file.name;
         let zone = body_zone(&document);
-        let word = oracle_lines("word", &name, "docx");
-        let libre = oracle_lines("lo", &name, "docx");
+        let word = oracle_laid("word", name, file.format);
+        let libre = oracle_laid("lo", name, file.format);
         let started = std::time::Instant::now();
-        let ours_word = layout(&document, &LayoutOptions::flavor(Flavor::Word));
-        let ours_libre = layout(&document, &LayoutOptions::flavor(Flavor::LibreOffice));
+        let _ = layout(&document, &LayoutOptions::flavor(Flavor::Word));
+        let _ = layout(&document, &LayoutOptions::flavor(Flavor::LibreOffice));
         let layout_ms = started.elapsed().as_secs_f64() * 1000.0;
-        save_layout(&name, &ours_word);
-        // our own pdf, read back by the same reader as the oracles' pdfs
-        let our_pdf_word = write_our_pdf(&name, "word", &ours_word, &document);
-        let our_pdf_libre = write_our_pdf(&name, "lo", &ours_libre, &document);
-        let ours_word = our_pdf_word
-            .as_ref()
-            .and_then(|path| pdf_glyphs::read_pdf(path).ok())
-            .map(|pages| (pages.len(), lines::lines_of_document(&pages)))
-            .or_else(|| Some(score::lines_of_result(&ours_word)));
-        let ours_libre = our_pdf_libre
-            .as_ref()
-            .and_then(|path| pdf_glyphs::read_pdf(path).ok())
-            .map(|pages| (pages.len(), lines::lines_of_document(&pages)))
-            .or_else(|| Some(score::lines_of_result(&ours_libre)));
-        let scores = report::DocumentScores {
+        let (ours_word, pdf_word, result_word) = ours(
+            &document,
+            &LayoutOptions::flavor(Flavor::Word),
+            &format!("{name}_word"),
+        );
+        save_layout(name, &result_word);
+        let (ours_libre, pdf_libre, _) = ours(
+            &document,
+            &LayoutOptions::flavor(Flavor::LibreOffice),
+            &format!("{name}_lo"),
+        );
+        let (open_word, _, _) = ours(
+            &document,
+            &open_fonts_options(Flavor::Word),
+            &format!("{name}_word_open"),
+        );
+        let (open_libre, _, _) = ours(
+            &document,
+            &open_fonts_options(Flavor::LibreOffice),
+            &format!("{name}_lo_open"),
+        );
+        let mut scores = report::DocumentScores {
             name: name.clone(),
-            class: class_of(&name),
+            class: file.class.clone(),
+            held_out: file.held_out,
+            format: file.format.to_string(),
             libreoffice_vs_word: compare(&word, &libre, zone),
             letters_vs_word: compare(&word, &ours_word, zone),
             word_vs_libreoffice: compare(&libre, &word, zone),
             letters_vs_libreoffice: compare(&libre, &ours_libre, zone),
+            letters_vs_word_open_fonts: compare(&word, &open_word, zone),
+            letters_vs_libreoffice_open_fonts: compare(&libre, &open_libre, zone),
             layout_ms,
             ..Default::default()
         };
-        let mut scores = scores;
-        score_odt(&mut scores, &name);
+        if file.format == "docx" {
+            score_odt(&mut scores, name);
+        }
         if std::env::var("ORACLE_RENDER").is_ok() {
             add_render_scores(
                 &mut scores,
-                &name,
-                our_pdf_word.as_deref(),
-                our_pdf_libre.as_deref(),
+                name,
+                file.format,
+                pdf_word.as_deref(),
+                pdf_libre.as_deref(),
             );
         }
-        if let Some(s) = &scores.letters_vs_word {
-            println!(
-                "{name:28} vs word: pages {}/{} same lines {:5.1}% breaks {:5.1}% baseline {:.2}/{:.2}",
-                s.reference_pages,
-                s.candidate_pages,
-                s.same_line_share() * 100.0,
-                s.page_break_share() * 100.0,
-                s.baseline.mean,
-                s.baseline.max
-            );
-        }
-        if let Some(s) = &scores.letters_vs_libreoffice {
-            println!(
-                "{name:28} vs lo:   pages {}/{} same lines {:5.1}% breaks {:5.1}% baseline {:.2}/{:.2}",
-                s.reference_pages,
-                s.candidate_pages,
-                s.same_line_share() * 100.0,
-                s.page_break_share() * 100.0,
-                s.baseline.mean,
-                s.baseline.max
-            );
+        for (label, score) in [
+            ("vs word", &scores.letters_vs_word),
+            ("vs lo  ", &scores.letters_vs_libreoffice),
+        ] {
+            if let Some(s) = score {
+                println!(
+                    "{name:30} {label}: pages {}/{} same lines {:5.1}% breaks {:5.1}% baseline {:.2}/{:.2}",
+                    s.reference_pages,
+                    s.candidate_pages,
+                    s.same_line_share() * 100.0,
+                    s.page_break_share() * 100.0,
+                    s.baseline.mean,
+                    s.baseline.max
+                );
+            }
         }
         documents.push(scores);
     }
@@ -193,15 +524,16 @@ fn score_corpus() {
     std::fs::write(&history_path, serde_json::to_vec_pretty(&history).unwrap()).expect("history");
     std::fs::write(
         out_dir().join("scores.json"),
-        serde_json::to_vec_pretty(&documents).unwrap(),
+        serde_json::to_vec(&documents).unwrap(),
     )
     .expect("scores");
-    let analysis = analysis::ANALYSIS;
+    let fit = documents.iter().filter(|d| !d.held_out).count();
     let header = format!(
-        "Generated by `cargo test -p letters-layout --release --test oracle -- --ignored score_corpus` (iteration `{iteration}`). Oracles: Microsoft Word 16.0 build 16.0.20527 and LibreOffice 26.8.2 on Windows 11, exporting the same files to PDF; glyph positions read from every PDF (ours too) with pdfium. {} documents.",
-        documents.len()
+        "Generated by `cargo test -p letters-layout --release --test oracle -- --ignored score_corpus` (iteration `{iteration}`). Oracles: Microsoft Word 16.0 build 16.0.20527 and LibreOffice 26.8.2 on Windows 11, exporting the same files to PDF; glyph positions, rules and pictures read from every PDF (ours too) with pdfium. {} documents: {fit} in the fit set, {} held out (never used while fitting).",
+        documents.len(),
+        documents.len() - fit
     );
-    let text = report::write_report(&documents, &history, &header, analysis);
+    let text = report::write_report(&documents, &history, &header, analysis::ANALYSIS);
     std::fs::write(
         Path::new(env!("CARGO_MANIFEST_DIR")).join("ORACLE_REPORT.md"),
         text,
@@ -212,7 +544,6 @@ fn score_corpus() {
 /// the odt libreoffice made from a corpus document: word's and our
 /// layouts of it scored against libreoffice's own.
 fn score_odt(scores: &mut report::DocumentScores, name: &str) {
-    use letters_layout::{layout, Flavor, LayoutOptions};
     let Ok(bytes) = std::fs::read(out_dir().join("odt").join(format!("{name}.odt"))) else {
         return;
     };
@@ -220,12 +551,13 @@ fn score_odt(scores: &mut report::DocumentScores, name: &str) {
         return;
     };
     let zone = body_zone(&document);
-    let libre = oracle_lines("lo_odt", name, "odt");
-    let word = oracle_lines("word_odt", name, "odt");
-    let ours = layout(&document, &LayoutOptions::flavor(Flavor::LibreOffice));
-    let ours = write_our_pdf(&format!("{name}_odt"), "lo", &ours, &document)
-        .and_then(|path| pdf_glyphs::read_pdf(&path).ok())
-        .map(|pages| (pages.len(), lines::lines_of_document(&pages)));
+    let libre = oracle_laid("lo_odt", name, "odt");
+    let word = oracle_laid("word_odt", name, "odt");
+    let (ours, _, _) = ours(
+        &document,
+        &LayoutOptions::flavor(Flavor::LibreOffice),
+        &format!("{name}_odt_lo"),
+    );
     scores.odt_word_vs_libreoffice = compare(&libre, &word, zone);
     scores.odt_letters_vs_libreoffice = compare(&libre, &ours, zone);
 }
@@ -233,22 +565,22 @@ fn score_odt(scores: &mut report::DocumentScores, name: &str) {
 /// writes our pdf of a layout into out/letters; `None` if it failed.
 fn write_our_pdf(
     name: &str,
-    flavor: &str,
     result: &letters_layout::LayoutResult,
     document: &letters_office::model::Document,
 ) -> Option<PathBuf> {
     let folder = out_dir().join("letters");
     std::fs::create_dir_all(&folder).ok()?;
     let bytes = letters_layout::pdf::write_pdf(result, document).ok()?;
-    let path = folder.join(format!("{name}_{flavor}.pdf"));
+    let path = folder.join(format!("{name}.pdf"));
     std::fs::write(&path, bytes).ok()?;
     Some(path)
 }
 
-/// renders the oracles' pdfs and ours at 300 dpi and compares them.
+/// renders the oracles' pdfs and ours at 150 dpi and compares them.
 fn add_render_scores(
     scores: &mut report::DocumentScores,
     name: &str,
+    format: &str,
     ours_word: Option<&Path>,
     ours_libre: Option<&Path>,
 ) {
@@ -257,12 +589,12 @@ fn add_render_scores(
     };
     let word = render::render(
         &mut engine,
-        &out_dir().join("word").join(format!("{name}_docx.pdf")),
+        &out_dir().join("word").join(format!("{name}_{format}.pdf")),
     )
     .ok();
     let libre = render::render(
         &mut engine,
-        &out_dir().join("lo").join(format!("{name}_docx.pdf")),
+        &out_dir().join("lo").join(format!("{name}_{format}.pdf")),
     )
     .ok();
     let ours_word = ours_word.and_then(|path| render::render(&mut engine, path).ok());
@@ -275,6 +607,7 @@ fn add_render_scores(
     }
     if let (Some(word), Some(libre)) = (&word, &libre) {
         scores.render_libreoffice_vs_word = render::compare_documents(word, libre);
+        scores.render_word_vs_libreoffice = render::compare_documents(libre, word);
     }
 }
 
@@ -286,6 +619,16 @@ fn save_layout(name: &str, result: &letters_layout::LayoutResult) {
         folder.join(format!("{name}.json")),
         serde_json::to_vec(result).unwrap_or_default(),
     );
+}
+
+/// opens a corpus document by name, wherever it lives.
+fn open_named(name: &str) -> (letters_office::model::Document, CorpusFile) {
+    let file = corpus_files()
+        .into_iter()
+        .find(|file| file.name == name)
+        .expect("a corpus document of that name");
+    let bytes = std::fs::read(&file.path).expect("read");
+    (letters_office::open(&bytes).expect("open"), file)
 }
 
 /// prints line pitch and the first baseline of each paragraph of the font
@@ -413,18 +756,16 @@ fn print_face_metrics() {
 #[test]
 #[ignore = "diagnostic"]
 fn diagnose() {
-    use letters_layout::{layout, Flavor, LayoutOptions};
     let name = std::env::var("ORACLE_ONLY").expect("ORACLE_ONLY=document name");
     let against = std::env::var("ORACLE_AGAINST").unwrap_or_else(|_| "word".into());
     let flavor = match std::env::var("ORACLE_FLAVOR").as_deref() {
         Ok("lo") => Flavor::LibreOffice,
         _ => Flavor::Word,
     };
-    let bytes = std::fs::read(out_dir().join("corpus").join(format!("{name}.docx"))).expect("read");
-    let document = letters_office::open(&bytes).expect("open");
+    let (document, file) = open_named(&name);
     let result = layout(&document, &LayoutOptions::flavor(flavor));
-    let (_, ours) = score::lines_of_result(&result);
-    let (_, theirs) = oracle_lines(&against, &name, "docx").expect("oracle pdf");
+    let ours = score::lines_of_result(&result).lines;
+    let (_, theirs) = oracle_lines(&against, &name, file.format).expect("oracle pdf");
     let mut used = vec![false; ours.len()];
     for line in &theirs {
         let found = ours
@@ -478,14 +819,12 @@ fn diagnose() {
 #[test]
 #[ignore = "diagnostic"]
 fn diagnose_paragraph() {
-    use letters_layout::{layout, Flavor, LayoutOptions};
     let name = std::env::var("ORACLE_ONLY").expect("ORACLE_ONLY");
     let block: u32 = std::env::var("ORACLE_BLOCK")
         .ok()
         .and_then(|b| b.parse().ok())
         .unwrap_or(0);
-    let bytes = std::fs::read(out_dir().join("corpus").join(format!("{name}.docx"))).expect("read");
-    let document = letters_office::open(&bytes).expect("open");
+    let (document, _) = open_named(&name);
     let result = layout(&document, &LayoutOptions::flavor(Flavor::Word));
     for page in &result.pages {
         for line in page.lines.iter().filter(|l| l.block == vec![block]) {
@@ -537,104 +876,16 @@ fn measure_text() {
     println!("exact {exact:.3} round600 {round600:.3} floor600 {floor600:.3} twips {twips:.3} ppem-rounded {ppem:.3}");
 }
 
-/// for every line of an oracle's pdf (single-font documents), its natural
-/// width by our metrics minus the room it had (ORACLE_ONLY, ORACLE_FONT,
-/// ORACLE_SIZE, ORACLE_AGAINST). positive values are lines the oracle
-/// fitted although they are wider than the room.
-#[test]
-#[ignore = "diagnostic"]
-fn oracle_line_overflow() {
-    let name = std::env::var("ORACLE_ONLY").expect("ORACLE_ONLY");
-    let against = std::env::var("ORACLE_AGAINST").unwrap_or_else(|_| "word".into());
-    let family = std::env::var("ORACLE_FONT").unwrap_or_else(|_| "Times New Roman".into());
-    let size: f64 = std::env::var("ORACLE_SIZE")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(12.0);
-    let mut library = letters_layout::fonts::FontLibrary::system();
-    let id = library.resolve(&family, false, false).unwrap();
-    let face = library.font(id).face.clone();
-    let pixel_widths = std::env::var("ORACLE_PIXELS").is_ok();
-    let width = |text: &str| -> f64 {
-        text.chars()
-            .map(|ch| {
-                let points = f64::from(face.glyph(ch).map_or(0, |g| g.1)) * face.scale(size);
-                if pixel_widths {
-                    (points / 0.12).round() * 0.12
-                } else {
-                    points
-                }
-            })
-            .sum()
-    };
-    let path = out_dir().join(&against).join(format!("{name}_docx.pdf"));
-    let library_lock = pdf_glyphs::pdfium();
-    let document = library_lock.0.load_pdf_from_file(&path, None).unwrap();
-    let mut overflows = Vec::new();
-    for page in document.pages().iter() {
-        let text = page.text().unwrap().all();
-        let lines: Vec<&str> = text
-            .split(['\r', '\n'])
-            .filter(|l| !l.trim().is_empty())
-            .collect();
-        for (i, line) in lines.iter().enumerate() {
-            // next line's first word: did it fit too?
-            let next_word = lines
-                .get(i + 1)
-                .and_then(|l| l.split_whitespace().next())
-                .unwrap_or("");
-            let w = width(line.trim_end());
-            let with_next = w + width(" ") + width(next_word);
-            let spaces = line
-                .trim_end()
-                .chars()
-                .filter(|c| c.is_whitespace())
-                .count() as f64
-                * width(" ");
-            let room = if i == 0 || lines[i - 1].trim_end().ends_with('.') && false {
-                432.0
-            } else {
-                468.0
-            };
-            let _ = room;
-            let last_word = line.split_whitespace().last().unwrap_or("");
-            println!(
-                "feat over {:7.3} spaces {:3} lastword {:7.3} overnext {:7.3} nextword {:7.3}",
-                w - 468.0,
-                line.trim_end()
-                    .chars()
-                    .filter(|c| c.is_whitespace())
-                    .count(),
-                width(last_word),
-                with_next - 468.0,
-                width(next_word)
-            );
-            println!(
-                "ratio {:7.3} next {:7.3} {}",
-                (w - 468.0) / spaces,
-                (with_next - 468.0) / (spaces + width(" ")),
-                line.chars().take(30).collect::<String>()
-            );
-            overflows.push((w, with_next, line.chars().take(40).collect::<String>()));
-        }
-    }
-    for (w, with_next, text) in &overflows {
-        println!("{w:8.2} {with_next:8.2} {text}");
-    }
-}
-
 /// prints every line of one of our pages (ORACLE_ONLY, ORACLE_PAGE).
 #[test]
 #[ignore = "diagnostic"]
 fn print_our_page() {
-    use letters_layout::{layout, Flavor, LayoutOptions};
     let name = std::env::var("ORACLE_ONLY").expect("ORACLE_ONLY");
     let page: usize = std::env::var("ORACLE_PAGE")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(0);
-    let bytes = std::fs::read(out_dir().join("corpus").join(format!("{name}.docx"))).expect("read");
-    let document = letters_office::open(&bytes).expect("open");
+    let (document, _) = open_named(&name);
     let result = layout(&document, &LayoutOptions::flavor(Flavor::Word));
     for line in &result.pages[page].lines {
         let text: String = line.runs.iter().map(|r| r.text.as_str()).collect();
@@ -654,8 +905,7 @@ fn print_our_page() {
 #[ignore = "diagnostic"]
 fn print_carry_parts() {
     let name = std::env::var("ORACLE_ONLY").expect("ORACLE_ONLY");
-    let bytes = std::fs::read(out_dir().join("corpus").join(format!("{name}.docx"))).expect("read");
-    let document = letters_office::open(&bytes).expect("open");
+    let (document, _) = open_named(&name);
     for part in &document.carry.parts {
         println!("part {} {} bytes", part.name, part.bytes.len());
     }
@@ -675,39 +925,5 @@ fn print_carry_parts() {
             .iter()
             .map(|f| (&f.family, f.bold, f.italic, f.bytes.len()))
             .collect::<Vec<_>>()
-    );
-}
-
-/// the share of lines breaking like libreoffice's over the whole corpus,
-/// for fitting the libreoffice flavor (no report written).
-#[test]
-#[ignore = "fitting"]
-fn libreoffice_agreement() {
-    use letters_layout::{layout, Flavor, LayoutOptions};
-    let corpus_folder = out_dir().join("corpus");
-    let mut scores = Vec::new();
-    for entry in std::fs::read_dir(&corpus_folder).expect("corpus").flatten() {
-        let path = entry.path();
-        if path.extension().is_none_or(|ext| ext != "docx") {
-            continue;
-        }
-        let name = path.file_stem().unwrap().to_string_lossy().to_string();
-        let document = letters_office::open(&std::fs::read(&path).unwrap()).unwrap();
-        let reference = oracle_lines("lo", &name, "docx");
-        let ours = Some(score::lines_of_result(&layout(
-            &document,
-            &LayoutOptions::flavor(Flavor::LibreOffice),
-        )));
-        if let Some(s) = compare(&reference, &ours, body_zone(&document)) {
-            scores.push(s);
-        }
-    }
-    let refs: Vec<&score::Score> = scores.iter().collect();
-    let total = score::combine(&refs);
-    println!(
-        "libreoffice agreement: same lines {:.1}% page breaks {:.1}% baseline mean {:.2}",
-        total.same_line_share() * 100.0,
-        total.page_break_share() * 100.0,
-        total.baseline.mean
     );
 }

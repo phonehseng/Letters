@@ -15,6 +15,12 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
+mod batch;
+
+pub use batch::{
+    libreoffice_convert_files, word_batch, WordJob, WordJobKind, WORD_FORMAT_DOCX, WORD_FORMAT_ODT,
+};
+
 const SESSION_SCRIPT: &str = include_str!("word_session.ps1");
 const BRIDGE_SCRIPT: &str = include_str!("word_bridge.ps1");
 
@@ -133,6 +139,36 @@ fn run_libreoffice(
     format: &str,
     extension: &str,
 ) -> Result<PathBuf, BridgeError> {
+    let out_dir = workspace.path.join("out");
+    std::fs::create_dir_all(&out_dir).map_err(failed)?;
+    run_libreoffice_files(
+        &[input.to_path_buf()],
+        format,
+        &out_dir,
+        Duration::from_secs(120),
+    )?;
+    let stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("document");
+    let produced = out_dir.join(format!("{stem}.{extension}"));
+    if produced.is_file() {
+        Ok(produced)
+    } else {
+        Err(BridgeError::Failed(format!(
+            "LibreOffice did not write a .{extension} file"
+        )))
+    }
+}
+
+/// runs one headless libreoffice that converts every file in `inputs`
+/// into `out_dir`, waiting at most `limit`.
+fn run_libreoffice_files(
+    inputs: &[PathBuf],
+    format: &str,
+    out_dir: &Path,
+    limit: Duration,
+) -> Result<(), BridgeError> {
     let program = libreoffice_path().ok_or(BridgeError::NoConverter)?;
     // one private profile, kept between calls: making a fresh one costs
     // libreoffice about twenty seconds. a profile serves one libreoffice at
@@ -151,16 +187,14 @@ fn run_libreoffice(
             .replace('\\', "/")
             .trim_start_matches('/')
     );
-    let out_dir = workspace.path.join("out");
-    std::fs::create_dir_all(&out_dir).map_err(failed)?;
     let mut child = Command::new(&program)
         .arg("--headless")
         .arg("--norestore")
         .arg("--nolockcheck")
         .arg(format!("-env:UserInstallation={profile_url}"))
         .args(["--convert-to", format, "--outdir"])
-        .arg(&out_dir)
-        .arg(input)
+        .arg(out_dir)
+        .args(inputs)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
@@ -173,9 +207,9 @@ fn run_libreoffice(
                     "LibreOffice ended with {status}"
                 )));
             }
-            break;
+            return Ok(());
         }
-        if started.elapsed() > Duration::from_secs(120) {
+        if started.elapsed() > limit {
             // end only the process tree this call started
             if cfg!(windows) {
                 let _ = Command::new("taskkill")
@@ -184,23 +218,12 @@ fn run_libreoffice(
             }
             let _ = child.kill();
             let _ = child.wait();
-            return Err(BridgeError::Failed(
-                "LibreOffice took longer than two minutes".into(),
-            ));
+            return Err(BridgeError::Failed(format!(
+                "LibreOffice took longer than {} seconds",
+                limit.as_secs()
+            )));
         }
         std::thread::sleep(Duration::from_millis(100));
-    }
-    let stem = input
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("document");
-    let produced = out_dir.join(format!("{stem}.{extension}"));
-    if produced.is_file() {
-        Ok(produced)
-    } else {
-        Err(BridgeError::Failed(format!(
-            "LibreOffice did not write a .{extension} file"
-        )))
     }
 }
 
@@ -511,9 +534,15 @@ pub fn word_paragraph_map(document: &crate::model::Document) -> Vec<Option<WordP
                     map.push(None);
                 }
             }
-            Block::SectionBreak | Block::TextBox(_) => {
-                // a text box sits in its own anchor paragraph
-                if matches!(block, Block::TextBox(_)) {
+            Block::SectionBreak => {}
+            Block::TextBox(_) | Block::Shape(_) | Block::Group(_) => {
+                // a drawing sits in an anchor paragraph of its own, unless
+                // it shares one with the drawing before it or with the
+                // paragraph of text after it
+                let own = block
+                    .object_anchor()
+                    .is_none_or(|anchor| anchor.with == crate::model::AnchorWith::Own);
+                if own {
                     map.push(Some(WordParagraph {
                         block: index,
                         cell: None,

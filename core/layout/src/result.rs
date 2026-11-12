@@ -100,6 +100,10 @@ pub struct ModelPosition {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Line {
+    /// stays the same across relayouts while the line's paragraph and its
+    /// place among that paragraph's lines do (see incremental)
+    #[serde(default)]
+    pub id: u64,
     pub story: Story,
     pub block: Vec<u32>,
     /// the model offsets the line covers: `start..end`

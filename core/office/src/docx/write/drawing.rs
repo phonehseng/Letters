@@ -1,6 +1,8 @@
 //! pictures as `w:drawing` xml.
 
-use crate::model::{Block, FloatPosition, Image, Placement, TextBox, Wrap};
+use crate::model::{
+    Block, FloatPosition, Image, Placement, SourceFormat, TextBox, VerticalAlign, Wrap,
+};
 use crate::units::twips_to_emu;
 use crate::xml::{escape_attribute, XmlWriter};
 
@@ -69,7 +71,7 @@ impl DocxWriter<'_> {
     /// a text box as word writes it: a drawingml shape for word 2010 and
     /// later, with a vml copy for older versions, in one compatibility
     /// wrapper. both hold the same content.
-    pub(crate) fn text_box_run(&mut self, text_box: &TextBox, story: &mut StoryOut) -> String {
+    pub(crate) fn text_box_content(&mut self, text_box: &TextBox, story: &mut StoryOut) -> String {
         self.next_drawing_id += 1;
         let id = self.next_drawing_id;
         let (cx, cy) = text_box.size_emu();
@@ -80,16 +82,33 @@ impl DocxWriter<'_> {
                 .as_deref()
                 .unwrap_or(&format!("Text Box {id}")),
         );
-        let mut content = XmlWriter::new();
-        self.write_blocks(&text_box.blocks, story, &mut content, None, false);
-        let ends_with_paragraph = matches!(
-            text_box.blocks.last(),
-            Some(Block::Paragraph(_)) | Some(Block::Heading(_))
-        );
-        if !ends_with_paragraph {
-            content.raw("<w:p/>");
-        }
-        let content = content.finish();
+        // a linked box: the first holds the story, the others point at it
+        let content = if text_box.holds_story() {
+            let mut content = XmlWriter::new();
+            self.write_blocks(&text_box.blocks, story, &mut content, None, false);
+            let ends_with_paragraph = matches!(
+                text_box.blocks.last(),
+                Some(Block::Paragraph(_)) | Some(Block::Heading(_))
+            );
+            if !ends_with_paragraph {
+                content.raw("<w:p/>");
+            }
+            content.finish()
+        } else {
+            String::new()
+        };
+        let story_xml = match &text_box.chain {
+            Some(chain) if chain.sequence > 0 => format!(
+                "<wps:linkedTxbx id=\"{}\" seq=\"{}\"/>",
+                self.chain_number(&chain.id),
+                chain.sequence
+            ),
+            Some(chain) => format!(
+                "<wps:txbx id=\"{}\"><w:txbxContent>{content}</w:txbxContent></wps:txbx>",
+                self.chain_number(&chain.id)
+            ),
+            None => format!("<wps:txbx><w:txbxContent>{content}</w:txbxContent></wps:txbx>"),
+        };
         let fill = match &text_box.fill {
             Some(hex) => format!(
                 "<a:solidFill><a:srgbClr val=\"{}\"/></a:solidFill>",
@@ -105,6 +124,18 @@ impl DocxWriter<'_> {
             ),
             _ => "<a:ln><a:noFill/></a:ln>".into(),
         };
+        // effects and the style reference survive in a word file
+        let preserved = text_box
+            .preserved
+            .in_format(SourceFormat::Docx)
+            .filter(|_| self.native);
+        let effects: String = preserved.map(|p| p.children.concat()).unwrap_or_default();
+        let style = preserved.and_then(|p| p.style.clone()).unwrap_or_default();
+        let anchor_value = match text_box.vertical_align {
+            Some(VerticalAlign::Center) => "ctr",
+            Some(VerticalAlign::Bottom) => "b",
+            _ => "t",
+        };
         let m = &text_box.margins;
         let fit = if text_box.auto_height {
             "<a:spAutoFit/>"
@@ -118,9 +149,8 @@ impl DocxWriter<'_> {
              <a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">\
              <a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp>\
              <wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm{}><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm>\
-             <a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>{fill}{line}</wps:spPr>\
-             <wps:txbx><w:txbxContent>{content}</w:txbxContent></wps:txbx>\
-             <wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"square\" lIns=\"{}\" tIns=\"{}\" rIns=\"{}\" bIns=\"{}\" anchor=\"t\" anchorCtr=\"0\">{fit}</wps:bodyPr>\
+             <a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>{fill}{line}{effects}</wps:spPr>{style}{story_xml}\
+             <wps:bodyPr rot=\"0\" vert=\"horz\" wrap=\"square\" lIns=\"{}\" tIns=\"{}\" rIns=\"{}\" bIns=\"{}\" anchor=\"{anchor_value}\" anchorCtr=\"0\">{fit}</wps:bodyPr>\
              </wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing>",
             anchor_open(text_box.wrap, z),
             position_xml("wp:positionH", &text_box.horizontal),
@@ -134,9 +164,29 @@ impl DocxWriter<'_> {
         );
         let fallback = vml_text_box(text_box, id, z, &content);
         format!(
-            "<w:r><mc:AlternateContent><mc:Choice Requires=\"wps\">{shape}</mc:Choice>\
-             <mc:Fallback><w:pict>{fallback}</w:pict></mc:Fallback></mc:AlternateContent></w:r>"
+            "<mc:AlternateContent><mc:Choice Requires=\"wps\">{shape}</mc:Choice>\
+             <mc:Fallback><w:pict>{fallback}</w:pict></mc:Fallback></mc:AlternateContent>"
         )
+    }
+
+    /// word numbers the stories of linked boxes; the model names them.
+    fn chain_number(&mut self, id: &str) -> u32 {
+        if let Some(number) = self.chain_numbers.get(id) {
+            return *number;
+        }
+        let wanted = id.parse::<u32>().ok().filter(|n| (1..65536).contains(n));
+        let number = match wanted {
+            Some(n) if !self.chain_numbers.values().any(|used| *used == n) => n,
+            _ => {
+                let mut n = 1;
+                while self.chain_numbers.values().any(|used| *used == n) {
+                    n += 1;
+                }
+                n
+            }
+        };
+        self.chain_numbers.insert(id.to_string(), number);
+        number
     }
     /// the drawing xml as it was read, when the picture is unchanged and
     /// the relationship it names still points at its bytes from here.
@@ -159,7 +209,7 @@ impl DocxWriter<'_> {
     }
 }
 
-fn position_xml(name: &str, position: &FloatPosition) -> String {
+pub(crate) fn position_xml(name: &str, position: &FloatPosition) -> String {
     let inner = match &position.align {
         Some(align) => format!("<wp:align>{}</wp:align>", crate::xml::escape_text(align)),
         None => format!("<wp:posOffset>{}</wp:posOffset>", position.emu()),
@@ -171,7 +221,7 @@ fn position_xml(name: &str, position: &FloatPosition) -> String {
     )
 }
 
-fn wrap_xml(wrap: Wrap) -> String {
+pub(crate) fn wrap_xml(wrap: Wrap) -> String {
     // tight and through wrapping need an outline; a rectangle is what
     // word itself starts from
     let polygon = "<wp:wrapPolygon edited=\"0\"><wp:start x=\"0\" y=\"0\"/><wp:lineTo x=\"0\" y=\"21600\"/>\
@@ -188,7 +238,7 @@ fn wrap_xml(wrap: Wrap) -> String {
 }
 
 /// the opening tag of a floating frame.
-fn anchor_open(wrap: Wrap, z_order: i64) -> String {
+pub(crate) fn anchor_open(wrap: Wrap, z_order: i64) -> String {
     let behind = if wrap == Wrap::BehindText { "1" } else { "0" };
     format!(
         "<wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" \

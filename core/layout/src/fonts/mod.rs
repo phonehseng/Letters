@@ -8,6 +8,7 @@
 
 pub mod embedded;
 pub mod face;
+pub mod library;
 pub mod metrics;
 pub mod system;
 
@@ -17,6 +18,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 pub use face::{FaceMetrics, FontOrigin, LoadedFace};
+pub use library::LibraryFonts;
 pub use metrics::{line_metrics, LineMetrics};
 
 /// a face's number in a layout result; `LayoutResult::fonts` lists them.
@@ -28,6 +30,8 @@ pub enum FaceLocation {
     File {
         path: std::path::PathBuf,
         index: u32,
+        /// for a variable font: the weight of the instance to lay out
+        weight: Option<f32>,
     },
     Bytes {
         bytes: Arc<Vec<u8>>,
@@ -52,12 +56,26 @@ pub trait FontSource: Send + Sync {
             .collect()
     }
 
+    /// families that only look like `family` (different widths), tried
+    /// after the metric-compatible ones.
+    fn similar(&self, family: &str) -> Vec<String> {
+        similar_substitutes(family)
+            .iter()
+            .map(|name| name.to_string())
+            .collect()
+    }
+
     /// families to try for a character the chosen face cannot draw.
     fn fallback_families(&self, ch: char) -> Vec<String> {
         default_fallbacks(ch)
             .iter()
             .map(|name| name.to_string())
             .collect()
+    }
+
+    /// the families tried when nothing else is found.
+    fn last_resort(&self) -> Vec<String> {
+        LAST_RESORT.iter().map(|name| name.to_string()).collect()
     }
 }
 
@@ -101,6 +119,7 @@ impl FontSource for SystemFonts {
         Some(FaceLocation::File {
             path: best.path.clone(),
             index: best.index,
+            weight: None,
         })
     }
 }
@@ -162,8 +181,16 @@ impl FontSource for ProvidedFonts {
         self.then.metric_compatible(family)
     }
 
+    fn similar(&self, family: &str) -> Vec<String> {
+        self.then.similar(family)
+    }
+
     fn fallback_families(&self, ch: char) -> Vec<String> {
         self.then.fallback_families(ch)
+    }
+
+    fn last_resort(&self) -> Vec<String> {
+        self.then.last_resort()
     }
 }
 
@@ -172,7 +199,6 @@ impl FontSource for ProvidedFonts {
 pub fn metric_compatible_substitutes(family: &str) -> &'static [&'static str] {
     match family.to_lowercase().as_str() {
         "calibri" => &["Carlito"],
-        "cambria" => &["Caladea"],
         "arial" | "helvetica" => &["Liberation Sans", "Arimo", "Arial"],
         "times new roman" | "times" => &["Liberation Serif", "Tinos", "Times New Roman"],
         "courier new" | "courier" => &["Liberation Mono", "Cousine", "Courier New"],
@@ -180,6 +206,19 @@ pub fn metric_compatible_substitutes(family: &str) -> &'static [&'static str] {
         "liberation serif" | "tinos" => &["Times New Roman"],
         "liberation sans" | "arimo" => &["Arial"],
         "carlito" => &["Calibri"],
+        _ => &[],
+    }
+}
+
+/// open fonts that look like a common office font without its widths.
+/// caladea was made for cambria, but the font library measured the
+/// version it ships 2.5 % of the em off on average (core/fonts readme),
+/// so lines break differently with it.
+pub fn similar_substitutes(family: &str) -> &'static [&'static str] {
+    match family.to_lowercase().as_str() {
+        "cambria" => &["Caladea"],
+        "calibri light" => &["Carlito"],
+        "aptos" => &["Inter"],
         _ => &[],
     }
 }
@@ -225,6 +264,8 @@ pub struct FontSubstitution {
 pub enum SubstitutionReason {
     /// the family is not installed; a metric-compatible one stands in
     MetricCompatible,
+    /// the family is not installed; a look-alike with other widths stands in
+    Similar,
     /// the family is not installed; a general fallback stands in
     NotInstalled,
     /// the family is there but not in this style; it is synthesised
@@ -253,7 +294,7 @@ pub struct FontLibrary {
 }
 
 /// the last resort when nothing else is found: the usual default faces.
-const LAST_RESORT: &[&str] = &[
+pub(crate) const LAST_RESORT: &[&str] = &[
     "Times New Roman",
     "Liberation Serif",
     "Arial",
@@ -308,7 +349,13 @@ impl FontLibrary {
                 return Some(self.add(face, family, bold, italic, reason));
             }
         }
-        for candidate in LAST_RESORT {
+        for candidate in &self.source.similar(family) {
+            if let Some(face) = self.load_family(candidate, bold, italic) {
+                let reason = Some(SubstitutionReason::Similar);
+                return Some(self.add(face, family, bold, italic, reason));
+            }
+        }
+        for candidate in &self.source.last_resort() {
             if let Some(face) = self.load_family(candidate, bold, italic) {
                 let reason = Some(SubstitutionReason::NotInstalled);
                 return Some(self.add(face, family, bold, italic, reason));
@@ -318,6 +365,7 @@ impl FontLibrary {
         let face = self.load(&FaceLocation::File {
             path: any.path.clone(),
             index: any.index,
+            weight: None,
         })?;
         Some(self.add(
             face,
@@ -335,7 +383,14 @@ impl FontLibrary {
 
     fn load(&mut self, location: &FaceLocation) -> Option<Arc<LoadedFace>> {
         let key = match location {
-            FaceLocation::File { path, index } => (path.to_string_lossy().to_string(), *index),
+            FaceLocation::File {
+                path,
+                index,
+                weight,
+            } => (
+                format!("{}@{}", path.to_string_lossy(), weight.unwrap_or(0.0)),
+                *index,
+            ),
             FaceLocation::Bytes { bytes, index, .. } => {
                 (format!("bytes:{:p}", Arc::as_ptr(bytes)), *index)
             }
@@ -344,9 +399,17 @@ impl FontLibrary {
             return Some(face.clone());
         }
         let face = match location {
-            FaceLocation::File { path, index } => {
+            FaceLocation::File {
+                path,
+                index,
+                weight,
+            } => {
                 let bytes = Arc::new(std::fs::read(path).ok()?);
-                LoadedFace::load(bytes, *index, FontOrigin::System { path: path.clone() })?
+                let origin = FontOrigin::System { path: path.clone() };
+                match weight {
+                    Some(weight) => LoadedFace::load_instance(bytes, *index, origin, *weight)?,
+                    None => LoadedFace::load(bytes, *index, origin)?,
+                }
             }
             FaceLocation::Bytes {
                 bytes,

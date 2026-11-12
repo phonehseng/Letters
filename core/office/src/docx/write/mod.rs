@@ -10,6 +10,7 @@ mod body;
 mod drawing;
 mod parts;
 mod props;
+mod shapes;
 mod table;
 
 pub(crate) use body::foreign_text;
@@ -155,6 +156,10 @@ pub(crate) struct DocxWriter<'d> {
     next_change_id: u64,
     next_drawing_id: u32,
     styles_present: BTreeSet<String>,
+    /// word's numbers for the stories of linked text boxes
+    chain_numbers: HashMap<String, u32>,
+    /// how many drawings deep the writer is (see `write_blocks`)
+    drawing_depth: u32,
 }
 
 impl<'d> DocxWriter<'d> {
@@ -181,8 +186,10 @@ impl<'d> DocxWriter<'d> {
             definition_ids: HashMap::new(),
             used_change_ids: BTreeSet::new(),
             next_change_id: 1,
-            next_drawing_id: 1000,
+            next_drawing_id: first_drawing_id(doc),
             styles_present: doc.styles.styles.iter().map(|s| s.id.clone()).collect(),
+            chain_numbers: HashMap::new(),
+            drawing_depth: 0,
         };
         writer.plan_ids();
         writer.plan_paths();
@@ -478,6 +485,62 @@ impl<'d> DocxWriter<'d> {
     pub(crate) fn has_style(&self, id: &str) -> bool {
         self.styles_present.contains(id)
     }
+}
+
+/// new drawings are numbered above every id the kept original xml uses,
+/// so no two drawings share one (word reports a damaged file when they do).
+fn first_drawing_id(doc: &Document) -> u32 {
+    let mut highest: u64 = 1000;
+    let mut scan = |xml: &str| {
+        for piece in xml.split(" id=\"").skip(1) {
+            if let Some(number) = piece.split('"').next().and_then(|n| n.parse::<u64>().ok()) {
+                highest = highest.max(number);
+            }
+        }
+    };
+    fn visit(blocks: &[Block], scan: &mut dyn FnMut(&str)) {
+        for block in blocks {
+            match block {
+                Block::TextBox(object) => {
+                    if let Some(original) = &object.original {
+                        scan(&original.xml);
+                    }
+                }
+                Block::Shape(object) => {
+                    if let Some(original) = &object.original {
+                        scan(&original.xml);
+                    }
+                }
+                Block::Group(object) => {
+                    if let Some(original) = &object.original {
+                        scan(&original.xml);
+                    }
+                }
+                Block::Table(table) => {
+                    for cell in table.rows.iter().flat_map(|row| &row.cells) {
+                        visit(&cell.blocks, scan);
+                    }
+                }
+                _ => {
+                    if let Some(paragraph) = block.paragraph() {
+                        for inline in &paragraph.content {
+                            if let Inline::Image(image) = inline {
+                                if let Some(original) = &image.original {
+                                    scan(&original.xml);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    visit(&doc.blocks, &mut scan);
+    for part in &doc.headers_footers {
+        visit(&part.blocks, &mut scan);
+    }
+    // ids are 32-bit; stay well inside them
+    u32::try_from(highest.min(u64::from(u32::MAX / 2))).unwrap_or(1000)
 }
 
 fn trailing_number(id: &str) -> Option<i64> {

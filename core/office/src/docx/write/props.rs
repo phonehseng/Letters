@@ -108,10 +108,17 @@ impl DocxWriter<'_> {
             ordered.push("w:rStyle", val("w:rStyle", id));
         }
         if let Some(font) = &props.font {
-            let mut attributes = vec![
-                ("w:ascii".to_string(), font.name.clone()),
-                ("w:hAnsi".to_string(), font.name.clone()),
-            ];
+            // a theme font read from a word file names only its slot, plus
+            // whatever names the file itself had (kept in `extra`)
+            let theme_only = self.native && font.theme.is_some();
+            let mut attributes = if theme_only {
+                Vec::new()
+            } else {
+                vec![
+                    ("w:ascii".to_string(), font.name.clone()),
+                    ("w:hAnsi".to_string(), font.name.clone()),
+                ]
+            };
             if let Some(theme) = &font.theme {
                 attributes.push(("w:asciiTheme".into(), theme.clone()));
                 attributes.push(("w:hAnsiTheme".into(), theme.clone()));
@@ -256,16 +263,36 @@ fn page_size_xml(section: &Section) -> String {
 }
 
 fn columns_xml(section: &Section) -> String {
+    let unequal = !section.column_widths.is_empty();
     let space = section.columns.space.to_string();
-    let count = section.columns.count.to_string();
+    let count = if unequal {
+        section.column_widths.len().to_string()
+    } else {
+        section.columns.count.to_string()
+    };
     let mut attributes = vec![("w:space", space.as_str())];
-    if section.columns.count > 1 {
+    if count != "1" {
         attributes.push(("w:num", count.as_str()));
     }
     if section.columns.separator {
         attributes.push(("w:sep", "1"));
     }
-    empty("w:cols", &attributes)
+    if !unequal {
+        return empty("w:cols", &attributes);
+    }
+    attributes.push(("w:equalWidth", "0"));
+    let mut xml = XmlWriter::new();
+    xml.open("w:cols", &attributes);
+    for column in &section.column_widths {
+        let width = column.width.to_string();
+        let gap = column.space.to_string();
+        xml.empty(
+            "w:col",
+            &[("w:w", width.as_str()), ("w:space", gap.as_str())],
+        );
+    }
+    xml.close("w:cols");
+    xml.finish()
 }
 
 fn tabs_xml(props: &ParagraphProps) -> String {

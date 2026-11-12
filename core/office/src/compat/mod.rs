@@ -1,13 +1,18 @@
-//! strict word mode: what in a document microsoft word would not keep or
-//! would show differently, with an automatic fix where one exists, and
-//! the one table of editor features the interface uses to decide what to
-//! offer in that mode.
+//! strict word mode: what in a document microsoft word (or libreoffice)
+//! would not keep or would show differently, with an automatic fix where
+//! one exists. the table of editor features the interface uses to decide
+//! what to offer in that mode is in `features`.
 
 use std::collections::BTreeSet;
 
 use serde::Serialize;
 
 use crate::model::{Block, Document, Inline, Mark, NumberFormat, SourceFormat, TextBox};
+
+mod drawings;
+mod features;
+
+pub use features::{feature_matrix, Feature, Support};
 
 /// where in the document a finding is: a top-level block, and the inline
 /// inside it when that matters.
@@ -187,6 +192,7 @@ pub fn word_compatibility(document: &Document) -> Report {
     }
     check_numbering(document, &mut report);
     check_fonts(document, &mut report);
+    drawings::check(document, drawings::Target::Word, &mut report);
     for item in &document.media {
         if item.content_type == "image/webp" || item.content_type == "image/svg+xml" {
             report.issues.push(Issue {
@@ -206,6 +212,56 @@ pub fn word_compatibility(document: &Document) -> Report {
         }
     }
     report
+}
+
+/// everything libreoffice would not keep from a document, or would show
+/// differently: word-only pieces (kept as word xml, so only their text
+/// reaches an odt file), fonts that are not there, and the drawings and
+/// layout an opendocument file holds less exactly (see `drawings`).
+pub fn libreoffice_compatibility(document: &Document) -> Report {
+    let mut report = Report::default();
+    if document.carry.origin == Some(SourceFormat::Docx) {
+        for (index, block) in document.blocks.iter().enumerate() {
+            check_word_only(block, index, &mut report);
+        }
+    }
+    check_fonts(document, &mut report);
+    drawings::check(document, drawings::Target::LibreOffice, &mut report);
+    report
+}
+
+fn check_word_only(block: &Block, index: usize, report: &mut Report) {
+    let at = |inline: Option<usize>| {
+        Some(Location {
+            block: index,
+            inline,
+        })
+    };
+    if let Block::Preserved { .. } = block {
+        report.issues.push(Issue {
+            code: "word-only",
+            message: "This part came from a Word file and OpenDocument has nothing like it; only its text can be kept.".into(),
+            location: at(None),
+            fix: Some(Fix::KeepTextOnly),
+        });
+        return;
+    }
+    let Some(paragraph) = block.paragraph() else {
+        return;
+    };
+    for (position, inline) in paragraph.content.iter().enumerate() {
+        if matches!(
+            inline,
+            Inline::Preserved { .. } | Inline::PreservedRun { .. }
+        ) {
+            report.issues.push(Issue {
+                code: "word-only",
+                message: "This object came from a Word file and OpenDocument has nothing like it; only its text can be kept.".into(),
+                location: at(Some(position)),
+                fix: Some(Fix::KeepTextOnly),
+            });
+        }
+    }
 }
 
 fn check_block(block: &Block, index: usize, foreign: bool, in_box: bool, report: &mut Report) {
@@ -551,177 +607,6 @@ fn replace_font(document: &mut Document, from: &str, to: &str) {
             font.name = to.to_string();
         }
     }
-}
-
-/// how well a format keeps an editor feature.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Support {
-    /// exact in word files and in odt files
-    Both,
-    /// exact in word files only
-    WordExact,
-    /// exact in odt files only
-    OdtExact,
-    /// kept in both, but not exactly
-    Approximate,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Feature {
-    pub key: &'static str,
-    pub label: &'static str,
-    pub support: Support,
-    /// what "approximate" or "exact in one format" means here
-    pub note: &'static str,
-}
-
-impl Feature {
-    /// offered in strict word mode.
-    pub fn word_exact(&self) -> bool {
-        matches!(self.support, Support::Both | Support::WordExact)
-    }
-}
-
-/// every editor feature and how each format keeps it: the single source
-/// of truth for strict word mode.
-pub fn feature_matrix() -> Vec<Feature> {
-    use Support::*;
-    let feature = |key, label, support, note| Feature {
-        key,
-        label,
-        support,
-        note,
-    };
-    vec![
-        feature("bold", "Bold, italic, underline, strike", Both, ""),
-        feature("superscript", "Superscript and subscript", Both, ""),
-        feature(
-            "fontFamily",
-            "Font and size",
-            Both,
-            "fonts must be installed or embedded to look the same",
-        ),
-        feature("color", "Text colour", Both, ""),
-        feature(
-            "highlight",
-            "Highlighter",
-            WordExact,
-            "word has 16 highlighter colours; odt any colour",
-        ),
-        feature(
-            "highlightAnyColour",
-            "Highlight in any colour",
-            OdtExact,
-            "word uses the nearest of its 16 colours",
-        ),
-        feature("smallCaps", "Small capitals and all capitals", Both, ""),
-        feature("alignment", "Alignment and justification", Both, ""),
-        feature("indents", "Indents, first-line and hanging", Both, ""),
-        feature("spacing", "Paragraph and line spacing", Both, ""),
-        feature("tabs", "Tab stops with leaders", Both, ""),
-        feature("headings", "Headings 1 to 6 and the outline", Both, ""),
-        feature("styles", "Named styles with inheritance", Both, ""),
-        feature(
-            "lists",
-            "Bulleted, numbered and multi-level lists",
-            Both,
-            "",
-        ),
-        feature(
-            "listFormats",
-            "Unusual list numbering (circled, full-width...)",
-            Approximate,
-            "each format has its own set",
-        ),
-        feature(
-            "tables",
-            "Tables with merged cells, borders and shading",
-            Both,
-            "",
-        ),
-        feature("footnotes", "Footnotes and endnotes", Both, ""),
-        feature("comments", "Comments on a range", Both, ""),
-        feature("trackChanges", "Tracked insertions and deletions", Both, ""),
-        feature(
-            "trackFormatting",
-            "Tracked formatting changes",
-            WordExact,
-            "kept as is in word files, lost in odt",
-        ),
-        feature(
-            "headersFooters",
-            "Headers and footers, first page, odd and even",
-            Both,
-            "",
-        ),
-        feature(
-            "sections",
-            "Sections with their own page setup",
-            Both,
-            "odt starts each on a new page",
-        ),
-        feature(
-            "continuousSections",
-            "Section changes in the middle of a page",
-            WordExact,
-            "odt starts a new page",
-        ),
-        feature("columns", "Text columns", Both, ""),
-        feature("pageNumbers", "Page number and page count fields", Both, ""),
-        feature(
-            "tableOfContents",
-            "Table of contents",
-            WordExact,
-            "odt keeps its own as is; a new one is word only",
-        ),
-        feature("inlinePictures", "Pictures in the line", Both, ""),
-        feature(
-            "floatingPictures",
-            "Floating pictures with wrapping",
-            Both,
-            "",
-        ),
-        feature(
-            "pictureCrop",
-            "Cropped pictures",
-            WordExact,
-            "odt keeps the whole picture",
-        ),
-        feature(
-            "pictureRotation",
-            "Rotated pictures and text boxes",
-            WordExact,
-            "odt shows them unrotated",
-        ),
-        feature("textBoxes", "Text boxes", Both, ""),
-        feature(
-            "textBoxAutoHeight",
-            "Text boxes that grow with their text",
-            Both,
-            "",
-        ),
-        feature("bookmarks", "Bookmarks and links", Both, ""),
-        feature(
-            "inlinePageBreak",
-            "A page break inside a line",
-            WordExact,
-            "odt breaks the line instead",
-        ),
-        feature(
-            "equations",
-            "Equations",
-            Approximate,
-            "kept in the format they came from; text only in the other",
-        ),
-        feature(
-            "contentControls",
-            "Content controls and forms",
-            WordExact,
-            "kept in word files; text only in odt",
-        ),
-    ]
 }
 
 #[cfg(test)]

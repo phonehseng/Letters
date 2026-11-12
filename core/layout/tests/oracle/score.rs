@@ -10,12 +10,35 @@ use letters_layout::LayoutResult;
 use super::lines::TextLine;
 use super::pdf_glyphs::{Glyph, PdfPage};
 
+/// one layout as the scores see it: its lines, and per page the x of its
+/// vertical rules and the boxes of its pictures.
+#[derive(Clone, Debug, Default)]
+pub struct Laid {
+    pub pages: usize,
+    pub lines: Vec<TextLine>,
+    pub rules: Vec<Vec<f64>>,
+    pub pictures: Vec<Vec<[f64; 4]>>,
+}
+
+impl Laid {
+    pub fn of_pdf(pages: &[PdfPage]) -> Laid {
+        Laid {
+            pages: pages.len(),
+            lines: super::lines::lines_of_document(pages),
+            rules: pages.iter().map(|p| p.vertical_rules.clone()).collect(),
+            pictures: pages.iter().map(|p| p.pictures.clone()).collect(),
+        }
+    }
+}
+
 /// the lines of our own layout: its glyphs in drawing order, grouped by
 /// the very rule that groups a pdf's glyphs (`lines::lines_of_page`), so
 /// table cells on one baseline merge exactly as they do in an oracle's pdf.
-pub fn lines_of_result(result: &LayoutResult) -> (usize, Vec<TextLine>) {
+pub fn lines_of_result(result: &LayoutResult) -> Laid {
     let pages = glyph_pages(result);
-    (result.pages.len(), super::lines::lines_of_document(&pages))
+    let mut laid = Laid::of_pdf(&pages);
+    laid.pages = result.pages.len();
+    laid
 }
 
 /// our result as the pdf reader would see it: each glyph's first
@@ -52,6 +75,17 @@ pub fn glyph_pages(result: &LayoutResult) -> Vec<PdfPage> {
                 width: page.width,
                 height: page.height,
                 glyphs,
+                vertical_rules: page
+                    .rects
+                    .iter()
+                    .filter(|r| r.width <= 2.6 && r.height >= 3.0)
+                    .map(|r| r.x + r.width / 2.0)
+                    .collect(),
+                pictures: page
+                    .images
+                    .iter()
+                    .map(|i| [i.x, i.y, i.width, i.height])
+                    .collect(),
             }
         })
         .collect()
@@ -61,6 +95,11 @@ pub fn glyph_pages(result: &LayoutResult) -> Vec<PdfPage> {
 pub struct Score {
     pub reference_pages: usize,
     pub candidate_pages: usize,
+    /// documents scored, and how many have the same page count
+    #[serde(default)]
+    pub documents: usize,
+    #[serde(default)]
+    pub pages_match: usize,
     pub reference_lines: usize,
     /// lines of the reference with an identical line in the candidate
     pub same_lines: usize,
@@ -72,6 +111,14 @@ pub struct Score {
     pub line_x: Stats,
     /// glyph x relative to its line's start
     pub glyph_x: Stats,
+    /// each vertical rule of the reference (table column edges, borders)
+    /// to the nearest one of the candidate on the same page
+    #[serde(default)]
+    pub rules: Stats,
+    /// each picture of the reference to the nearest one of the candidate
+    /// on the same page: the larger of the x and y differences
+    #[serde(default)]
+    pub pictures: Stats,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -80,6 +127,9 @@ pub struct Stats {
     pub mean: f64,
     pub max: f64,
     pub p95: f64,
+    /// every value, for combining percentiles exactly (not in the report)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub values: Vec<f64>,
 }
 
 impl Stats {
@@ -94,6 +144,7 @@ impl Stats {
             mean: values.iter().sum::<f64>() / count as f64,
             max: values[count - 1],
             p95: values[((count as f64 * 0.95).ceil() as usize).min(count) - 1],
+            values,
         }
     }
 }
@@ -122,14 +173,12 @@ pub struct BodyZone {
     pub bottom: f64,
 }
 
+/// a rule or picture with no partner nearer than this counts as this far
+const UNMATCHED: f64 = 30.0;
+
 /// scores `candidate` against `reference`.
-pub fn score(
-    reference: (usize, &[TextLine]),
-    candidate: (usize, &[TextLine]),
-    zone: BodyZone,
-) -> Score {
-    let (reference_pages, reference_lines) = reference;
-    let (candidate_pages, candidate_lines) = candidate;
+pub fn score(reference: &Laid, candidate: &Laid, zone: BodyZone) -> Score {
+    let (reference_lines, candidate_lines) = (&reference.lines, &candidate.lines);
     let mut used = vec![false; candidate_lines.len()];
     let mut same = 0;
     let mut baseline = Vec::new();
@@ -156,12 +205,14 @@ pub fn score(
     let (pages_compared, page_breaks_agree) = page_breaks(
         reference_lines,
         candidate_lines,
-        reference_pages.min(candidate_pages),
+        reference.pages.min(candidate.pages),
         zone,
     );
     Score {
-        reference_pages,
-        candidate_pages,
+        reference_pages: reference.pages,
+        candidate_pages: candidate.pages,
+        documents: 1,
+        pages_match: usize::from(reference.pages == candidate.pages),
         reference_lines: reference_lines.len(),
         same_lines: same,
         pages_compared,
@@ -169,7 +220,57 @@ pub fn score(
         baseline: Stats::of(baseline),
         line_x: Stats::of(line_x),
         glyph_x: Stats::of(glyph_x),
+        rules: Stats::of(rule_differences(&reference.rules, &candidate.rules)),
+        pictures: Stats::of(picture_differences(
+            &reference.pictures,
+            &candidate.pictures,
+        )),
     }
+}
+
+/// the reference's distinct rule positions per page, each to the nearest
+/// candidate rule on the same page.
+pub fn rule_differences(reference: &[Vec<f64>], candidate: &[Vec<f64>]) -> Vec<f64> {
+    let mut out = Vec::new();
+    for (page, rules) in reference.iter().enumerate() {
+        let theirs = distinct(rules);
+        let ours = distinct(candidate.get(page).map_or(&[][..], |v| v.as_slice()));
+        for x in theirs {
+            let nearest = ours.iter().map(|o| (o - x).abs()).fold(UNMATCHED, f64::min);
+            out.push(nearest);
+        }
+    }
+    out
+}
+
+/// positions closer than a third of a point are one rule (a cell's right
+/// edge and the next cell's left edge drawn separately).
+fn distinct(values: &[f64]) -> Vec<f64> {
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let mut out: Vec<f64> = Vec::new();
+    for value in sorted {
+        if out.last().is_none_or(|last| value - last > 0.33) {
+            out.push(value);
+        }
+    }
+    out
+}
+
+/// each reference picture to the closest candidate picture on its page.
+pub fn picture_differences(reference: &[Vec<[f64; 4]>], candidate: &[Vec<[f64; 4]>]) -> Vec<f64> {
+    let mut out = Vec::new();
+    for (page, pictures) in reference.iter().enumerate() {
+        let ours = candidate.get(page).map_or(&[][..], |v| v.as_slice());
+        for picture in pictures {
+            let nearest = ours
+                .iter()
+                .map(|o| (o[0] - picture[0]).abs().max((o[1] - picture[1]).abs()))
+                .fold(UNMATCHED, f64::min);
+            out.push(nearest);
+        }
+    }
+    out
 }
 
 fn best_match(line: &TextLine, candidates: &[TextLine], used: &[bool]) -> Option<usize> {
@@ -230,12 +331,19 @@ fn page_breaks(
     (compared, agree)
 }
 
-/// several documents' scores added up (stats weighted by their counts).
+/// several documents' scores added up (percentiles over all values).
 pub fn combine(scores: &[&Score]) -> Score {
     let mut total = Score::default();
     for score in scores {
         total.reference_pages += score.reference_pages;
         total.candidate_pages += score.candidate_pages;
+        total.documents += score.documents.max(1);
+        total.pages_match +=
+            if score.documents == 0 && score.reference_pages == score.candidate_pages {
+                1
+            } else {
+                score.pages_match
+            };
         total.reference_lines += score.reference_lines;
         total.same_lines += score.same_lines;
         total.pages_compared += score.pages_compared;
@@ -244,21 +352,28 @@ pub fn combine(scores: &[&Score]) -> Score {
     total.baseline = combine_stats(scores.iter().map(|s| &s.baseline));
     total.line_x = combine_stats(scores.iter().map(|s| &s.line_x));
     total.glyph_x = combine_stats(scores.iter().map(|s| &s.glyph_x));
+    total.rules = combine_stats(scores.iter().map(|s| &s.rules));
+    total.pictures = combine_stats(scores.iter().map(|s| &s.pictures));
     total
 }
 
 fn combine_stats<'a>(stats: impl Iterator<Item = &'a Stats>) -> Stats {
-    let mut out = Stats::default();
+    let mut values = Vec::new();
+    let mut fallback = Stats::default();
     let mut weighted = 0.0;
     for stat in stats {
-        out.count += stat.count;
+        values.extend_from_slice(&stat.values);
+        fallback.count += stat.count;
         weighted += stat.mean * stat.count as f64;
-        out.max = out.max.max(stat.max);
-        // the largest p95 of the parts: a conservative combination
-        out.p95 = out.p95.max(stat.p95);
+        fallback.max = fallback.max.max(stat.max);
+        fallback.p95 = fallback.p95.max(stat.p95);
     }
-    if out.count > 0 {
-        out.mean = weighted / out.count as f64;
+    if values.len() == fallback.count {
+        return Stats::of(values);
     }
-    out
+    // older scores without their values: a conservative combination
+    if fallback.count > 0 {
+        fallback.mean = weighted / fallback.count as f64;
+    }
+    fallback
 }

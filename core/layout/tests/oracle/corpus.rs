@@ -180,7 +180,7 @@ pub fn prose(rng: &mut Seeded, words: usize) -> String {
     out
 }
 
-fn font(name: &str) -> FontRef {
+pub fn font(name: &str) -> FontRef {
     FontRef {
         name: name.into(),
         theme: None,
@@ -215,13 +215,13 @@ pub fn styled_paragraph(text: &str, marks: Vec<Mark>) -> Paragraph {
     }
 }
 
-fn size_mark(points_x2: u32) -> Mark {
+pub fn size_mark(points_x2: u32) -> Mark {
     Mark::FontSize {
         half_points: points_x2,
     }
 }
 
-fn family_mark(name: &str) -> Mark {
+pub fn family_mark(name: &str) -> Mark {
     Mark::FontFamily {
         name: name.into(),
         theme: None,
@@ -229,21 +229,21 @@ fn family_mark(name: &str) -> Mark {
     }
 }
 
-fn auto(value: i32) -> LineSpacing {
+pub fn auto(value: i32) -> LineSpacing {
     LineSpacing {
         rule: LineRule::Auto,
         value,
     }
 }
 
-fn exact(value: i32) -> LineSpacing {
+pub fn exact(value: i32) -> LineSpacing {
     LineSpacing {
         rule: LineRule::Exact,
         value,
     }
 }
 
-fn at_least(value: i32) -> LineSpacing {
+pub fn at_least(value: i32) -> LineSpacing {
     LineSpacing {
         rule: LineRule::AtLeast,
         value,
@@ -494,7 +494,7 @@ fn lists() -> CorpusDocument {
     }
 }
 
-fn heading_styles(document: &mut Document, family: &str) {
+pub fn heading_styles(document: &mut Document, family: &str) {
     for (level, size, before, after) in [(1u8, 32u32, 480, 120), (2, 26, 240, 80)] {
         let mut style = Style::paragraph(&format!("Heading{level}"), &format!("heading {level}"));
         style.based_on = Some("Normal".into());
@@ -511,7 +511,7 @@ fn heading_styles(document: &mut Document, family: &str) {
     }
 }
 
-fn heading(level: u8, text: &str) -> Block {
+pub fn heading(level: u8, text: &str) -> Block {
     Block::Heading(Heading {
         level,
         paragraph: Paragraph {
@@ -670,7 +670,7 @@ fn mla_essay() -> CorpusDocument {
     }
 }
 
-fn simple_table(columns: &[Twips], rows: usize, rng: &mut Seeded, words: usize) -> Table {
+pub fn simple_table(columns: &[Twips], rows: usize, rng: &mut Seeded, words: usize) -> Table {
     let border = Border {
         style: "single".into(),
         size: 4,
@@ -814,7 +814,7 @@ pub fn png_bytes(width: u32, height: u32) -> Vec<u8> {
     out
 }
 
-fn add_media(document: &mut Document, id: &str) {
+pub fn add_media(document: &mut Document, id: &str) {
     document.media.push(MediaItem {
         id: id.into(),
         content_type: "image/png".into(),
@@ -823,7 +823,7 @@ fn add_media(document: &mut Document, id: &str) {
     });
 }
 
-fn image(id: &str, width: Twips, height: Twips, placement: Placement) -> Inline {
+pub fn image(id: &str, width: Twips, height: Twips, placement: Placement) -> Inline {
     Inline::Image(Image {
         media_id: id.into(),
         width,

@@ -29,6 +29,16 @@ pub struct Section {
     pub page_number_start: Option<u32>,
     #[serde(default, skip_serializing_if = "Preserved::is_empty")]
     pub preserved: Preserved,
+    /// columns of their own widths, left to right. empty: `columns.count`
+    /// equal columns `columns.space` apart
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub column_widths: Vec<ColumnWidth>,
+    /// a canvas page: everything on it is positioned (text boxes, shapes,
+    /// pictures, floating tables) and no text flows. made by
+    /// `freeform::canvas_page_from_objects` for content that came from a
+    /// fixed layout (a pdf page, a slide, a flyer)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub canvas: bool,
 }
 
 impl Default for Section {
@@ -42,8 +52,43 @@ impl Default for Section {
             different_first_page: false,
             page_number_start: None,
             preserved: Preserved::default(),
+            column_widths: Vec::new(),
+            canvas: false,
         }
     }
+}
+
+impl Section {
+    /// each column's width and the gap after it, worked out for equal
+    /// columns when the section does not list them.
+    pub fn column_layout(&self) -> Vec<ColumnWidth> {
+        if !self.column_widths.is_empty() {
+            return self.column_widths.clone();
+        }
+        let count = self.columns.count.max(1) as i32;
+        let gaps = self.columns.space * (count - 1);
+        let width = ((self.page.text_width() - gaps) / count).max(1);
+        (0..count)
+            .map(|index| ColumnWidth {
+                width,
+                space: if index + 1 < count {
+                    self.columns.space
+                } else {
+                    0
+                },
+            })
+            .collect()
+    }
+}
+
+/// one column of unequal columns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColumnWidth {
+    pub width: Twips,
+    /// the gap after this column (before the next one)
+    #[serde(default)]
+    pub space: Twips,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

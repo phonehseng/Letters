@@ -1,3 +1,5 @@
+//! the one error type of the crate, so callers handle a single kind of failure.
+
 use thiserror::Error;
 
 /// everything that can go wrong reading or writing an office document.

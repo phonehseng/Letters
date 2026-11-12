@@ -301,6 +301,7 @@ fn lines_of_run(run: &ExactRun, face: &LoadedFace, font: u32, part: u32) -> Vec<
 
 fn empty_line(run: &ExactRun, glyph: &ExactGlyph, font: u32, part: u32) -> Line {
     Line {
+        id: 0,
         story: Story::Positioned { page: part },
         block: vec![part],
         start: 0,

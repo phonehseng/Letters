@@ -305,7 +305,7 @@ fn set_z(document: &mut Document, object: ObjectRef, z: i64) {
     }
 }
 
-fn next_z(document: &Document) -> i64 {
+pub(crate) fn next_z(document: &Document) -> i64 {
     floating_objects(document)
         .into_iter()
         .filter_map(|object| z_of(document, object))

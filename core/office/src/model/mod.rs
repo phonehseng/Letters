@@ -12,6 +12,7 @@
 
 mod block;
 mod carry;
+mod drawing;
 mod inline;
 mod media;
 mod numbering;
@@ -22,13 +23,19 @@ mod style;
 use serde::{Deserialize, Serialize};
 
 pub use block::{
-    Alignment, Block, Border, CellBorders, Heading, Indent, LineRule, LineSpacing, ListRef,
-    Paragraph, ParagraphProps, Preserved, Spacing, TabKind, TabLeader, TabStop, Table, TableCell,
-    TableRow, VerticalAlign,
+    Alignment, Block, Border, CellBorders, CellMargins, Distances, Heading, HeightRule, Indent,
+    LineRule, LineSpacing, ListRef, Paragraph, ParagraphProps, Preserved, Spacing, TabKind,
+    TabLeader, TabStop, Table, TableCell, TablePosition, TableRow, TextDirection, VerticalAlign,
 };
 pub use carry::{
     Attribute, CarriedPart, Carry, ContentTypeDefault, DocxCarry, OdtCarry, PartRelationships,
     PartRoot, Relationship, SourceFormat,
+};
+pub use drawing::{
+    fingerprint_of, remember_original, reusable_original, Adjust, AnchorWith, ConnectionEnd,
+    Connector, DrawingPreserved, Fill, Geometry, Gradient, GradientKind, GradientStop, Group,
+    GroupChild, LineCap, LineEnd, LineJoin, ObjectAnchor, OriginalObject, PathCommand, Positioned,
+    Shape, ShapePath, ShapeText, Stroke,
 };
 pub use inline::{
     exact_emu, merge_adjacent_text, normalize_marks, BreakKind, Change, Crop, Field, FieldKind,
@@ -39,10 +46,10 @@ pub use media::MediaItem;
 pub use numbering::{
     LevelOverride, ListDefinition, ListInstance, ListLevel, NumberFormat, Numbering,
 };
-pub use objects::{BoxMargins, TextBox};
+pub use objects::{BoxMargins, TableCellOrigin, TextBox, TextChain};
 pub use section::{
-    Columns, HeaderFooter, HeaderFooterKind, HeaderFooterRefs, Margins, Orientation, PageSetup,
-    Section, SectionStart,
+    ColumnWidth, Columns, HeaderFooter, HeaderFooterKind, HeaderFooterRefs, Margins, Orientation,
+    PageSetup, Section, SectionStart,
 };
 pub use style::{
     FontRef, RunProps, Script, Style, StyleDefaults, StyleKind, StyleSheet, ThemeFonts,

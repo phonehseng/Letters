@@ -33,6 +33,7 @@ impl DocxReader<'_> {
         });
         self.theme.major = major;
         self.theme.minor = minor;
+        self.palette = crate::docx::drawingml::Palette::from_theme(&xml.root);
         self.doc.styles.theme_fonts = self.theme.clone();
         Ok(())
     }

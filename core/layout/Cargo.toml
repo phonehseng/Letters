@@ -10,11 +10,15 @@ publish.workspace = true
 # mixed licenses per language, and word and libreoffice both leave automatic
 # hyphenation off by default anyway.
 [dependencies]
+# the font library: faces, metric-compatible stand-ins, fallback chains
+letters-fonts = { path = "../fonts" }
 letters-office = { path = "../office" }
 lopdf = "0.47"
 png = "0.18"
 rustybuzz = "0.20"
 serde = { version = "1", features = ["derive"] }
+# the provider's json entry point
+serde_json = "1"
 thiserror = "2"
 ttf-parser = "0.25"
 unicode-bidi = "0.3"
@@ -26,3 +30,5 @@ letters-pdf = { path = "../pdf" }
 pdfium-render = { version = "0.9", default-features = false, features = ["pdfium_latest"] }
 png = "0.18"
 serde_json = "1"
+# patching corpus documents after writing (mit)
+zip = { version = "9.5.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }

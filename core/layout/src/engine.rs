@@ -7,7 +7,10 @@ use letters_office::model::{Block, Document, SectionStart};
 use crate::flavor::Flavor;
 use crate::fonts::{FontLibrary, FontSource, SystemFonts};
 use crate::pages::geometry::SectionGeometry;
-use crate::pages::{note_numbers, starts_new_page, Context, Flow, PreparedParagraph};
+use crate::pages::{
+    note_numbers, starts_new_page, Context, Cursor, Flow, PageStart, PageState, PreparedParagraph,
+    ResyncTarget,
+};
 use crate::result::{FontInfo, LayoutResult, Page, Story};
 use crate::tables::{prepare_table, PreparedTable};
 use crate::text::FieldValues;
@@ -19,6 +22,9 @@ pub struct LayoutOptions {
     pub flavor: Flavor,
     /// where fonts come from; the computer's own by default
     pub fonts: Arc<dyn FontSource>,
+    /// draw on word's 1/600 inch grid instead of exactly: for comparing
+    /// side by side with word's pdf only, never the default (see grid.rs)
+    pub word_grid_drawing: bool,
 }
 
 impl Default for LayoutOptions {
@@ -26,6 +32,7 @@ impl Default for LayoutOptions {
         LayoutOptions {
             flavor: Flavor::Word,
             fonts: Arc::new(SystemFonts::default()),
+            word_grid_drawing: false,
         }
     }
 }
@@ -38,6 +45,7 @@ impl LayoutOptions {
             fonts: Arc::new(SystemFonts {
                 office_cloud_fonts: flavor.rules().office_cloud_fonts,
             }),
+            word_grid_drawing: false,
         }
     }
 }
@@ -60,8 +68,20 @@ pub fn layout(document: &Document, options: &LayoutOptions) -> LayoutResult {
     let fonts = FontLibrary::new(font_source(document, options));
     let mut context = new_context(document, options, fonts);
     let prepared = prepare_body(&mut context);
-    let pages = place_body(&mut context, &prepared);
-    finish_context(&mut context, pages)
+    let mut pages = place_body(&mut context, &prepared);
+    if crate::fields::has_body_page_fields(document) {
+        // page count fields in the text show the count a first pass found
+        context.page_count_hint = Some(pages.len() as u32);
+        pages = place_body(&mut context, &prepared);
+    }
+    // without an engine to remember blocks, a block's id is its number
+    let ids: Vec<u64> = (1..=document.blocks.len() as u64).collect();
+    crate::incremental::assign_line_ids(&mut pages, &ids);
+    let mut result = finish_context(&mut context, pages);
+    if options.word_grid_drawing {
+        crate::grid::snap_to_word_grid(&mut result);
+    }
+    result
 }
 
 /// the document's embedded fonts first, then the caller's source.
@@ -99,6 +119,7 @@ pub(crate) fn new_context<'d>(
         labels: crate::lists::body_labels(document, options.flavor),
         unsupported: Vec::new(),
         table_style: None,
+        page_count_hint: None,
     }
 }
 
@@ -149,24 +170,96 @@ pub(crate) fn prepare_block(context: &mut Context, index: usize) -> Prepared {
             ));
             Prepared::Skip
         }
+        // shapes and groups (newer in the office model) are not drawn yet;
+        // they float, so leaving them out moves no text, and the report
+        // says they were left out
+        #[allow(unreachable_patterns)]
+        _ => {
+            context.unsupported.push(Unsupported::new(
+                UnsupportedKind::Drawing,
+                &format!("body {index}"),
+            ));
+            Prepared::Skip
+        }
     }
 }
 
 /// places prepared blocks on pages.
 pub(crate) fn place_body(context: &mut Context, prepared: &[Prepared]) -> Vec<Page> {
+    let placed = place_body_with(context, prepared, None, None);
+    draw_parts(context, placed.body)
+}
+
+/// where an incremental relayout starts placing: the unchanged pages
+/// before a page start of the old run, and that start.
+pub(crate) struct Resume {
+    pub pages: Vec<PageState>,
+    pub starts: Vec<PageStart>,
+    pub start: PageStart,
+}
+
+/// body pages before headers and footers, how each began, and the old
+/// page the placing caught up with (incremental relayout).
+pub(crate) struct Placed {
+    pub body: Vec<PageState>,
+    pub starts: Vec<PageStart>,
+    pub stopped: Option<usize>,
+}
+
+/// places prepared blocks, from the start or from `resume`, stopping
+/// early when `resync` finds the old layout again.
+pub(crate) fn place_body_with(
+    context: &mut Context,
+    prepared: &[Prepared],
+    resume: Option<Resume>,
+    resync: Option<ResyncTarget>,
+) -> Placed {
     let document = context.document;
     let mut flow = Flow::new(context);
-    flow.section = 0;
-    flow.new_page(true);
-    for (index, block) in prepared.iter().enumerate() {
+    flow.resync = resync;
+    let first = match resume {
+        None => {
+            flow.section = 0;
+            flow.new_page(true);
+            Cursor::default()
+        }
+        Some(resume) => {
+            flow.pages = resume.pages;
+            flow.starts = resume.starts;
+            flow.section = resume.start.section;
+            flow.cursor = resume.start.cursor;
+            flow.new_page(resume.start.first_of_section);
+            flow.after_hard_break = resume.start.after_hard_break;
+            if let Some(last) = flow.starts.last_mut() {
+                last.after_hard_break = resume.start.after_hard_break;
+            }
+            resume.start.cursor
+        }
+    };
+    for (index, block) in prepared.iter().enumerate().skip(first.block) {
+        let line = if index == first.block { first.line } else { 0 };
+        flow.cursor = Cursor {
+            block: index,
+            line,
+            resumable: true,
+        };
         match block {
             Prepared::Paragraph(paragraph) => {
                 let need = need_after(prepared, index, &flow);
-                flow.place_paragraph(paragraph, need);
+                match with_page_fields(&mut flow, index, paragraph) {
+                    Some(fresh) => flow.place_paragraph_from(&fresh, need, line),
+                    None => flow.place_paragraph_from(paragraph, need, line),
+                }
             }
-            Prepared::Table(table) => flow.place_table(table),
-            Prepared::PageBreak => flow.hard_break(crate::text::ClusterKind::PageBreak),
-            Prepared::SectionBreak => change_section(&mut flow),
+            Prepared::Table(table) => flow.place_table_from(table, line),
+            Prepared::PageBreak => {
+                flow.cursor.block = index + 1;
+                flow.hard_break(crate::text::ClusterKind::PageBreak);
+            }
+            Prepared::SectionBreak => {
+                flow.cursor.block = index + 1;
+                change_section(&mut flow);
+            }
             Prepared::TextBox => {
                 if let Block::TextBox(text_box) = &document.blocks[index] {
                     flow.place_text_box(text_box, index as u32);
@@ -174,9 +267,63 @@ pub(crate) fn place_body(context: &mut Context, prepared: &[Prepared]) -> Vec<Pa
             }
             Prepared::Skip => {}
         }
+        if flow.stopped.is_some() {
+            break;
+        }
     }
+    if let Some(stopped) = flow.stopped {
+        // the page just opened is the old one met again: it is reused
+        flow.pages.pop();
+        flow.starts.pop();
+        return Placed {
+            body: std::mem::take(&mut flow.pages),
+            starts: std::mem::take(&mut flow.starts),
+            stopped: Some(stopped),
+        };
+    }
+    flow.cursor = Cursor {
+        block: prepared.len(),
+        line: 0,
+        resumable: false,
+    };
     place_endnotes(&mut flow);
-    flow.finish()
+    let body = flow.finish_body();
+    Placed {
+        body,
+        starts: std::mem::take(&mut flow.starts),
+        stopped: None,
+    }
+}
+
+/// a body paragraph with page number or page count fields, made again
+/// with the number of the page it starts on and the count of the last
+/// pass (word updates them the same way when it prints).
+fn with_page_fields(
+    flow: &mut Flow,
+    index: usize,
+    paragraph: &PreparedParagraph,
+) -> Option<PreparedParagraph> {
+    let model = flow.context.document.blocks.get(index)?.paragraph()?;
+    if !model.content.iter().any(crate::fields::is_page_field) {
+        return None;
+    }
+    let fields = FieldValues {
+        page: Some(flow.page_ref().page.number),
+        pages: flow.context.page_count_hint,
+    };
+    Some(flow.context.prepare_paragraph(
+        model,
+        Story::Body,
+        paragraph.path.clone(),
+        paragraph.width,
+        fields,
+    ))
+}
+
+/// headers and footers on finished body pages.
+pub(crate) fn draw_parts(context: &mut Context, body: Vec<PageState>) -> Vec<Page> {
+    let mut flow = Flow::new(context);
+    flow.draw_all_parts(body)
 }
 
 /// endnotes go after the body, each note's paragraphs in order.

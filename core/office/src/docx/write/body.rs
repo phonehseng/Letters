@@ -1,7 +1,8 @@
 //! the main document body and the blocks and runs inside any story.
 
 use crate::model::{
-    Block, BreakKind, Change, Field, Inline, LinkTarget, Mark, Paragraph, RunProps, Section,
+    AnchorWith, Block, BreakKind, Change, Field, Inline, LinkTarget, Mark, ObjectAnchor, Paragraph,
+    RunProps, Section,
 };
 use crate::xml::{escape_text, XmlWriter};
 
@@ -58,7 +59,69 @@ impl DocxWriter<'_> {
     ) {
         let mut section_index = 0;
         let mut index = 0;
+        // drawings waiting for the paragraph of text that anchors them,
+        // with the inline index each came before
+        let mut waiting: Vec<(usize, String)> = Vec::new();
         while index < blocks.len() {
+            // word cannot float a drawing inside a text box or a shape's
+            // text (it reports a damaged file or hangs printing it), so a
+            // nested drawing keeps only its text, as paragraphs
+            if is_drawing(&blocks[index]) && self.drawing_depth > 0 {
+                let inner: Vec<Block> = blocks[index]
+                    .drawing_blocks()
+                    .into_iter()
+                    .cloned()
+                    .collect();
+                self.write_blocks(&inner, story, out, lead.take(), false);
+                index += 1;
+                continue;
+            }
+            if is_drawing(&blocks[index]) {
+                let anchor = blocks[index].object_anchor().cloned().unwrap_or_default();
+                let run = self.object_run(&blocks[index], &anchor, story);
+                if anchor.with == AnchorWith::Next && next_takes_drawings(blocks, index + 1) {
+                    waiting.push((anchor.inline_index.unwrap_or(0), run));
+                    index += 1;
+                    continue;
+                }
+                // an empty paragraph of its own, shared with the drawings
+                // after it that say so
+                let mut runs = std::mem::take(&mut waiting);
+                runs.push((0, run));
+                let mut end = index + 1;
+                while let Some(next) = blocks.get(end) {
+                    let shares = is_drawing(next)
+                        && next.object_anchor().map(|a| a.with) == Some(AnchorWith::Previous);
+                    if !shares {
+                        break;
+                    }
+                    let anchor = next.object_anchor().cloned().unwrap_or_default();
+                    runs.push((0, self.object_run(next, &anchor, story)));
+                    end += 1;
+                }
+                let carries_break = main && matches!(blocks.get(end), Some(Block::SectionBreak));
+                let section = if carries_break {
+                    self.doc.sections.get(section_index).cloned()
+                } else {
+                    None
+                };
+                let paragraph = anchor.paragraph.clone().unwrap_or_default();
+                self.write_paragraph_with(
+                    &paragraph,
+                    None,
+                    section.as_ref(),
+                    story,
+                    out,
+                    lead.take(),
+                    runs,
+                );
+                if carries_break {
+                    section_index += 1;
+                    end += 1;
+                }
+                index = end;
+                continue;
+            }
             // a section ends with the paragraph just before its break
             let is_paragraph = matches!(blocks[index], Block::Paragraph(_) | Block::Heading(_));
             let carries_break =
@@ -70,23 +133,29 @@ impl DocxWriter<'_> {
             };
             match &blocks[index] {
                 Block::Paragraph(paragraph) => {
-                    self.write_paragraph(
+                    let runs = std::mem::take(&mut waiting);
+                    self.write_paragraph_with(
                         paragraph,
                         None,
                         section.as_ref(),
                         story,
                         out,
                         lead.take(),
+                        runs,
                     );
                 }
-                Block::Heading(heading) => self.write_paragraph(
-                    &heading.paragraph,
-                    Some(heading.level),
-                    section.as_ref(),
-                    story,
-                    out,
-                    lead.take(),
-                ),
+                Block::Heading(heading) => {
+                    let runs = std::mem::take(&mut waiting);
+                    self.write_paragraph_with(
+                        &heading.paragraph,
+                        Some(heading.level),
+                        section.as_ref(),
+                        story,
+                        out,
+                        lead.take(),
+                        runs,
+                    )
+                }
                 Block::Table(table) => {
                     if let Some(lead) = lead.take() {
                         self.write_paragraph(
@@ -112,17 +181,22 @@ impl DocxWriter<'_> {
                             .get(section_index)
                             .cloned()
                             .unwrap_or_default();
-                        let xml = self.section_xml(&section, story);
-                        out.raw(&format!("<w:p><w:pPr>{xml}</w:pPr></w:p>"));
+                        let runs = std::mem::take(&mut waiting);
+                        self.write_paragraph_with(
+                            &Paragraph::default(),
+                            None,
+                            Some(&section),
+                            story,
+                            out,
+                            None,
+                            runs,
+                        );
                         section_index += 1;
                     }
                 }
                 Block::Preserved { xml } => self.write_preserved_block(xml, out),
-                // a text box needs a paragraph to anchor it
-                Block::TextBox(text_box) => {
-                    let run = self.text_box_run(text_box, story);
-                    out.raw(&format!("<w:p>{run}</w:p>"));
-                }
+                // drawings were written above
+                Block::TextBox(_) | Block::Shape(_) | Block::Group(_) => {}
             }
             if carries_break {
                 // the break went out with the paragraph, so skip it
@@ -131,9 +205,17 @@ impl DocxWriter<'_> {
             }
             index += 1;
         }
-        if let Some(lead) = lead {
-            self.write_paragraph(&Paragraph::default(), None, None, story, out, Some(lead));
+        if !waiting.is_empty() || lead.is_some() {
+            self.write_paragraph_with(&Paragraph::default(), None, None, story, out, lead, waiting);
         }
+    }
+
+    /// the run holding a drawing, with the formatting its run had.
+    fn object_run(&mut self, block: &Block, anchor: &ObjectAnchor, story: &mut StoryOut) -> String {
+        self.drawing_depth += 1;
+        let content = self.object_xml(block, story);
+        self.drawing_depth -= 1;
+        self.run(&anchor.marks, &content)
     }
 
     fn write_preserved_block(&mut self, xml: &str, out: &mut XmlWriter) {
@@ -157,6 +239,22 @@ impl DocxWriter<'_> {
         story: &mut StoryOut,
         out: &mut XmlWriter,
         lead: Option<String>,
+    ) {
+        self.write_paragraph_with(paragraph, heading, section, story, out, lead, Vec::new());
+    }
+
+    /// a paragraph with drawing runs put in among its content: each
+    /// `(index, run)` goes just before inline `index`.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn write_paragraph_with(
+        &mut self,
+        paragraph: &Paragraph,
+        heading: Option<u8>,
+        section: Option<&Section>,
+        story: &mut StoryOut,
+        out: &mut XmlWriter,
+        lead: Option<String>,
+        mut drawings: Vec<(usize, String)>,
     ) {
         let mut extra = Vec::new();
         if let Some(level) = heading {
@@ -188,7 +286,16 @@ impl DocxWriter<'_> {
         if let Some(lead) = lead {
             out.raw(&lead);
         }
-        self.write_inlines(&paragraph.content, story, out);
+        let content = &paragraph.content;
+        drawings.sort_by_key(|(at, _)| *at);
+        let mut start = 0;
+        for (at, run) in drawings {
+            let at = at.clamp(start, content.len());
+            self.write_inlines(&content[start..at], story, out);
+            out.raw(&run);
+            start = at;
+        }
+        self.write_inlines(&content[start..], story, out);
         out.close("w:p");
     }
 
@@ -439,6 +546,24 @@ impl DocxWriter<'_> {
         self.write_notes(story);
         self.write_comments(story);
     }
+}
+
+fn is_drawing(block: &Block) -> bool {
+    matches!(block, Block::TextBox(_) | Block::Shape(_) | Block::Group(_))
+}
+
+/// whether drawings anchored to "the next paragraph" find one at `from`,
+/// looking past other drawings that wait for it too.
+fn next_takes_drawings(blocks: &[Block], from: usize) -> bool {
+    for block in &blocks[from.min(blocks.len())..] {
+        match block {
+            Block::Paragraph(_) | Block::Heading(_) => return true,
+            _ if is_drawing(block)
+                && block.object_anchor().map(|a| a.with) == Some(AnchorWith::Next) => {}
+            _ => return false,
+        }
+    }
+    false
 }
 
 fn link_of(inline: &Inline) -> Option<&LinkTarget> {

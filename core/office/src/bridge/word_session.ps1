@@ -1,6 +1,5 @@
+# starting and stopping a private, hidden word for automation, and only ever stopping that one.
 <#
-starting and stopping a private, hidden microsoft word for automation.
-
 the one rule: only ever stop the word this script started. a word the
 person opened, or one another program started, is never touched. the
 started word is identified by giving its main window a unique caption and
@@ -38,7 +37,10 @@ function Find-WordByCaption($word) {
     return [int]$found
 }
 
-function Start-PrivateWord {
+# the watchdog ends the private word after $WatchdogSeconds whatever it is
+# doing; one document needs far less than the default five minutes, a batch
+# of many documents passes a longer time
+function Start-PrivateWord([int]$WatchdogSeconds = 300) {
     $before = Get-AutomationWords
     $word = New-Object -ComObject Word.Application
     $id = 0
@@ -57,7 +59,7 @@ function Start-PrivateWord {
         throw "could not start a private Word instance"
     }
     $watchdog = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @(
-        "-NoProfile", "-Command", "Start-Sleep -Seconds 300; Stop-Process -Id $id -Force -ErrorAction SilentlyContinue")
+        "-NoProfile", "-Command", "Start-Sleep -Seconds $WatchdogSeconds; Stop-Process -Id $id -Force -ErrorAction SilentlyContinue")
     $session = @{ Word = $word; Pid = $id; Watchdog = $watchdog }
     try {
         $word.Visible = $false

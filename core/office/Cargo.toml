@@ -16,3 +16,9 @@ thiserror = "2"
 # only deflate is needed: docx and odt packages use stored or deflated entries.
 # zlib-rs is pure rust, so no c compiler is involved
 zip = { version = "9.5.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+# the round-trip suites convert corpus pdfs with the exact converter and
+# read glyph positions out of exported pdfs with its pdf reader (MIT or
+# Apache-2.0 throughout, like everything it pulls in)
+[dev-dependencies]
+letters-exact = { path = "../exact" }

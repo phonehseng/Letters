@@ -3,7 +3,8 @@
 
 use crate::error::OfficeError;
 use crate::model::{
-    Attribute, HeaderFooter, HeaderFooterKind, HeaderFooterRefs, Orientation, Section, SectionStart,
+    Attribute, ColumnWidth, HeaderFooter, HeaderFooterKind, HeaderFooterRefs, Orientation, Section,
+    SectionStart,
 };
 use crate::xml::Element;
 
@@ -34,6 +35,7 @@ impl DocxReader<'_> {
         for child in xml.root.elements() {
             if child.name == "w:body" {
                 self.doc.blocks = self.read_blocks(child, &mut story, &mut sections);
+                super::vml::link_vml_chains(&mut self.doc.blocks);
                 let last = match child.child("w:sectPr") {
                     Some(sect) => self.read_section(sect, &mut story),
                     None => Section::default(),
@@ -111,14 +113,8 @@ impl DocxReader<'_> {
                 }
                 true
             }
-            "w:cols"
-                if child.elements().next().is_none()
-                    && only_attributes(child, &["w:num", "w:space", "w:sep"]) =>
-            {
-                section.columns.count = number(child, "w:num").unwrap_or(1).max(1);
-                section.columns.space = twips(child, "w:space").unwrap_or(720);
-                section.columns.separator = child.attr("w:sep").is_some_and(|v| v == "1");
-                true
+            "w:cols" if only_attributes(child, &["w:num", "w:space", "w:sep", "w:equalWidth"]) => {
+                read_columns(child, section)
             }
             "w:titlePg" => {
                 section.different_first_page = on_off(child);
@@ -208,4 +204,36 @@ impl DocxReader<'_> {
         });
         Ok(Some(id))
     }
+}
+
+/// `w:cols`: equal columns by count and gap, or unequal ones listed one
+/// `w:col` each (word writes `w:equalWidth="0"` for those).
+fn read_columns(element: &Element, section: &mut Section) -> bool {
+    let mut widths = Vec::new();
+    for column in element.elements() {
+        if column.name != "w:col" || !only_attributes(column, &["w:w", "w:space"]) {
+            return false;
+        }
+        widths.push(ColumnWidth {
+            width: twips(column, "w:w").unwrap_or(0),
+            space: twips(column, "w:space").unwrap_or(0),
+        });
+    }
+    let unequal = element
+        .attr("w:equalWidth")
+        .is_some_and(|v| v == "0" || v == "false");
+    if !widths.is_empty() && !unequal {
+        // columns listed but switched off: kept as they were
+        return false;
+    }
+    section.columns.count = number(element, "w:num").unwrap_or(1).max(1);
+    section.columns.space = twips(element, "w:space").unwrap_or(720);
+    section.columns.separator = element
+        .attr("w:sep")
+        .is_some_and(|v| v == "1" || v == "true");
+    if unequal && !widths.is_empty() {
+        section.columns.count = widths.len() as u32;
+        section.column_widths = widths;
+    }
+    true
 }

@@ -66,7 +66,10 @@ pub struct Rules {
     pub contextual_spacing: bool,
     /// the share of a justified line's space width that may be squeezed
     /// away to keep its last word on it. word: about a quarter (see
-    /// `paragraph::shrinkable`); libreoffice: none.
+    /// `paragraph::shrinkable`). libreoffice 26.8 squeezes the same way:
+    /// on the six justification probes both applications took in exactly
+    /// the same words (fit_justify_probes; the aptos probe aside, which
+    /// libreoffice sets in another font), up to 0.25 of the spaces
     pub justify_space_shrink: f64,
     /// fonts office downloads on demand (aptos) are found. word: yes;
     /// libreoffice: no, it substitutes times new roman (font probes).
@@ -75,6 +78,11 @@ pub struct Rules {
     /// fractional advances (recipe e3: its average advance stays within
     /// 0.02 pt of the exact one); so does libreoffice (measured below).
     pub advance_unit: Option<f64>,
+    /// widow and orphan control decide where a table row splits at a page
+    /// end. word: yes (w_tables_aptos: rows of two-line cells never split
+    /// one and one; page breaks of the tables class 33 % -> 53 %).
+    /// libreoffice: no (the same rule took its tables from 58 % to 32 %)
+    pub widows_in_cells: bool,
 }
 
 impl Flavor {
@@ -93,6 +101,7 @@ impl Flavor {
                 justify_space_shrink: 0.25,
                 office_cloud_fonts: true,
                 advance_unit: None,
+                widows_in_cells: true,
             },
             Flavor::LibreOffice => Rules {
                 hhea_in_twips: true,
@@ -107,12 +116,13 @@ impl Flavor {
                 drop_space_before_at_page_top: true,
                 drop_space_before_after_hard_break: false,
                 contextual_spacing: true,
-                justify_space_shrink: 0.0,
+                justify_space_shrink: 0.25,
                 office_cloud_fonts: false,
                 // rounding advances to whole twips broke 75.1 % of lines
                 // like libreoffice against 79.1 % exact: its text layout
                 // keeps fractional advances although its pages are twips
                 advance_unit: None,
+                widows_in_cells: false,
             },
         }
     }

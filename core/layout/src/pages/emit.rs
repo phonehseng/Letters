@@ -84,6 +84,7 @@ pub fn emit_line(
     let (start, end, carets) = carets(text, layout, line, place.left);
     Emitted {
         line: Line {
+            id: 0,
             story: place.story.clone(),
             block: place.block.to_vec(),
             start,
@@ -151,7 +152,7 @@ fn push_glyphs(
             } else {
                 0.0
             },
-            embolden: if resolved.synthetic_bold {
+            embolden: if resolved.synthetic_bold || resolved.face.stroke_for_weight {
                 size / 30.0
             } else {
                 0.0

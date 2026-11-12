@@ -128,7 +128,19 @@ fn finish_line(page: usize, glyphs: &[&Glyph]) -> TextLine {
         xs,
     };
     collapse_leaders(&mut line);
+    drop_line_end_hyphen(&mut line);
     line
+}
+
+/// pdfium reports a hyphen that ends a line in word's pdfs as generated
+/// text (as if it were a soft hyphen) and the reader skips it, while ours
+/// keeps it: "students twenty-" read as "studentstwenty" against
+/// "studentstwenty-". lines are compared without it on every side.
+fn drop_line_end_hyphen(line: &mut TextLine) {
+    if line.text.ends_with('-') {
+        line.text.pop();
+        line.xs.pop();
+    }
 }
 
 /// every line of a document, page by page.

@@ -25,6 +25,52 @@ pub struct PdfPage {
     pub width: f64,
     pub height: f64,
     pub glyphs: Vec<Glyph>,
+    /// x of every thin vertical rule (table column edges, page borders,
+    /// column separators), points from the left. (the round trip test
+    /// shares this reader and reads glyphs only)
+    #[allow(dead_code)]
+    pub vertical_rules: Vec<f64>,
+    /// every picture: left, top, width, height in points from the top left
+    #[allow(dead_code)]
+    pub pictures: Vec<[f64; 4]>,
+}
+
+/// a path this narrow and at least this tall counts as a vertical rule.
+const RULE_WIDTH: f64 = 2.6;
+const RULE_HEIGHT: f64 = 3.0;
+
+/// the vertical rules and pictures of one page, from its page objects.
+fn page_objects(page: &pdfium_render::prelude::PdfPage<'_>, height: f64, out: &mut PdfPageData) {
+    for object in page.objects().iter() {
+        let Ok(bounds) = object.bounds() else {
+            continue;
+        };
+        let (left, right) = (
+            f64::from(bounds.left().value),
+            f64::from(bounds.right().value),
+        );
+        let (bottom, top) = (
+            f64::from(bounds.bottom().value),
+            f64::from(bounds.top().value),
+        );
+        let (width, tall) = ((right - left).abs(), (top - bottom).abs());
+        match object.object_type() {
+            PdfPageObjectType::Path if width <= RULE_WIDTH && tall >= RULE_HEIGHT => {
+                out.vertical_rules.push((left + right) / 2.0);
+            }
+            PdfPageObjectType::Image => {
+                out.pictures.push([left, height - top, width, tall]);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// what `page_objects` collects for one page.
+#[derive(Default)]
+struct PdfPageData {
+    vertical_rules: Vec<f64>,
+    pictures: Vec<[f64; 4]>,
 }
 
 /// pdfium is not thread safe, so the one bound library sits behind a lock.
@@ -60,10 +106,14 @@ pub fn read_pdf(path: &Path) -> Result<Vec<PdfPage>, String> {
     let mut pages = Vec::new();
     for page in document.pages().iter() {
         let height = f64::from(page.height().value);
+        let mut objects = PdfPageData::default();
+        page_objects(&page, height, &mut objects);
         let mut out = PdfPage {
             width: f64::from(page.width().value),
             height,
             glyphs: Vec::new(),
+            vertical_rules: objects.vertical_rules,
+            pictures: objects.pictures,
         };
         if let Ok(text) = page.text() {
             for character in text.chars().iter() {

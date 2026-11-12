@@ -1,6 +1,9 @@
 //! tables, with word's explicit covered cells for vertical merges.
 
-use crate::model::{Table, TableCell, TableRow, VerticalAlign};
+use crate::model::{
+    CellMargins, HeightRule, Table, TableCell, TablePosition, TableRow, TextDirection,
+    VerticalAlign,
+};
 use crate::tables::{grid, Slot};
 use crate::xml::XmlWriter;
 
@@ -24,8 +27,15 @@ impl DocxWriter<'_> {
             out.raw(&empty("w:gridCol", &[("w:w", &width.to_string())]));
         }
         out.raw("</w:tblGrid>");
+        // the reader keeps unknown table properties and unknown table
+        // children in one list; the properties went into w:tblPr above
         if self.native {
-            for xml in &table.preserved.children {
+            for xml in table
+                .preserved
+                .children
+                .iter()
+                .filter(|xml| !is_table_property(xml))
+            {
                 out.raw(xml);
             }
         }
@@ -57,6 +67,38 @@ impl DocxWriter<'_> {
         if let Some(borders) = &table.borders {
             ordered.push("w:tblBorders", borders_xml("w:tblBorders", borders));
         }
+        if let Some(position) = &table.position {
+            ordered.push("w:tblpPr", table_position_xml(position));
+            if !position.overlap {
+                ordered.push("w:tblOverlap", val("w:tblOverlap", "never"));
+            }
+        }
+        if let Some(indent) = table.indent {
+            ordered.push(
+                "w:tblInd",
+                empty(
+                    "w:tblInd",
+                    &[("w:w", &indent.to_string()), ("w:type", "dxa")],
+                ),
+            );
+        }
+        if let Some(fixed) = table.fixed_layout {
+            let kind = if fixed { "fixed" } else { "autofit" };
+            ordered.push("w:tblLayout", empty("w:tblLayout", &[("w:type", kind)]));
+        }
+        if let Some(margins) = &table.cell_margins {
+            ordered.push("w:tblCellMar", margins_xml("w:tblCellMar", margins));
+        }
+        if self.native {
+            for xml in table
+                .preserved
+                .children
+                .iter()
+                .filter(|xml| is_table_property(xml))
+            {
+                ordered.push_raw(xml);
+            }
+        }
         ordered.finish()
     }
 
@@ -70,6 +112,18 @@ impl DocxWriter<'_> {
     ) {
         let attributes = self.preserved_attributes(&row.preserved.attributes);
         out.open_owned("w:tr", &attributes);
+        // a row's exceptions to the table's properties come before the
+        // row's own properties, outside them
+        if self.native {
+            for xml in row
+                .preserved
+                .children
+                .iter()
+                .filter(|xml| is_row_level(xml))
+            {
+                out.raw(xml);
+            }
+        }
         let row_props = self.row_props(row);
         if !row_props.is_empty() {
             out.raw(&format!("<w:trPr>{row_props}</w:trPr>"));
@@ -106,13 +160,25 @@ impl DocxWriter<'_> {
             ordered.push("w:cantSplit", empty("w:cantSplit", &[]));
         }
         if let Some(height) = row.height {
-            ordered.push("w:trHeight", val("w:trHeight", &height.to_string()));
+            let height = height.to_string();
+            let mut attributes = vec![("w:val", height.as_str())];
+            match row.height_rule {
+                Some(HeightRule::Exact) => attributes.insert(0, ("w:hRule", "exact")),
+                Some(HeightRule::AtLeast) => attributes.insert(0, ("w:hRule", "atLeast")),
+                None => {}
+            }
+            ordered.push("w:trHeight", empty("w:trHeight", &attributes));
         }
         if row.header {
             ordered.push("w:tblHeader", empty("w:tblHeader", &[]));
         }
         if self.native {
-            for xml in &row.preserved.children {
+            for xml in row
+                .preserved
+                .children
+                .iter()
+                .filter(|xml| !is_row_level(xml))
+            {
                 ordered.push_raw(xml);
             }
         }
@@ -166,6 +232,17 @@ impl DocxWriter<'_> {
                 ),
             );
         }
+        if let Some(margins) = &cell.margins {
+            ordered.push("w:tcMar", margins_xml("w:tcMar", margins));
+        }
+        if let Some(direction) = cell.text_direction {
+            let value = match direction {
+                TextDirection::Horizontal => "lrTb",
+                TextDirection::Upward => "btLr",
+                TextDirection::Downward => "tbRl",
+            };
+            ordered.push("w:textDirection", val("w:textDirection", value));
+        }
         if let Some(align) = cell.vertical_align {
             let value = match align {
                 VerticalAlign::Top => "top",
@@ -196,6 +273,20 @@ impl DocxWriter<'_> {
     }
 }
 
+/// a preserved table child that is one of the table's properties (it goes
+/// inside `w:tblPr`, like `w:tblW` or `w:tblLook`).
+fn is_table_property(xml: &str) -> bool {
+    let name = crate::docx::first_tag_name(xml);
+    name.strip_prefix("w:")
+        .is_some_and(|local| order::TABLE.contains(&local))
+}
+
+/// preserved row children that belong to the row itself (`w:tblPrEx`),
+/// not inside its `w:trPr`. the reader keeps both kinds in one list.
+fn is_row_level(xml: &str) -> bool {
+    crate::docx::first_tag_name(xml) == "w:tblPrEx"
+}
+
 /// the cell word expects where a cell from above continues downwards.
 fn covered_cell(covering: &TableCell) -> String {
     let mut props = String::new();
@@ -213,6 +304,66 @@ fn covered_cell(covering: &TableCell) -> String {
         props.push_str(&borders_xml("w:tcBorders", borders));
     }
     format!("<w:tc><w:tcPr>{props}</w:tcPr><w:p/></w:tc>")
+}
+
+/// `w:tblpPr` for a floating table.
+fn table_position_xml(position: &TablePosition) -> String {
+    let anchor = |relative_to: &str| match relative_to {
+        "page" => "page",
+        "margin" => "margin",
+        _ => "text",
+    };
+    let mut attributes: Vec<(String, String)> = vec![
+        ("w:leftFromText".into(), position.distance.left.to_string()),
+        (
+            "w:rightFromText".into(),
+            position.distance.right.to_string(),
+        ),
+        ("w:topFromText".into(), position.distance.top.to_string()),
+        (
+            "w:bottomFromText".into(),
+            position.distance.bottom.to_string(),
+        ),
+        (
+            "w:vertAnchor".into(),
+            anchor(&position.vertical.relative_to).into(),
+        ),
+        (
+            "w:horzAnchor".into(),
+            anchor(&position.horizontal.relative_to).into(),
+        ),
+    ];
+    match &position.horizontal.align {
+        Some(align) => attributes.push(("w:tblpXSpec".into(), align.clone())),
+        None => attributes.push(("w:tblpX".into(), position.horizontal.offset.to_string())),
+    }
+    match &position.vertical.align {
+        Some(align) => attributes.push(("w:tblpYSpec".into(), align.clone())),
+        None => attributes.push(("w:tblpY".into(), position.vertical.offset.to_string())),
+    }
+    let mut xml = XmlWriter::new();
+    xml.empty_owned("w:tblpPr", &attributes);
+    xml.finish()
+}
+
+/// `w:tblCellMar` or `w:tcMar`: the sides that are set.
+fn margins_xml(name: &str, margins: &CellMargins) -> String {
+    let mut xml = format!("<{name}>");
+    for (side, value) in [
+        ("w:top", margins.top),
+        ("w:left", margins.left),
+        ("w:bottom", margins.bottom),
+        ("w:right", margins.right),
+    ] {
+        if let Some(value) = value {
+            xml.push_str(&empty(
+                side,
+                &[("w:w", &value.to_string()), ("w:type", "dxa")],
+            ));
+        }
+    }
+    xml.push_str(&format!("</{name}>"));
+    xml
 }
 
 /// grid column widths, filled in when the model has none or too few.

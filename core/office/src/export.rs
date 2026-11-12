@@ -63,9 +63,9 @@ fn text_block(block: &Block, counter: &mut ListCounter, notes: &mut Vec<String>,
             }
         }
         Block::PageBreak => out.push('\u{C}'),
-        Block::TextBox(text_box) => {
-            for block in &text_box.blocks {
-                text_block(block, counter, notes, out);
+        Block::TextBox(_) | Block::Shape(_) | Block::Group(_) => {
+            for inner in block.drawing_blocks() {
+                text_block(inner, counter, notes, out);
             }
         }
         Block::SectionBreak => {}
@@ -199,6 +199,14 @@ impl HtmlWriter<'_> {
                 ));
                 self.blocks_html(&text_box.blocks);
                 self.out.push_str("</div>\n");
+            }
+            Block::Shape(_) | Block::Group(_) => {
+                let inner: Vec<Block> = block.drawing_blocks().into_iter().cloned().collect();
+                if !inner.is_empty() {
+                    self.out.push_str("<div class=\"shape\">\n");
+                    self.blocks_html(&inner);
+                    self.out.push_str("</div>\n");
+                }
             }
             Block::Preserved { xml } => {
                 let text = xml_text(xml);

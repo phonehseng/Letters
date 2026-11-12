@@ -1,4 +1,4 @@
-//! renders pdf pages at 300 dpi with letters-pdf (the app's own renderer)
+//! renders pdf pages at 150 dpi with letters-pdf (the app's own renderer)
 //! and compares two renderings: ssim and the share of pixels that differ,
 //! so "barely noticeable" has a number.
 
@@ -13,9 +13,9 @@ pub struct GreyPage {
     pub pixels: Vec<u8>,
 }
 
-const DPI: u32 = 300;
+const DPI: u32 = 150;
 
-/// every page of a pdf as grey pixels at 300 dpi.
+/// every page of a pdf as grey pixels at 150 dpi.
 pub fn render(engine: &mut RenderWorker, path: &Path) -> Result<Vec<GreyPage>, String> {
     let info = engine.open(path, None).map_err(|e| format!("{e:?}"))?;
     let (id, sizes) = (info.id, info.page_sizes);

@@ -3,7 +3,9 @@
 
 #![allow(dead_code)]
 
+pub mod apps;
 pub mod fixtures;
+pub mod lo_corpus;
 
 use letters_office::package::{write_zip, Part};
 

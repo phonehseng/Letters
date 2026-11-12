@@ -16,16 +16,19 @@
 
 pub mod columns;
 pub mod engine;
+pub mod fields;
 pub mod flavor;
 pub mod floats;
 pub mod fonts;
 pub mod footnotes;
+pub mod grid;
 pub mod incremental;
 pub mod lists;
 pub mod pages;
 pub mod paragraph;
 pub mod pdf;
 pub mod positioned;
+pub mod provider;
 pub mod result;
 pub mod stack;
 pub mod style;
@@ -36,7 +39,7 @@ pub mod unsupported;
 
 pub use engine::{layout, LayoutOptions};
 pub use flavor::{Flavor, Rules};
-pub use incremental::{LayoutEngine, RelayoutStats};
+pub use incremental::{LayoutEngine, PageChanges, RelayoutStats};
 pub use positioned::{
     layout_exact, layout_mixed, ExactFont, ExactGlyph, ExactPage, ExactRun, MixedPart,
 };

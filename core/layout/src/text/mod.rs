@@ -286,6 +286,12 @@ impl Builder {
                 let shown = match field.kind {
                     FieldKind::PageNumber => context.fields.page.map(|n| n.to_string()),
                     FieldKind::PageCount => context.fields.pages.map(|n| n.to_string()),
+                    // a date field shows the day it is laid out, as both
+                    // applications show it when a document opens
+                    FieldKind::Date => Some(crate::fields::date_text(
+                        &field.instruction,
+                        crate::fields::Day::today(),
+                    )),
                     _ => None,
                 }
                 .unwrap_or_else(|| field.result.clone());

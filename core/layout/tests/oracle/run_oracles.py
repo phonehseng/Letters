@@ -204,8 +204,17 @@ def run_libreoffice(source_dir: Path, out_dir: Path, target: str, timeout: float
         done = (lambda p: (out_dir / pdf_name(p)).exists()) if target == "pdf" else (lambda p: (out_dir / (p.stem + ".odt")).exists())
         sources = [p for p in sources if not done(p)]
     report = {"oracle": "libreoffice", "documents": {}}
+    # one libreoffice process converts a batch of files: starting it costs
+    # most of the time (about 10 s a file when started for each one).
+    # a docx and an odt of the same name never share a batch, because both
+    # would first be written as name.pdf
+    batch_size = 16
+    batches: list[list[Path]] = []
     for source in sources:
-        # a copy named by its extension keeps docx and odt pdfs apart
+        if not batches or len(batches[-1]) >= batch_size or any(s.stem == source.stem for s in batches[-1]):
+            batches.append([])
+        batches[-1].append(source)
+    for batch in batches:
         started = time.perf_counter()
         command = [
             str(SOFFICE),
@@ -217,29 +226,32 @@ def run_libreoffice(source_dir: Path, out_dir: Path, target: str, timeout: float
             target,
             "--outdir",
             str(out_dir.resolve()),
-            str(source.resolve()),
+            *[str(source.resolve()) for source in batch],
         ]
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
-            process.communicate(timeout=timeout)
+            process.communicate(timeout=timeout * len(batch))
             status = process.returncode
         except subprocess.TimeoutExpired:
             subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)], capture_output=True, check=False)
             process.communicate()
             status = "timeout"
-        produced = out_dir / (source.stem + "." + target)
-        if target == "pdf" and produced.exists():
-            final = out_dir / pdf_name(source)
-            if final.exists():
-                final.unlink()
-            produced.rename(final)
-            produced = final
-        report["documents"][source.name] = {
-            "status": status,
-            "ok": produced.exists(),
-            "seconds": round(time.perf_counter() - started, 2),
-        }
-        print(f"libreoffice {source.name}: {report['documents'][source.name]}", flush=True)
+        seconds = round((time.perf_counter() - started) / len(batch), 2)
+        for source in batch:
+            # a copy named by its extension keeps docx and odt pdfs apart
+            produced = out_dir / (source.stem + "." + target)
+            if target == "pdf" and produced.exists():
+                final = out_dir / pdf_name(source)
+                if final.exists():
+                    final.unlink()
+                produced.rename(final)
+                produced = final
+            report["documents"][source.name] = {
+                "status": status,
+                "ok": produced.exists(),
+                "seconds per file": seconds,
+            }
+            print(f"libreoffice {source.name}: {report['documents'][source.name]}", flush=True)
     return report
 
 

@@ -30,6 +30,11 @@ pub enum Block {
     /// a text box floating on the page. in the flow it sits where its
     /// anchor is: word and odt anchor it to the paragraph that follows
     TextBox(super::objects::TextBox),
+    /// a shape (rectangle, oval, arrow, callout, line, free path) floating
+    /// on the page, anchored like a text box
+    Shape(super::drawing::Shape),
+    /// objects grouped so they move together, anchored like a text box
+    Group(super::drawing::Group),
 }
 
 impl Block {
@@ -53,6 +58,37 @@ impl Block {
     /// a plain paragraph of unformatted text, handy for building documents.
     pub fn text(text: &str) -> Block {
         Block::Paragraph(Paragraph::with_text(text))
+    }
+
+    /// true for the objects that float on the page instead of flowing:
+    /// text boxes, shapes, groups and positioned tables.
+    pub fn is_positioned(&self) -> bool {
+        match self {
+            Block::TextBox(_) | Block::Shape(_) | Block::Group(_) => true,
+            Block::Table(table) => table.position.is_some(),
+            _ => false,
+        }
+    }
+
+    /// the drawing anchor of a text box, shape or group.
+    pub fn object_anchor(&self) -> Option<&super::drawing::ObjectAnchor> {
+        match self {
+            Block::TextBox(object) => object.anchor.as_ref(),
+            Block::Shape(object) => object.anchor.as_ref(),
+            Block::Group(object) => object.anchor.as_ref(),
+            Block::Table(table) => table.position.as_ref()?.anchor.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub fn object_anchor_mut(&mut self) -> Option<&mut Option<super::drawing::ObjectAnchor>> {
+        match self {
+            Block::TextBox(object) => Some(&mut object.anchor),
+            Block::Shape(object) => Some(&mut object.anchor),
+            Block::Group(object) => Some(&mut object.anchor),
+            Block::Table(table) => table.position.as_mut().map(|position| &mut position.anchor),
+            _ => None,
+        }
     }
 }
 
@@ -356,6 +392,104 @@ pub struct Table {
     pub rows: Vec<TableRow>,
     #[serde(default, skip_serializing_if = "Preserved::is_empty")]
     pub preserved: Preserved,
+    /// a floating table: positioned on the page like a text box, with
+    /// text flowing around it. `None` for a table in the flow
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<TablePosition>,
+    /// `Some(true)`: columns keep exactly their widths (no autofit)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixed_layout: Option<bool>,
+    /// the default space between each cell's edges and its text
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell_margins: Option<CellMargins>,
+    /// distance of the table's left edge from the margin
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indent: Option<Twips>,
+}
+
+/// where a floating table sits and how close text may come.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TablePosition {
+    /// relative to "page", "margin" or "column" (word's "text")
+    pub horizontal: super::inline::FloatPosition,
+    /// relative to "page", "margin" or "paragraph"
+    pub vertical: super::inline::FloatPosition,
+    /// the gap kept between the table and the text around it
+    #[serde(default)]
+    pub distance: Distances,
+    /// other floating tables may overlap this one
+    #[serde(default = "allowed", skip_serializing_if = "is_allowed")]
+    pub overlap: bool,
+    /// opendocument floats a table in a frame anchored in a paragraph;
+    /// which paragraph is kept here (word floats tables by themselves)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<super::drawing::ObjectAnchor>,
+}
+
+fn allowed() -> bool {
+    true
+}
+
+fn is_allowed(value: &bool) -> bool {
+    *value
+}
+
+/// four distances, one per side.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Distances {
+    #[serde(default)]
+    pub left: Twips,
+    #[serde(default)]
+    pub top: Twips,
+    #[serde(default)]
+    pub right: Twips,
+    #[serde(default)]
+    pub bottom: Twips,
+}
+
+/// the space inside a cell around its text, per side; `None` keeps the
+/// table's (or the application's) default for that side.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CellMargins {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top: Option<Twips>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub left: Option<Twips>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bottom: Option<Twips>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub right: Option<Twips>,
+}
+
+impl CellMargins {
+    pub fn is_empty(&self) -> bool {
+        *self == CellMargins::default()
+    }
+}
+
+/// how a row's height is used.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HeightRule {
+    /// at least `height`, taller when the text needs it (the default)
+    AtLeast,
+    /// exactly `height`; text that does not fit is cut off
+    Exact,
+}
+
+/// which way text runs in a cell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TextDirection {
+    /// left to right, lines top to bottom (normal text)
+    Horizontal,
+    /// turned to read upwards, bottom to top
+    Upward,
+    /// turned to read downwards, top to bottom
+    Downward,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -363,6 +497,9 @@ pub struct Table {
 pub struct TableRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub height: Option<Twips>,
+    /// how `height` is used; `None` is "at least"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height_rule: Option<HeightRule>,
     /// repeated at the top of each page the table runs onto
     #[serde(default)]
     pub header: bool,
@@ -392,6 +529,11 @@ pub struct TableCell {
     pub blocks: Vec<Block>,
     #[serde(default, skip_serializing_if = "Preserved::is_empty")]
     pub preserved: Preserved,
+    /// this cell's own space around its text, over the table's
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub margins: Option<CellMargins>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_direction: Option<TextDirection>,
 }
 
 fn one() -> u32 {
@@ -409,6 +551,8 @@ impl Default for TableCell {
             vertical_align: None,
             blocks: Vec::new(),
             preserved: Preserved::default(),
+            margins: None,
+            text_direction: None,
         }
     }
 }

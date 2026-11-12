@@ -276,8 +276,15 @@ fn read_fonts(fonts: &Element, theme: &ThemeFonts, props: &mut RunProps) -> bool
     let Some(name) = name else {
         return false;
     };
-    // everything except the latin font and its theme slot rides along as is
-    let latin = ["w:ascii", "w:hAnsi", "w:asciiTheme", "w:hAnsiTheme"];
+    // everything except the latin font and its theme slot rides along as
+    // is. with a theme slot the latin names ride along too: word writes
+    // them only sometimes, and libreoffice prefers a written name to the
+    // theme's, so adding one it did not have changes the font it shows
+    let latin: &[&str] = if slot.is_some() {
+        &["w:asciiTheme", "w:hAnsiTheme"]
+    } else {
+        &["w:ascii", "w:hAnsi", "w:asciiTheme", "w:hAnsiTheme"]
+    };
     let extra = fonts
         .attributes
         .iter()
