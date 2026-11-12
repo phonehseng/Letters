@@ -14,6 +14,7 @@ use letters_office::FileKind;
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::disk_stamp::{changed_on_disk_message, DiskStamp};
 use crate::session::file_name;
 use crate::writer::clipboard::{Copied, PastedHtml, PastedPicture};
 use crate::writer::document::{ui_model, WriterDocument};
@@ -78,6 +79,9 @@ pub fn kind_name(kind: FileKind) -> &'static str {
 struct OpenWriter {
     document: WriterDocument,
     window: String,
+    /// the document's file as this window last read or wrote it, so a
+    /// save can tell when another window or program changed it since
+    disk_stamp: Option<DiskStamp>,
 }
 
 pub struct WriterSessions {
@@ -131,6 +135,7 @@ impl WriterSessions {
             converted_from,
         };
         let entry = OpenWriter {
+            disk_stamp: DiskStamp::of(&writer.path),
             document: writer,
             window: window.to_string(),
         };
@@ -163,6 +168,7 @@ impl WriterSessions {
             converted_from: Some(converted_from.to_string()),
         };
         let entry = OpenWriter {
+            disk_stamp: DiskStamp::of(&writer.path),
             document: writer,
             window: window.to_string(),
         };
@@ -179,8 +185,19 @@ impl WriterSessions {
                 None => open.document.path.clone(),
             };
             let kind = save_kind_for_path(&target).unwrap_or(open.document.kind);
+            // saving over its own file, which another window or program
+            // changed since: refuse, so that change isn't thrown away
+            let over_own_file = target == open.document.path;
+            if over_own_file
+                && open
+                    .disk_stamp
+                    .is_some_and(|stamp| stamp.changed_since(&target))
+            {
+                return Err(changed_on_disk_message(&file_name(&target)));
+            }
             let document = open.document.merge(model)?;
             save_document(&document, &target, kind)?;
+            open.disk_stamp = DiskStamp::of(&target);
             // the old file's recovery copy is no longer needed either way
             self.recovery.discard(&open.document.path);
             open.document.follow_new_path(&target, kind);

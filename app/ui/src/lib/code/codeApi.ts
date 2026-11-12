@@ -18,6 +18,14 @@ export interface OpenedCode {
   readOnly: boolean;
   fullFeatures: boolean;
   recovery: { savedAt: number; text: string } | null;
+  /** the file as it was read; handed back with each save (see saveCodeFile) */
+  diskStamp: DiskStamp | null;
+}
+
+/** a file's size and last change, as this window last saw them. */
+export interface DiskStamp {
+  bytes: number;
+  modifiedMs: number;
 }
 
 /**
@@ -43,8 +51,18 @@ export function openUntitledCode(text: string, extension: string): Promise<void>
   return invoke("code_open_untitled", { text, extension });
 }
 
-export function saveCodeFile(path: string, text: string, format: TextFormat): Promise<void> {
-  return invoke("code_save", { path, text, format });
+/**
+ * saves, unless the file changed on disk since `expected` (another window
+ * or program saved it): then it refuses with a sentence suggesting Save As.
+ * answers the file's new stamp, for the next save.
+ */
+export function saveCodeFile(
+  path: string,
+  text: string,
+  format: TextFormat,
+  expected: DiskStamp | null,
+): Promise<DiskStamp | null> {
+  return invoke("code_save", { path, text, format, expected });
 }
 
 export function autosaveCode(path: string, text: string): Promise<void> {

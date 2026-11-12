@@ -134,6 +134,31 @@ fn closing_a_window_closes_its_documents_only() {
 }
 
 #[test]
+fn saving_over_a_document_another_window_saved_refuses_and_keeps_its_change() {
+    let dir = folder("two-windows");
+    let path = dir.join("essay.docx");
+    docx_with("hello", &path);
+    let sessions = WriterSessions::new(&dir.join("cache"));
+    let first = sessions.open("window-1", &path, false).unwrap();
+    let second = sessions.open("window-2", &path, false).unwrap();
+    sessions
+        .save(first.id, edited(&first.model, "hello FIRSTWINDOW"), None)
+        .unwrap();
+
+    let refused = sessions
+        .save(second.id, edited(&second.model, "hello SECONDWINDOW"), None)
+        .unwrap_err();
+    assert!(refused.contains("Save As"), "{refused}");
+    assert_eq!(read_text(&path), "hello FIRSTWINDOW");
+
+    // the first window may go on saving its own file
+    sessions
+        .save(first.id, edited(&first.model, "hello again"), None)
+        .unwrap();
+    assert_eq!(read_text(&path), "hello again");
+}
+
+#[test]
 fn a_file_that_is_not_a_document_gives_a_sentence() {
     let dir = folder("bad");
     let path = dir.join("fake.docx");

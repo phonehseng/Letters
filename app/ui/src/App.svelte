@@ -20,6 +20,8 @@
   import { fileDropTarget, toCssPoint } from "./lib/fileDrop";
   import Home from "./lib/Home.svelte";
   import SaveChangesSheet from "./lib/SaveChangesSheet.svelte";
+  // the question when saving would write over someone else's change
+  import ChangedOnDiskSheet, { type ChangedChoice } from "./lib/ChangedOnDiskSheet.svelte";
   import Viewer from "./lib/Viewer.svelte";
   // word-processor mode: .docx and .odt open in the writer (lib/writer)
   import { routeForPath, unsupportedMessage } from "./lib/writer/routing";
@@ -69,6 +71,8 @@
   let wrongPassword = $state(false);
   /** the unsaved changes question while it is showing, with who is waiting for the answer */
   let saveQuestion = $state<{ name: string; answer: (choice: SaveChoice) => void } | null>(null);
+  /** the changed-on-disk question while it is showing */
+  let changedQuestion = $state<{ name: string; message: string; answer: (choice: ChangedChoice) => void } | null>(null);
   /** scan: the New from Images sheet while it shows, with the pictures it starts with */
   let newFromImages = $state<string[] | null>(null);
   /** code: the code or text file this window shows, if any */
@@ -210,15 +214,40 @@
     if (!shown) return Promise.resolve(false);
     // scan: a pdf New from Images made has no file yet, so Save asks where
     if (newDocumentPath(shown.id)) return saveAs();
+    return saveInQueue(shown, false).then((outcome) =>
+      // asked outside the queue: Save As queues its own work, and would
+      // otherwise wait for this save, which waits for the answer
+      typeof outcome === "boolean" ? outcome : answerChangedOnDisk(shown, outcome.changed),
+    );
+  }
+
+  /** one save in the queue of document changes: saved, failed, or changed on disk. */
+  function saveInQueue(shown: DocumentState, replaceChanged: boolean): Promise<boolean | { changed: string }> {
     return documentChanges(async () => {
       try {
-        acceptState(await saveDocument(shown.id));
+        acceptState(await saveDocument(shown.id, replaceChanged));
         return true;
       } catch (problem) {
-        errorMessage = asCommandError(problem).message;
+        const error = asCommandError(problem);
+        if (error.kind === "changed-on-disk") return { changed: error.message };
+        errorMessage = error.message;
         return false;
       }
     });
+  }
+
+  /**
+   * the file changed on disk since this window opened it (another window
+   * saved it, or another program changed it): ask before throwing that away.
+   */
+  async function answerChangedOnDisk(shown: DocumentState, message: string): Promise<boolean> {
+    const choice = await new Promise<ChangedChoice>((answer) => {
+      changedQuestion = { name: shown.name, message, answer };
+    });
+    changedQuestion = null;
+    if (choice === "save-as") return saveAs();
+    if (choice === "cancel") return false;
+    return (await saveInQueue(shown, true)) === true;
   }
 
   /** asks where to save a copy, then saves it there. the document then belongs to the copy. */
@@ -534,6 +563,10 @@
 
 {#if saveQuestion}
   <SaveChangesSheet name={saveQuestion.name} onChoose={saveQuestion.answer} />
+{/if}
+
+{#if changedQuestion}
+  <ChangedOnDiskSheet name={changedQuestion.name} message={changedQuestion.message} onChoose={changedQuestion.answer} />
 {/if}
 
 {#if newFromImages}

@@ -121,8 +121,14 @@ pub fn redo(state: State<AppState>, id: u64) -> Result<DocumentState, CommandErr
 
 /// writes the changes to the document's file.
 #[tauri::command(async)]
-pub fn save_document(state: State<AppState>, id: u64) -> Result<DocumentState, CommandError> {
-    let saved = state.documents.save(DocumentId(id))?;
+pub fn save_document(
+    state: State<AppState>,
+    id: u64,
+    replace_changed: Option<bool>,
+) -> Result<DocumentState, CommandError> {
+    let saved = state
+        .documents
+        .save(DocumentId(id), replace_changed.unwrap_or(false))?;
     if let Ok(worker) = state.worker() {
         remember_in_recents(&state, worker, &saved);
     }

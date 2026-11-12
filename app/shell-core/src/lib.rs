@@ -8,6 +8,8 @@
 //! name on comments) and reading a picture's size.
 
 pub mod address;
+// what a file looked like when a window last read or wrote it (see disk_stamp.rs)
+pub mod disk_stamp;
 pub mod outputs;
 pub mod picture;
 pub mod pinned;
