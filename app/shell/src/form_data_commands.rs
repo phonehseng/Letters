@@ -9,6 +9,7 @@ use std::path::Path;
 
 use letters_forms::{self as forms, FormError, ImportReport, MergedData, SkippedField};
 use letters_pdf::DocumentId;
+use letters_shell_core::forms::unchanged_drawings::keep_unchanged_drawings;
 use letters_shell_core::forms::{
     data_format_for, merge_filled_files, read_data_file, unknown_kind, write_chosen_bytes,
 };
@@ -62,7 +63,10 @@ pub fn forms_import_data(
     let (format, bytes) = read_data_file(Path::new(&path)).map_err(CommandError::failed)?;
     let mut report = None;
     let document = state.edit(DocumentId(id), |document| {
+        // as for filling: fields drawn again exactly as they were are left alone
+        let before = document.clone();
         report = Some(forms::import_data(document, &bytes, format)?);
+        keep_unchanged_drawings(&before, document);
         Ok::<(), FormError>(())
     })?;
     let report = report.ok_or_else(|| CommandError::failed("The answers couldn’t be read."))?;

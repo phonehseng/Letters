@@ -11,6 +11,7 @@ use letters_forms::{
     CONDITIONAL_VISIBILITY_NOTE, NO_SUBMIT_NOTE,
 };
 use letters_pdf::DocumentId;
+use letters_shell_core::forms::unchanged_drawings::fill_field_keeping_drawings;
 use serde::Serialize;
 use tauri::State;
 
@@ -68,7 +69,10 @@ pub fn forms_fill_field(
 ) -> Result<FilledField, CommandError> {
     let mut changed = Vec::new();
     let document = state.edit(DocumentId(id), |document| {
-        changed = forms::fill_field(document, &name, &value)?.changed;
+        // fields drawn again exactly as they were are left alone, so a signed
+        // form's save lists only what really changed (shell-core's
+        // forms/unchanged_drawings.rs)
+        changed = fill_field_keeping_drawings(document, &name, &value)?.changed;
         Ok::<(), FormError>(())
     })?;
     Ok(FilledField { document, changed })

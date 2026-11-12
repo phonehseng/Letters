@@ -50,3 +50,17 @@ writer would, so the entry, the signature and the file agree; a reader
 ignores it. The root is in core/forms (the entry hashes the bytes before
 the writer's line break) and is reported there; `audit_tests` fails
 without this change and passes with it.
+
+## 2026-11-12: filling leaves untouched fields untouched
+
+Measured in the app: after certifying a form ("filling in and signing
+allowed") and locking Travel, Meals and Total, filling Name and saving made
+the verdict "Changed in ways the author did not allow: the answer in
+Travel changed; ...". core/forms' fill_field draws every formatted field
+again on each fill, as new appearance streams; saved as an incremental
+update, those count as changes to the locked fields. `unchanged_drawings`
+puts back a widget's old drawing when the new one is byte for byte the
+same, and drops the copy. The app's fill and import go through it.
+`certified_fill_tests` checks the verdict is "as intended" (both of its
+tests fail without this). The engine itself should not redraw unchanged
+fields; that is reported for core/forms.

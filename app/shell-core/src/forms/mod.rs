@@ -17,6 +17,7 @@ pub mod data_files;
 pub mod files;
 pub mod signature_pictures;
 pub mod signed;
+pub mod unchanged_drawings;
 
 pub use data_files::{data_format_for, merge_filled_files, read_data_file, unknown_kind};
 pub use files::{data_url, picture_mime, read_chosen_file, write_chosen_bytes};
@@ -25,6 +26,8 @@ pub use signed::{password_blocks_signing, sign_saved_document, SignError, PASSWO
 
 #[cfg(test)]
 mod audit_tests;
+#[cfg(test)]
+mod certified_fill_tests;
 #[cfg(test)]
 mod incremental_tests;
 #[cfg(test)]
