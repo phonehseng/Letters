@@ -218,6 +218,101 @@ fn a_moved_paragraph_is_one_move_not_a_removal_and_an_addition() {
 }
 
 #[test]
+fn a_paragraph_moved_away_from_where_new_text_arrived_is_still_a_move() {
+    // the first paragraph goes to the end of the page, and a new sentence
+    // takes its place: comparing words in order sees "first replaced by the
+    // new sentence" at the top and "first added" at the bottom
+    let first = [
+        "Alpha paragraph speaks of mountains and",
+        "rivers in the far north.",
+    ];
+    let second = [
+        "Beta paragraph tells of cities, trains and",
+        "the people living there.",
+    ];
+    let third = [
+        "Gamma paragraph closes the page with a",
+        "short note on the weather.",
+    ];
+    let arrived = ["Delta is a sentence written for this version only."];
+    let old = [
+        lines(72.0, 100.0, 12.0, 16.0, &first),
+        lines(72.0, 160.0, 12.0, 16.0, &second),
+        lines(72.0, 220.0, 12.0, 16.0, &third),
+    ]
+    .concat();
+    let new = [
+        lines(72.0, 100.0, 12.0, 16.0, &arrived),
+        lines(72.0, 160.0, 12.0, 16.0, &second),
+        lines(72.0, 220.0, 12.0, 16.0, &third),
+        lines(72.0, 280.0, 12.0, 16.0, &first),
+    ]
+    .concat();
+    let (old, new) = write_pair(
+        "moved-from-replaced",
+        &pdf(vec![page(old)]),
+        &pdf(vec![page(new)]),
+    );
+    let result = compare_documents(&old.source(), &new.source()).unwrap();
+    let changes = all_changes(&result);
+    assert_eq!(changes.len(), 2, "{changes:#?}");
+    let moved = changes
+        .iter()
+        .find(|c| c.kind == ChangeKind::Moved)
+        .unwrap_or_else(|| panic!("no move in {changes:#?}"));
+    assert!(
+        moved.old_text.as_deref().unwrap().starts_with("Alpha"),
+        "{moved:#?}"
+    );
+    assert!(
+        covers(&moved.left_rects, old.word_rect(0, "Alpha")),
+        "{moved:#?}"
+    );
+    assert!(
+        covers(&moved.right_rects, new.word_rect(0, "Alpha")),
+        "{moved:#?}"
+    );
+    let added = changes
+        .iter()
+        .find(|c| c.kind == ChangeKind::Inserted)
+        .unwrap_or_else(|| panic!("no insertion in {changes:#?}"));
+    assert!(
+        added.new_text.as_deref().unwrap().starts_with("Delta"),
+        "{added:#?}"
+    );
+    assert!(added.old_text.is_none(), "{added:#?}");
+}
+
+#[test]
+fn an_edited_paragraph_is_not_a_move_to_where_it_already_is() {
+    let old = lines(
+        72.0,
+        100.0,
+        12.0,
+        16.0,
+        &["The cell wall keeps the plant cell firm and shaped."],
+    );
+    let new = lines(
+        72.0,
+        100.0,
+        12.0,
+        16.0,
+        &["The cell wall keeps the plant cell firm and round."],
+    );
+    let (old, new) = write_pair(
+        "edited-not-moved",
+        &pdf(vec![page(old)]),
+        &pdf(vec![page(new)]),
+    );
+    let result = compare_documents(&old.source(), &new.source()).unwrap();
+    let changes = all_changes(&result);
+    assert!(
+        changes.iter().all(|c| c.kind != ChangeKind::Moved),
+        "{changes:#?}"
+    );
+}
+
+#[test]
 fn a_paragraph_moved_to_another_page_names_both_pages() {
     let keep_one = lines(
         72.0,

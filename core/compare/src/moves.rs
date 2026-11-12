@@ -40,6 +40,10 @@ pub(crate) fn find_moves(removed: &[Passage], added: &[Passage], min_words: usiz
         return Vec::new();
     }
     let long_enough = |passage: &Passage| passage.keys.len() >= min_words.max(1);
+    // a replacement offers its old words as a source and its new words as a
+    // destination; paired with itself it would be an edit, not a move
+    let same_change =
+        |old: &Passage, new: &Passage| old.pair == new.pair && old.change == new.change;
     let mut found: Vec<Move> = Vec::new();
     for (r, old) in removed
         .iter()
@@ -51,6 +55,9 @@ pub(crate) fn find_moves(removed: &[Passage], added: &[Passage], min_words: usiz
             .enumerate()
             .filter(|(_, passage)| long_enough(passage))
         {
+            if same_change(old, new) {
+                continue;
+            }
             let similarity = word_similarity(&old.keys, &new.keys);
             if similarity >= MIN_SIMILARITY {
                 found.push(Move {
