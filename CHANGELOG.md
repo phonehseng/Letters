@@ -4,6 +4,583 @@ All notable changes to Letters are written here, newest first.
 
 ## Unreleased
 
+### Stage: code files
+
+A small code editor for the code and text files students hand in with
+their documents, checks that say how much to trust them, exports from
+documents to code-friendly formats, and a check of code found inside
+documents. Nothing is ever run: compilers already on the computer are
+only asked for a syntax check.
+
+Measured (debug build, this computer): a 20.3 MB, 295,375-line
+JavaScript file opens in 2.2 to 2.4 s including the app's start; a
+keystroke shows in 4 to 5 ms and jumping to the middle takes 5 ms; saving
+it takes 0.45 to 0.59 s. Opening an HTML file from Recents in the same
+window adds 26 MB of working set (letters.exe and its web view together)
+and 3.8 MB of JavaScript heap. The code screen is 1.18 MiB of JavaScript in
+24 chunks loaded only when a code file or one of the two sheets opens (one
+language package per file).
+
+Works:
+
+- **The code screen**, routed like the viewer and the writer: HTML, CSS,
+  JavaScript/TypeScript, JSON, Markdown, XML, C, C++, Python, Java, Rust,
+  SQL, shell, YAML, TOML and plain text, each language loaded on its own;
+  any other file that is text opens as plain text, anything else is
+  refused with a sentence. CodeMirror 6: highlighting, line numbers,
+  bracket matching, auto-indent, folding, multiple cursors, find and
+  replace with regexp (Ctrl F, Ctrl H), Go to Line (Ctrl G), Comment
+  (Ctrl /), Wrap (Alt Z), indentation detected and changeable, light and
+  dark following the app, a cursor that doesn't blink with reduced motion.
+- **Files stay the files they were**: UTF-8 with or without a byte order
+  mark, UTF-16, CRLF, LF or CR kept on save; mixed endings saved as the
+  most common one (the status bar says so); invalid UTF-8 asks before
+  saving. Safe save, "— Edited", the unsaved changes sheet, recovery copies
+  every 5 s, Recents (with "C file", "Python file"...).
+- **Large files**: up to 2 MB every feature; up to 32 MB editable without
+  colours or checks; up to 128 MB read-only; larger refused with a
+  sentence.
+- **Checks inside Letters**: JSON (exact place and message), HTML (tags not
+  closed or closed out of order, duplicate ids, missing alt text, a block
+  inside a paragraph, a link in a link, li outside a list), XML
+  well-formedness, CSS (braces, colons, missing semicolons, properties the
+  browser doesn't know), JavaScript (acorn), YAML, TOML, Markdown (heading
+  levels, empty links, missing anchors, open fences); for C, C++, Java,
+  Rust, Python, shell and SQL the bracket, quote and comment balance,
+  Python's indentation, and the highlighter's own error marks.
+- **Compiler checks** with gcc or clang (-fsyntax-only), Python
+  (ast.parse), javac (-proc:none into the temp folder) and node --check,
+  found on PATH and in the usual per-user folders, run on a temp copy with
+  a 15 s limit; includes are read in place. "Checked by gcc 16.2" or
+  "Basic check only: no C compiler (gcc or clang) found on this computer."
+- **Problems**: squiggles, gutter marks, a Problems panel (Ctrl Shift M,
+  F8 for the next) with line, message, who said it and a plain hint for
+  the commonest C, HTML and Python mistakes; counts in the status bar;
+  re-checked after a pause in typing and on save, stale runs dropped and
+  the older compiler stopped.
+- **Open in VS Code** at the cursor's line when VS Code is installed
+  (otherwise the button is hidden and Explain says why), **Show in
+  Folder**.
+- **Export as Code File…** from the viewer and the writer (document menu,
+  Ctrl Alt X, the Code menu on a mac): Markdown, HTML and plain text through
+  letters-office, and new LaTeX, reStructuredText, AsciiDoc, JSON outline
+  and CSV tables writers; pictures go to an "images" folder beside it.
+- **Check Code in This Document** (Ctrl Alt K): code in monospaced fonts,
+  code styles and ``` fences in word documents, and monospaced lines in
+  PDFs with their indent rebuilt; the language guessed and changeable;
+  curly quotes, non-breaking spaces, dashes and ligatures flagged and
+  repaired before checking; Open Block in Code Editor opens an untitled
+  window.
+
+Not done:
+
+- TypeScript has no checker beyond the bracket balance and the
+  highlighter's marks (tsc is not run). Rust is not compiled (rustc
+  --emit=metadata was judged too heavy).
+- Jupyter notebooks and Org Mode exports: listed as "Coming later".
+- Exports read the document as saved, not unsaved edits in the writer.
+  Lists set only by a paragraph style ("List Bullet") come out as lists in
+  LaTeX, reST, AsciiDoc and JSON but as plain paragraphs in Markdown, whose
+  writer is letters-office's.
+- The writer's own document menu has no entry for the two commands; they
+  are reached with Ctrl Alt X and Ctrl Alt K there (and the Code menu on a
+  mac).
+- Untitled blocks have no recovery copies.
+
+Limits:
+
+- Compiler checks can't be put in a network sandbox here; they read only
+  the copy and headers, and are given no network flags or build steps.
+- Code found in a PDF is a hint: characters, spaces and line breaks can be
+  lost when code goes into a document, and the sheet says so first.
+- The macOS Code menu is written but has not been run on a Mac.
+
+### Stage: search and long documents
+
+Search every document at once, down to the page; find any page of a long
+book; keep your place and your bookmarks; organise files without leaving
+Letters. The index stays on this computer.
+
+Measured: a generated 5,000 document library (21.1 million words) indexes
+in 19.3 s in a release build, takes 206.7 MB on disk and about 51 MB of
+memory; queries as you type take 19.8 ms at the median and 31.6 ms at p95.
+In the app, typing in a 150,586 word novel paints in 34 ms (p50) and 40 ms
+(p95), measured as two animation frames after the key.
+Works:
+
+- **Search All Documents** (Ctrl Shift G, or Everywhere beside the Recents
+  search field): results as you type, grouped by document with their best
+  pages and highlighted snippets; "phrases", -exclude, OR, prefixes while
+  typing, english word forms, one-word typos ("Showing results for …"),
+  accents and case ignored; chips for kind, date, folder and Titles and
+  Headings; full keyboard; Enter opens the PDF at that page with the
+  words in its Find bar; Ctrl Enter opens a new window.
+- **The index**: Recents, library folders and opted-in pinned folders,
+  recursively, less "Don't Index" folders; PDFs per page (scans noted as
+  needing text recognition), DOCX/ODT/RTF per paragraph with headings and
+  an estimated page, text and Markdown. Incremental, throttled, pausable
+  between pages, safe across crashes (checkpoints), locked files by name
+  only (no password is ever stored). Pause, Resume, Rebuild and Delete in
+  the screen's Settings panel and in the Settings window's new Search
+  section.
+- **Go To** (Ctrl G): page numbers, printed labels ("xii", "A-3"),
+  percentages, "+5", "ch 3", heading and bookmark names, "last".
+  **Back and Forward** (Alt Left and Right) through jumps.
+- **Reading**: reopens where you left off with "Start from the
+  Beginning" one click away; bookmarks (Ctrl D) kept on this computer;
+  a progress line with time left at your own measured pace; a page
+  scrubber on long documents; Show All Matches lists every Find match.
+- **Organising** in Recents: Ctrl- and Shift-click to choose; Move to
+  Folder… (Ctrl Shift M), Copy to…, Rename (F2), Show in File Explorer,
+  Remove from Recents, Move to Recycle Bin (Delete, asks first); name
+  clashes offer Keep Both, Replace or Skip; Undo moves files back; Recents,
+  the index, bookmarks, positions, versions and open PDFs follow a move.
+- Engine pieces for the writer: goals and streak maths, section word
+  counts, versions saved in the data folder (shell commands exist).
+
+Not done:
+
+- The writer's side through hooks: goals in its status bar, focus mode,
+  typewriter scrolling, session timer, the versions list, section counts
+  in its outline, and opening a word document at a search hit's
+  paragraph (the hit opens the document at the top).
+- Reader (reflow) view, split view of one document.
+- "Save Bookmarks into the PDF" has its command and tests but no button yet.
+- Dragging tiles onto folders, New Folder in the interface, Tidy Up.
+- Find in all open documents.
+
+Limits:
+
+- Ctrl Shift F stays Find a Topic; Search All Documents is Ctrl Shift G.
+- The index stores passage text uncompressed: about 10 bytes per word of
+  the library on disk.
+- Moving a word document that is open in the writer does not move its
+  session; the writer would save to the old place.
+
+### Stage: compare
+
+Two versions of a PDF side by side or laid over each other, with every
+change in one sentence, and a report. Neither file changes.
+
+Works:
+
+- **Entry points**: Compare with Another Version… in the document menu
+  (the open document, unsaved changes included, is the newer version) and
+  Compare Two PDFs… on Recents; both start at a screen naming the older
+  and newer version with Choose…, Swap and the options. Two PDFs dropped on
+  it fill both. A locked PDF gets the engine's own sentence ("This PDF is
+  locked with a password. Unlock it first, then compare again.").
+- **Its own screen**, like the viewer: the document underneath stays open
+  and untouched (scroll, tools, marks), Back returns to it. The comparison
+  runs in the background with a progress bar, the stage in words and Stop.
+- **Side by Side**: old left, new right, one column of pages each, drawn
+  with the viewer's tiles; the columns scroll together through the
+  engine's scroll map (Link Scrolling turns it off); a page only one side
+  has is a dashed placeholder. Changes are soft tints with a word on each
+  ("Added", "Removed", "Changed", "Moved", "Formatting", "Layout",
+  "Picture", "Page added"); picking one outlines it and its partner and
+  scrolls both sides to them.
+- **Overlay**: the engine's overlay picture per page pair, a slider from
+  Old through both to New, and Flash (with reduced motion, each press
+  shows the other version; nothing moves by itself).
+- **Changes sidebar**: "6 changes: 3 text, 1 formatting, 1 pictures, 1
+  pages", filters by category, Previous and Next Change (Alt ↑ ↓), every
+  change under its page as a listbox; "These two documents are the same."
+  for identical documents written with different bytes.
+- **Options**: ignore spacing and hyphenation (on), compare formatting,
+  layout and pictures, then Compare Again. **Save Report…** as PDF (with
+  page pictures drawn by Letters' engine), web page or plain text; the PDF
+  opens in the viewer.
+- Zoom and Fit Width; night mode never applies here.
+- macOS File menu items (never run on a Mac).
+- **Tests**: 32 UI tests (grouping, filters, stepping, the scroll map with
+  the engine's own cases, the virtual list, the overlay, progress, setup,
+  the report); 8 shell-core tests against pdfium (progress after every
+  page, a changed word, identical files, Stop, everything closed and
+  deleted afterwards, a locked file, stitched tiles, pair pictures and a
+  report the engine opens).
+- **Proved in the real app** (debug build, `cdp-compare/compare.mjs`, 25 of
+  25 checks): two versions with a changed word, an inserted sentence, a
+  moved paragraph, a bigger title, a replaced picture and an added page
+  give exactly those six changes (936 ms); picking the move scrolls both
+  sides; linked and unlinked scrolling; the slider and Flash; the report
+  saved and opened in the viewer; identical files; a 300 page pair (2.3 s,
+  progress shown, 6 pages in the page at a time, worst scroll frame 3 ms).
+
+Not done, and limits:
+
+- The engine reports a paragraph that moved away from a place where new
+  text was then inserted as "Changed … to …" plus "Added …", not as a move
+  (a replaced passage is never offered to the move finder; core/compare
+  `text_diff.rs`). The proof document inserts its sentence elsewhere.
+- Marks on the pages are for the pointer; the keyboard and screen readers
+  use the Changes list. No connector line is drawn between partners.
+- Pages are drawn at the zoom's scale with the shared 24 MB tile cache, so
+  comparing evicts the viewer's tiles.
+
+### Stage: accessibility
+
+A checker and fix wizard aimed at PDF/UA in a new Accessibility tab, and an
+audit of the app's own interface.
+
+Works:
+
+- **Check This Document**: the engine's check, with contrast measured from
+  pages drawn by Letters' own engine (each page drawn once per check). The
+  engine's score statement first, then Must Fix, Should Fix and Check by
+  Hand, each finding with its explanation, why it matters, what was found,
+  Show on Page (an outline on the spot) and Fix….
+- **Fix Problems…**: one problem at a time, "3 of 11", Back, Skip, Done.
+  Forms: Add Tags Automatically (optionally with the language) and then
+  "Look Over These Tags" with the guesses; the language by name; the
+  title; alt text with the picture shown, or Decorative; the heading
+  ladder (editable); table header rows and columns with the table shown;
+  the reading order as numbered boxes on the page and a list moved by
+  drag, buttons or Alt with the arrows; link, field and comment text;
+  contrast with both colours, the ratio in words and the suggested colour;
+  one-button fixes (tab order, tag links, bookmarks…). Every fix is one
+  undo step; after each the document is checked again and the steps
+  follow (Undo while the wizard is open reopens the step).
+- **Mark as PDF/UA** only when the engine says every rule it can check
+  passes, and only after the person ticks each of the engine's checks by
+  hand. **Save Report…** as a web page or plain text.
+- **Tests**: 21 UI tests (grouping, keys across checks, the wizard's steps,
+  the ladder, languages, contrast maths, the app.css token audit); 6
+  shell-core tests (the request shapes, fixes as single undo steps,
+  headings, contrast from pdfium's pixels with the page drawn once, regions,
+  reading blocks).
+- **Proved in the real app** (`cdp-compare/a11y.mjs`, 22 of 22 checks): an
+  untagged handout with two pictures, headings whose sizes start at the
+  second level and skip one, and pale grey text (2.28:1, measured from the
+  page's pixels) was checked; the wizard went from 1 of 5 to 8 of 8 (new
+  problems joined after tagging) through Add Tags, language, title,
+  contrast, alt text, headings and Decorative; a check again found none of
+  them; Undo brought the last one back and Redo fixed it; Save and opening
+  again kept every fix. Mark as PDF/UA stayed off, correctly: the standard
+  fonts are not embedded, which the engine counts as must fix.
+- **The app's own accessibility** (docs/ACCESSIBILITY.md): axe-core over 18
+  screens in four colour modes went from 69 elements (light) and 186 (other
+  modes) to 7 and 17, all in the writer except the sidebar's segmented
+  control, whose token was then fixed too (not re-measured in the app). Fixed: the
+  accent, accent text, red and secondary text tokens (6 failing pairs to
+  0), a main landmark and heading in the viewer, Recents' toolbar in a
+  landmark, a focus ring on the pages, Tab kept inside the unsaved changes
+  sheet, 24 px Remove buttons on Recents.
+
+Not done, and limits:
+
+- Checking again after each fix checks the whole document (the engine has
+  no partial check), drawing every page for contrast: fine for a handout,
+  slow for hundreds of pages.
+- Block places for the reading order are worked out in the shell with
+  estimated text widths; boxes can be wider or narrower than the words.
+- Text recognition fixes point to the Scan tab; nothing runs from here.
+- Not heard through Narrator or VoiceOver; macOS menu items never run.
+- Other areas' audit findings are listed in docs/ACCESSIBILITY.md, not fixed.
+
+### Stage: direct editing
+
+An Edit tab in the Tools inspector changes the page's own text in place
+and its pictures, with core/edit.
+
+Works:
+
+- **Edit Text and Images** (Ctrl Alt W; Control Command W on a mac; also
+  the macOS Content menu): every paragraph and picture of the pages on
+  screen becomes a target; a paragraph shows a faint outline under the
+  pointer or the keyboard focus, and Tab moves through them.
+- **Typing in place.** Clicking a paragraph opens an editor exactly over
+  it, on its baseline, at its size and colour, in its embedded font when
+  the web view can load it (else the same font on this computer, else
+  one of its kind), with the caret where it was clicked. Clicking
+  elsewhere or Ctrl Enter makes the change as one undo step; Escape drops
+  it. What was typed becomes the smallest engine change: an insert or a
+  delete inside a line, a rewritten line, or the paragraph re-set.
+- **Fonts are never changed silently.** A letter the font lacks is named
+  under the editor while typing; afterwards a card under the text says
+  which font drew it, from the engine's FontNotice.
+- **Overflow**: when new text needs more lines than the paragraph had, the
+  card says how much lower it reaches and offers Let It Grow or Shrink to
+  Fit (the paragraph's own number of lines, smaller, as one undo step).
+- **Text Style** (size, colour, a standard font) for the selected letters
+  of a line or the whole paragraph; **Delete Paragraph**; **Add Text** in a
+  standard font or a font on this computer from the font library, with one
+  sentence on how it differs from a Text Box.
+- **Pictures**: select with the shared frame (corners keep proportions),
+  drag to move, drag a corner to resize, arrows to nudge (Shift 10 points,
+  Alt resizes), Turn Left and Right, Bring to Front, Send to Back,
+  Replace… (Fit, Fill or Stretch), Save Image As… (keeps a jpeg a jpeg),
+  Delete, and Add Image… by choosing a file, pasting (Ctrl V) or dropping a
+  png or jpeg on the page. Each is one undo step.
+- **Stale ids**: every edit answers the page's objects with fresh ids,
+  kept at once; an id that went out of date is answered quietly with the
+  fresh page, and the session finds the paragraph or picture again by
+  place and tries once more.
+- **Tests**: 21 unit tests (`lib/edit/edit.test.ts`: hit testing, finding
+  things again, editor geometry at several zooms, the smallest change,
+  selections inside a line, the sentences, fonts); 10 shell-core tests
+  (`edit/tests.rs`: finding a block again, Shrink to Fit keeps the lines
+  and every word, a failed fit changes nothing, the embedded font handed
+  over only when it draws the text, png and jpeg only, a stale id refused
+  without an undo step). A script drove the real app (28 checks, all
+  passed): a word edited in place in a PDF with an embedded Arial subset,
+  Find found the new word, the next line's letters didn't move (0.000 pt);
+  "é" typed (hint, then "The original font can’t draw “é”, so Arial from
+  this computer was used for it."); text added where clicked; a picture
+  moved, resized (proportions kept), nudged 10 points, replaced, turned,
+  deleted, undone and redone; a picture placed with a click; saved,
+  reopened and found again.
+
+Not done:
+
+- The font library has no `FontPicker` component yet, so the Edit tab
+  uses a plain list (`inspector/edit/FontMenu.svelte` is where a picker
+  would plug in). Existing text can only be switched to a standard font,
+  which is all the engine offers.
+- Rotated paragraphs get a rotated editor, but this was not tried in the
+  real app.
+- The editor uses the installed font when the embedded one can't be
+  loaded by the web view (true of the reportlab subset in the proof), so
+  it can differ slightly from the page while typing.
+- With eight tabs the inspector's segmented control is crowded at its
+  normal width (InspectorPanel.svelte isn't part of this stage).
+
+Limits (from the engine, said in the tab under "What keeping the font can
+and can’t do"): kerning inside changed words isn't kept, a paragraph that
+grows doesn't push text below it down, CFF fonts count only the letters
+already used, inline pictures can't be replaced or saved out, restacking
+drops a clipping path. See core/edit/README.md.
+
+### Stage: OCR
+
+A Scan tab reads scanned pages with core/ocr (tesseract, run offline) and
+adds an invisible text layer, so Find, selecting, copying and redacting by
+text work on them.
+
+Works:
+
+- **The engine is bundled** (`tauri.conf.json` resources: vendor/tesseract)
+  and found the way pdfium is; when it is missing the tab says how to fix
+  it (a developer build: run `tools\fetch-tesseract.ps1`).
+- **A quiet banner** on documents with scanned pages nobody has read:
+  Make This Document Searchable opens the tab with those pages chosen.
+- **Recognize Text** (Ctrl Alt O, Control Command O): the installed
+  languages by name (the computer's own first; two at most, with the
+  cost said), the pages (This Page, Selected, All, Scanned Only), and
+  Straighten tilted pages, Clean up speckles, Detect sideways pages, each
+  with a line. It runs on its own thread with per-page progress; Cancel
+  stops tesseract at once and adds nothing; the end is one undo step with
+  a summary ("Text found on 12 of 14 pages; 2 pages look blank."), the
+  average confidence and the pages to check. The document stays usable.
+- **Show Recognized Text** draws the words read over the scan, doubtful
+  ones tinted; clicking one corrects it (the page's layer is written again
+  from the corrected words, since the engine has no one-word call).
+- **Remove Recognized Text.**
+- **New from Images…** (Recents, File menu, the Scan tab; opening or
+  dropping pictures offers it): PNG, JPEG or TIFF files in an order the
+  person sets, Picture Size, Letter or A4, optionally made searchable. The
+  PDF opens unsaved (nothing is written to their folders) and Save asks
+  where, starting beside the pictures.
+- **Tests**: 16 unit tests (`lib/ocr/ocr.test.ts`: the run's state machine
+  with cancel, including a cancel that lands as the last page finishes,
+  page choices, languages, the sentences, pictures in order); 9 shell-core
+  tests (`ocr/tests.rs`) with a fake engine: progress in order, cancel
+  stops before the next page, a failed page fails the run and leaves the
+  document unchanged (and a half-applied layer is refused whole), a
+  finished run is one undo step, one run per document, the summary, where
+  the engine is looked for (and the `\\?\` resource paths tesseract can't
+  use), the overlay's words and a correction. A script drove the real
+  app (17 checks, all passed): three tilted, speckled scans made into a PDF with New from Images
+  (reordered, opened unsaved, Save asked where), the banner, a run
+  cancelled (stopped in under 3 s, nothing added), a run of 3 pages in
+  13.5 s in a debug build ("Text found on all 3 pages", 96% sure, one
+  undo step), Find found "condensation" on every page within 1.2 pt of
+  where it was drawn on the tilted page, Show Recognized Text drew 108
+  words, a word corrected and found, saved, reopened and found again.
+
+Not done:
+
+- Show Recognized Text on a file opened later reads the words back from
+  the invisible layer, without confidence; their boxes come from the
+  layer font's glyph boxes and sit a little off the scanned words.
+- A run renders pages through the shared tile cache (24 MB), so a long run
+  can push the screen's tiles out and they are drawn again.
+- If pages are removed while a run reads, its text isn't added (it says
+  so); pages edited in other ways meanwhile get the text read from what
+  was drawn when it was read.
+- A pdf made by New from Images has no file until Save As; Save on it
+  asks where (it is the same as Save As).
+
+Limits (from the engine): fast language data, so a page read in a
+language it isn't in loses accuracy; right-to-left and vertical text are
+written left to right; only the first page of a multi-page TIFF. See
+core/ocr/README.md.
+
+### Stage: conversion and export
+
+Works:
+
+- **Export To…** (document menu, File menu, Ctrl Shift E): one sheet with
+  what this computer can make from the PDF, from core/convert's
+  `capabilities()`: Word Document (Exact Match, the default, and Easy to
+  Edit, side by side with the engine's sentence for each), OpenDocument
+  Text, Excel Workbook, PowerPoint Slides, Images (PNG, JPEG with quality,
+  TIFF in one file or per page; resolution; colour or gray), Web Page
+  (exact or easy to edit; one file or with a folder), Plain Text (reading
+  order or keep layout). Page ranges typed as "1-3, 7", checked with a
+  sentence before the save panel opens. Progress with Cancel, and a result
+  line from each engine's report ("2 slides. Text is real text; …").
+  Unavailable choices stay in the list, greyed, with the reason.
+- **Easy to Edit Word and OpenDocument** built in shell-core from the
+  structure analysis: headings in the document's heading styles,
+  paragraphs whose runs carry only what differs from the body text (the
+  body font and size in Normal), bulleted and numbered lists with nesting,
+  tables with column widths, spans, a repeated header row, shading and
+  ruled edges, pictures at their size on the page, footnotes as real notes
+  replacing the raised marker, the repeated header and footer as real ones
+  with page number fields, a section per run of pages of one size with
+  margins from the text. Opened in Word (private copy) without repair, with
+  Heading 1/2 styles, a three-item bulleted list and one table; read by
+  LibreOffice headless.
+- **Exact Match Word** through core/exact's `convert`, with its cache in
+  the app cache, verification when Word is installed, our renderer, progress
+  and Cancel. The result shows the engine's check sentence, "How close is
+  it?" with the measured numbers, and each font stand-in with its reason;
+  without Word it says the result was not checked on this computer.
+- **Office files to PDF**: spreadsheets and presentations (xlsx, xls, ods,
+  pptx, ppt, odp) opened or dropped are shown as PDFs that Office or
+  LibreOffice makes in the temp folder, with a line naming the program;
+  `convert_office_to_pdf` makes one where the person chooses.
+- **Open PDF as Document…** (writer and viewer document menus) opens a new
+  window with the PDF rebuilt as an editable document in memory, named for
+  a free ".docx" beside the PDF.
+
+Not done, and limits:
+
+- The writer opens a converted document as not edited, so its Save is
+  greyed until something changes; Save As works. (The writer marks
+  converted files with a notice; making them start unsaved is the writer's
+  to decide.)
+- Exact Match makes the whole document only; a page range is refused with
+  a sentence.
+- The PDF's internal links ("see page 4") stay plain text in Easy to Edit
+  files: once text flows there is no page to point at.
+- Easy to Edit keeps paragraphs that continue on the next page as two, as
+  the analysis does.
+
+### Stage: AI tools
+
+Works:
+
+- Off by default. With the switch off there is no AI Tools button; Find a
+  Topic (Ctrl Shift F, or Topic… in Find) works on this computer with the
+  engine's offline finder, and says so.
+- Turned on in Settings: a side panel with Summarize (short, medium,
+  detailed, page range), Key Points, Ask (answers stream; citations are
+  chips that go to the page and outline the passage; "The document doesn’t
+  say." as it is; quotes the engine couldn't find are flagged) and Find a
+  Topic. A header always names the provider and whether text leaves.
+- Before any request that sends text off the computer: the engine's
+  disclosure sentence and preview, Cancel (focused) and Send, every time,
+  unless "Don’t ask again for this provider and document" was ticked (one
+  pair, while Letters runs; there is no global never-ask). A model on this
+  computer says "This stays on this computer." and asks nothing. The shell
+  enforces the same rule; the engine refuses without its acknowledgement.
+- Stop; errors in the engine's words with Try Again or Open Settings as
+  `is_temporary` says. Keys only in the system's credential store. Test
+  Connection sends one fixed sentence. Start and stop a model server
+  program the person chose, on 127.0.0.1.
+
+Not done, and limits:
+
+- Embedding settings (the engine supports them) aren't in Settings yet.
+- The text for the tools comes from the structure analysis of the shown
+  version; a scanned page without recognised text has none.
+- The "don't ask again" memory ends when Letters quits, on purpose.
+
+### Stage: packaging
+
+Works:
+
+- `tauri.conf.json`: file associations for pdf, docx, odt, ods, odp, rtf,
+  png, jpg/jpeg, tif/tiff, bmp, gif and webp with names, roles, MIME types
+  and macOS content types; per-user NSIS installer; resources (pdfium, the
+  OCR engine, bundled fonts, document icons, `THIRD-PARTY-LICENSES.txt`);
+  product metadata; macOS minimum version.
+- `installer-hooks.nsh`: document icons and the Default Apps entry
+  (RegisteredApplications and Capabilities) under HKEY_CURRENT_USER,
+  removed on uninstall. The app itself never writes the registry; Settings
+  opens Default Apps for the person and explains the two steps.
+- Opening by type: several files on the command line open several windows
+  (and through the single-instance path); a mac's open-document event too.
+- `THIRD-PARTY-LICENSES.txt` from `cargo metadata` and the ui's lockfile
+  (630 crates, 17 shipped npm packages): nothing outside MIT, Apache, BSD,
+  ISC, Zlib, OFL, MPL and similar; libiconv (LGPL, with the OCR engine) and
+  the Visual C++ runtime question are flagged for review.
+- Settings window (Ctrl ,): General, Typing, Files, Fonts, Scanning,
+  Accounts, AI Tools, Privacy; `docs/PRIVACY.md` lists every network call.
+
+Not done, and limits:
+
+- Nothing for macOS was built or run; the README lists what to run there
+  and what to send back. Not signed or notarized on either system.
+- The release build fails in core/exact with the repository's release
+  profile on this GNU toolchain (LLVM "SmallVector unable to grow" while
+  optimising letters-exact; with fat LTO it also ran out of memory). The
+  installer was built with LTO off and letters-exact at opt-level 1
+  (`npx tauri build -- --config "profile.release.package.letters-exact.opt-level=1"`
+  with `CARGO_PROFILE_RELEASE_LTO=false`): 42.7 MB, per-user, not run here.
+- Tauri's own association step sets each extension's per-user default
+  class (`HKCU\Software\Classes\.pdf` = `Letters.pdf`, keeping the old
+  value as `Letters.pdf_backup`). Windows still lets the person's own
+  choice in Default Apps win, but this is more than "register and let the
+  person choose"; an `OpenWithProgids`-only registration would need a
+  custom NSIS template.
+- Document icons on Windows show only for types Letters is the default
+  for; macOS document icons aren't set (Tauri's config has no per-type icon).
+
+### The font library
+
+A large library of fonts, custom fonts and a font searcher. Proven in the
+real app (Ctrl T opens it): a typo search, a language filter with sample
+text, adding a WOFF2 file, downloading one family from the online library,
+the Missing Fonts view and the font picker.
+
+Works:
+
+- One index of every font: the 411 faces installed on this Windows 11
+  computer, fonts the person adds (.ttf, .otf, .ttc, .woff, .woff2 or a
+  folder, checked and copied into Letters' folder, removable), 14 open
+  families shipped with Letters (`tools/fetch-fonts`, about 18 MB, all SIL
+  OFL 1.1) and the online library's 2,042 open families (catalogue shipped,
+  257 kB, so search works offline): 2,274 families in all.
+- The first scan runs in the background with progress (0.85 s release,
+  1.2 s debug on 388 files); later starts read a cache (0.09 s).
+- Search as you type, forgiving typos ("garmond", "atkinsn"), by kind,
+  language, sample text ("draw: ĐỒNG ₫"), place, embeddable, favourites,
+  and "similar to Calibri" (Carlito first, with the same widths).
+- Each family's styles, languages, licence, embedding permission in a
+  plain sentence and where it comes from.
+- Downloads only when asked, after a one-time notice, from
+  raw.githubusercontent.com at a pinned commit, with progress, cancel,
+  resume and a hash check of every file.
+- Missing Fonts: each font a document asks for that isn't here, the
+  stand-in (metric-compatible where one exists) and Download or Replace.
+- `FontPicker` for the writer and the PDF text tools: favourites, recent,
+  document fonts, then everything, each name in its own face, virtual,
+  keyboard friendly.
+
+Not yet:
+
+- The writer and the PDF text tools don't use the picker yet, and no
+  screen calls `setDocumentFonts`, so Missing Fonts shows only when the
+  library is opened with a document's fonts.
+- The macOS menu has no Font Library item yet (Ctrl T works everywhere).
+- Previews don't shape complex scripts; variable fonts embed their
+  default instance; CFF fonts embed whole.
+- Caladea doesn't have Cambria's widths in the library's version, so it is
+  offered as similar, not metric-compatible.
+
 ### Stage: word-processor mode (the writer)
 
 `.docx` and `.odt` files open as pages on the desk and edit like a word
@@ -79,34 +656,99 @@ Works:
   credential store, a confirmation that says exactly what is sent where.
 - macOS Format and Insert menus (never run on a Mac).
 
+Second round (the writer's objects, Strict Word mode, formats, print),
+proven in the real app with real pointer and keyboard input; the scripts,
+numbers and screenshots are in the stage report.
+
+Works:
+
+- Text blocks: Insert › Split into Text Blocks (Ctrl Alt Shift Enter)
+  turns the paragraph at the cursor into two movable blocks; Make Text
+  Block (Ctrl Alt Shift T) puts the selected paragraphs in one; Return to
+  Text (Ctrl Alt Shift R) puts the text back at the nearest place, with a
+  blue line showing where while you point at it. Each is one undo step,
+  done by the office engine (`floating`). Typing, styles, lists and tables
+  work inside a block; its edge drags it, its handles resize it with the
+  text reflowing inside, and the keyboard moves (Alt Shift arrows) and
+  resizes (Alt arrows) it. Word opens the saved file with the blocks as
+  shapes at the places set, to the twip, with their text. Files with text
+  boxes made by Word and by LibreOffice round-trip exactly.
+- Pictures: In Line or Free through the engine (`float_image`,
+  `inline_image`): Free starts where the picture was, measured within
+  0.05 px at three zooms. Text flows around free pictures and text blocks
+  on screen (square, tight and through drawn as square to the wider side;
+  above and below; behind and in front), re-wrapping once on release.
+  Double-click crops (the model's crop, which Word shows); the round
+  handle turns in 15° steps (Shift frees it); Lock Proportions, Original
+  Size, Fit Width, exact width, height, place and angle; Front and Back;
+  Shift-click others to line them up or space them evenly; pink snap
+  guides from the engine's snap rules (page edges, margins, centre, other
+  objects). Copying a picture puts its pixels on the system clipboard;
+  pasting pictures, picture files and html with pictures goes through the
+  engine (bitmaps become png). Resizing and dragging in a 30-page
+  document with 20 pictures never blocked a frame for more than 21 ms.
+- Strict Word mode is the engine's: what is offered comes from
+  `feature_matrix()`, the line and its Show list (with Go To and Fix, and
+  Fix All) from `word_compatibility()` and `apply_fixes()`, and switching
+  to Strict asks first to fix what isn't Word-exact. Word lays out the
+  document through the engine's bridge, and the editor breaks its lines
+  and pages exactly where Word does: every line of a 16-page essay starts
+  with the same word as Word's, and the page counts agree. Word's check
+  runs 4 seconds after typing pauses (or with Check Now), never while
+  typing; a cold check took about 21 s, a cached one 18 ms, and the status
+  bar says when the layout was checked and whether edits came after.
+- Letters' own layout engine (`core/layout`) is the second provider: the
+  Document tab's "Letters’ Own Layout" uses it for Free mode, applied the
+  same way as Word's. On the 16-page test essay it broke all 580 lines and
+  all 16 pages exactly where Word did, in 0.23 s.
+- Nothing moves when you click: a real-app check compares every block's
+  and object's box after clicking into text, a picture, a table, crop mode,
+  selecting and toggling panels; opening and saving without edits keeps
+  the document as the engine read it (text blocks and kept content too),
+  and object kinds the engine is adding (shapes, groups) pass through the
+  editor untouched as kept chips.
+- Pages in Free mode split a paragraph between lines when it doesn't fit,
+  with widow and orphan control, keep with next and keep lines together;
+  footnotes sit at the bottom of the page their number is on.
+- Save As lists the engine's formats with its sentence on each: Word,
+  OpenDocument, PDF, Rich Text, Web Page, Markdown (pictures beside it),
+  Plain Text and, with Word or LibreOffice, Word 97–2003. `.rtf` and `.doc`
+  files open in the writer by conversion and save as a `.docx` beside
+  the original. Word opens the RTF Letters writes without complaint.
+- Print opens Windows' own print dialog for Word's print-ready pdf (the
+  bridge's, or LibreOffice's with a note that breaks can differ), at the
+  pdf's page size, one sheet per page.
+- Tracked changes record formatting (Word's `w:rPrChange`), paragraph
+  splits and joins (the paragraph mark's revision); accept and reject
+  handle them, and hovering shows who and when.
+- The Format inspector's font control is the font library's picker; fonts
+  the document uses that aren't installed load from the library; the
+  status bar's missing-font count opens its Missing Fonts view, whose
+  Replace changes the font everywhere in one step.
+- The Drive sheet sends the client ID to Settings › Accounts.
+- Word is only reached through the engine's bridge (a private hidden Word
+  found by its window caption, with a watchdog); the writer's own Word
+  scripts are gone, and the checks left no Word or LibreOffice running.
+
 Partial or not done:
 
-- Pagination in Free mode is an estimate (measured blocks; a block taller
-  than a page is not split); exact pages come from Word in Strict mode or
-  on export. Footnotes show together under the text, not per page.
-- Floating pictures are drawn where they are but text does not wrap
-  around them on screen; crop and rotation handles are not done; copying a
-  picture to other apps carries its address only once it was shown.
-- Free text blocks (Split into Text Blocks, Make Text Block, Return to
-  Text) are not done: they need the office engine's text-box model, which
-  is being added.
-- Strict mode uses Letters' own feature list until the engine's
-  `feature_matrix()` and `word_compatibility()` exist; Word's layout is
-  matched to blocks by paragraph order and falls back to the estimate when
-  a block Letters keeps opaquely holds paragraphs of its own.
-- Rich Text and Markdown in Save As are shown as coming (engine
-  exporters). Columns show as one column on screen.
-- Direct Drive upload is tested against a local stand-in for Google's
-  servers only: there is no client ID to sign in with for real.
-- Fonts: missing fonts are counted in the status bar and fall back to an
-  open font with the same widths where one is known (Carlito for Calibri,
-  Tinos for Times New Roman...) if it is installed; the font library's
-  picker, served fonts and Missing Fonts view are not wired yet.
-- "Open PDF as Document…" is in the menu, greyed: "Coming with PDF
-  conversion."
-- Formatting changes and paragraph splits are not recorded as tracked
-  changes. The menu bar's Command Option 1-3 stay with the View menu on a
-  Mac, so headings use the Style menu there.
+- Wrapping draws square, tight and through the same way, on the wider
+  side of the object; Word can fill both sides and hug a picture's
+  outline. Two objects whose wraps overlap on the same side can sit side
+  by side on screen.
+- A page that Word starts inside a table starts at the table on screen.
+  Justified paragraphs in Strict mode keep Word's line breaks but their
+  last-before-break lines are not stretched.
+- Free-mode pages are still measured on screen; only Strict mode (Word)
+  or the engine setting give exact pages. Columns show as one column.
+- Footnotes are edited where they are shown, at the bottom of their page;
+  endnotes stay under the text.
+- Direct Drive upload is still tested against a local stand-in for
+  Google's servers only: there is no client ID to sign in with for real.
+- The Windows print dialog is shown and proven up to choosing the printer;
+  see the stage report for the run that printed to Microsoft Print to PDF.
+- "Open PDF as Document…" belongs to the conversion stage. The menu bar's
+  Command Option 1-3 stay with the View menu on a Mac.
 
 ### Stage: forms and signatures
 

@@ -220,28 +220,50 @@ Pages opened a Word file: the text is the star, the controls float.
   switch that is off is struck through. The same four switches are the
   Typing section of the Document tab, and both change one setting stored
   for the person.
-- **Kept content.** Things Letters can't edit (a chart, a text box, an
+- **Kept content.** Things Letters can't edit (a chart, a shape, an
   equation) show as a quiet dashed chip, "Chart — kept as it is", saved
   back exactly. Deleting a range around one is refused with a sentence;
   Backspace next to one selects it first, so it is only ever deleted on
   purpose.
-- **Pages** are an estimate of Word's: measured on screen, with a page gap
-  where the next block no longer fits, the next page's header drawn in the
-  gap, and footnotes under the text. The Explain entry and the status bar
-  say so; Export as PDF uses Word or LibreOffice for exact pages.
+- **Pages** are an estimate of Word's in Free mode: measured on screen,
+  line by line, with a page gap where the next line no longer fits and
+  Word's rules (two lines at least on each side, headings kept with the
+  next paragraph), the next page's header drawn in the gap, and each
+  footnote at the bottom of the page its number is on. The Explain entry
+  and the status bar say so; in Strict Word mode the lines and pages are
+  Word's own.
 - **The page stays white** in dark mode, as paper does in Pages; Night Mode
   in View darkens it.
-- **A selected picture** gets a thin accent frame with eight round handles
-  and, above it, one small glass bar: In Line | Free (a segmented control,
-  the one thing most people want to change), the wrap when Free, Original
-  Size, Fit Width, and one sentence saying what the current state means.
-  While a handle is dragged only the picture changes size on screen, with
-  its size in a small label under it; nothing else moves until release.
+- **A selected picture** gets a thin accent frame with eight round handles,
+  one round handle above it for turning (15° steps; Shift for any angle)
+  and, above that, one small glass bar: In Line | Free (a segmented
+  control, the one thing most people want to change), the wrap when Free,
+  Front and Back, Crop, Lock Proportions, Original Size, Fit Width, exact
+  numbers for size, place and angle, and one sentence saying what the
+  current state means. While a handle is dragged only the picture changes
+  on screen, with its size in a small label under it; nothing else moves
+  until release, when the text re-wraps once. Pink guide lines show what
+  it lines up with (page edges, margins, the centre, other objects).
+  Double-click crops: the handles turn into square bars that cut a side
+  instead of scaling; Return or Done ends it.
+- **Text blocks** (Insert › Split into Text Blocks, Make Text Block, Return
+  to Text) are text in a thin frame that sits anywhere on the page, with
+  text flowing around it. A click inside types, as in any paragraph; the
+  frame's edge (the move cursor shows) drags it; its handles resize it and
+  the text reflows inside as you drag. Pointing at Return to Text draws a
+  blue line where the text will go back. Shift-click a second object to
+  line them up (Line Up in the bar).
 - **Free and Strict Word** is one quiet pill in the status bar (accent when
   Strict), mirrored at the top of the Document tab. Next to it the status
   bar names where page breaks come from ("Pages estimated", "Layout checked
-  with Word a moment ago"), and in Strict mode one line says whether
-  everything will look the same in Word.
+  with Word 2 minutes ago, before your last edits") with a quiet Check Now,
+  and in Strict mode one line says whether everything will look the same
+  in Word, with Show: a sheet with each difference in the engine's own
+  sentence, Go To, and a Fix where Letters has one (Fix All at the bottom,
+  the one accent button). Switching to Strict asks first, in the notice
+  bar, whether to fix what isn't Word-exact. Word takes about half a minute
+  for its first look at a document, so it never runs while you type: four
+  seconds after you pause, or at once with Check Now.
 - **Save to Google Drive…** is in the document menu and opens one sheet with
   the two ways, each in a sentence: the Drive folder on this computer, or
   direct upload after signing in. The upload button sits under a sentence
@@ -339,6 +361,323 @@ the easy path, and no sentence promises more than the engine does.
 - **On a narrow window** the floating inspector covers the page as usual;
   a Protect tool picked there keeps working once it is closed, and the
   sheets fit any window from 480 pixels up.
+
+### Fonts (the Font Library and the font picker)
+
+Students meet fonts in two moments: picking one while writing, and opening
+a document that looks wrong because its fonts are missing. Both follow
+Font Book and the Pages font menu.
+
+- **The picker is a menu, not a dialog.** A compact button shows the
+  chosen font in its own face; it opens a list with a search field on top:
+  Favourites, Recent, In This Document, then All Fonts, each name drawn in
+  its own font. Typing narrows it (typos forgiven), the arrows move, Enter
+  chooses, Escape closes. The highlighted row uses the accent, as a
+  selected menu item does. More Fonts… at the bottom opens the library.
+- **The library is a sheet over the window** (Ctrl T, Command T on a mac,
+  the Show Fonts key in mac apps): search at the top, two rows of chips
+  (kind and language; where fonts come from, Embeddable, Favourites), a
+  sample text field with Can Draw It and a size slider, then the list on
+  the leading side and the selected family on the trailing side, like an
+  inspector. An on chip uses the soft accent because it is a toggle's on
+  state; Download is the one prominent button.
+- **Content first**: each row is the family drawn in its own face with the
+  person's sample (or its own name), with a quiet line of facts above it
+  ("4 styles · Sans Serif · On This Computer"). The count under the search
+  field is a live region and says what to try when nothing matches.
+- **Plain sentences for licences**: "This font can be embedded in PDFs and
+  documents." or "This font’s license doesn’t allow embedding; others will
+  see a similar font unless they have it." The picker shows the second as
+  a footnote under the button when such a font is chosen, never a dialog.
+- **The internet is asked for, once.** The first Download or Show Preview
+  shows a sheet saying exactly what is sent and to whom; everything else
+  works offline.
+- **Missing Fonts** lists each missing font, the stand-in Letters uses with
+  one sentence on why (same letter widths, or only similar), and one
+  button: Download the font, Download its stand-in, or Replace.
+- **Adding fonts**: Add Fonts… and Add Folder…, or drop files on the
+  library; a line at the bottom says what happened ("Added 2 fonts.",
+  or why a file was refused).
+
+### Compare
+
+Comparing is looking, not editing, so it gets a screen of its own (like
+the viewer) instead of a tab: the two versions are the content, and the
+controls float.
+
+- **Two ways in, one screen.** "Compare with Another Version…" in the
+  document menu (and the File menu on a mac) starts with the open document
+  as the newer version; "Compare Two PDFs…" on Recents starts empty. The
+  first view names both versions in two cards, each with Choose…, and a
+  Swap between them; dropping two PDFs fills both. Compare is the one
+  prominent button, with the usual line under it saying what will happen
+  ("Neither file changes.").
+- **Progress you can stop.** A bar, the stage in words ("Comparing pages:
+  120 of 500") and Stop.
+- **Side by Side**: old on the left, new on the right, each a column of
+  pages on the desk. The columns scroll together, the same passage level on
+  both sides (Link Scrolling, pressed by default, turns it off). A page only
+  one side has is a dashed empty sheet saying "Not in the old version".
+- **Marks are soft, never colour alone.** Removed text is a light red tint
+  on the left, added text light green on the right; moves are violet,
+  formatting amber, layout teal, pictures orange, all quiet tints so the
+  words stay readable. Each mark carries its word on a small light chip
+  ("Added", "Moved", "Formatting"); on a crowded page only the selected
+  change keeps its word. The selected change and its partner get the
+  accent outline: here too the accent means "this one".
+- **The Changes sidebar** says the summary in one line ("14 changes: 9
+  text, 3 formatting, 2 layout"), offers the categories as checkboxes,
+  Previous and Next Change (Alt ↑ and ↓), and every change as one sentence
+  from the engine under its page. Identical documents say "These two
+  documents are the same." even when the files differ in bytes.
+- **Overlay** shows the engine's overlay picture (shared ink grey, removed
+  red, added green) with one slider, Old at one end, New at the other and
+  both in colour in the middle, and Flash, which alternates them. With
+  reduced motion Flash never runs by itself; each press shows the other
+  version.
+- **Night Mode doesn't apply**: colours carry meaning here, and the pages
+  stay white.
+- **Save Report…** is a small sheet: PDF (with pictures of the pages and
+  the changes marked), Web Page or Plain Text.
+
+### Accessibility
+
+The tab where the honest sentence matters most, because a mark of
+accessibility is a promise to people who rely on it.
+
+- **Four sections**: Check This Document, Fix Problems…, Mark as PDF/UA,
+  Save Report…. The check's result starts with the engine's own score
+  statement, which says what the number does and doesn't cover, then the
+  findings in three groups: Must Fix, Should Fix, Check by Hand. Each
+  finding opens to its explanation, why it matters, what was found, Show on
+  Page (the spot gets an accent outline on the page) and Fix….
+- **The wizard** goes one problem at a time with "3 of 11", Back, Skip and
+  Done, and the small form each needs: a language by its name; a title; a
+  picture shown above its alt text field with one sentence on what good
+  alt text is and "Decorative — Skip for Screen Readers"; the heading
+  ladder, indented by level and editable; a table shown with its header
+  rows and columns; the reading order as numbered boxes on the page and
+  the same numbers in a list that drags or moves with Alt and the arrows;
+  contrast with the colours, the ratio in words and a sample of the
+  suggested colour. After Add Tags Automatically, "Look Over These Tags"
+  lists what the tagger guessed.
+- **Mark as PDF/UA** stays off until the engine says every rule it can
+  check passes, and then until the person ticks each check by hand
+  themselves. Its line says exactly what the mark claims.
+
+### The app's own accessibility
+
+The app's colour tokens are checked by a unit test (`lib/a11y/tokenAudit.ts`)
+against WCAG 2 in light, dark and increased contrast. To pass it the accent
+fill, the accent text and the red are a little deeper than Apple's system
+colours (`--accent` rgb(0 112 230) light, rgb(0 110 220) dark;
+`--accent-label` rgb(0 90 190); `--danger` rgb(215 0 21); secondary text
+at 0.6 opacity in light mode, 0.62 in dark), and with
+increased contrast in dark mode text on the accent is black. See
+docs/ACCESSIBILITY.md for the audit.
+
+### Edit (the page's own text and pictures)
+
+Fixing a typo in a PDF should feel like fixing it in Pages: click the
+word and type.
+
+- **One tool, the page as the target.** Edit Text and Images (Ctrl Alt
+  W, Control Command W) makes every paragraph and picture a target. A
+  paragraph shows a faint dashed outline under the pointer or the
+  keyboard focus, never a coloured box; Tab moves through them.
+- **Typing happens in the text.** The editor sits exactly over the
+  paragraph, on its baseline, in its own font when the web view can load
+  it (else the same font on this computer, else one of its kind), at its
+  size and colour, nearly white so the old words don't show through. The
+  accent outline says "this is being edited". Copy and paste are plain
+  text. Clicking elsewhere or Ctrl Enter makes the change, one Undo;
+  Escape drops it.
+- **Never a silent substitution.** A letter the font can't draw is said
+  under the editor before anything changes, and after the change a small
+  glass card under the text names the font that drew it ("The original
+  font can’t draw “é”, so Arial from this computer was used for it.").
+- **Growing text asks.** When the new words need more lines than the
+  paragraph had, the card says how much lower it now reaches and offers
+  Shrink to Fit (the paragraph's own lines, smaller) and Let It Grow
+  (prominent: it is what the person typed).
+- **Pictures** get the shared frame (corners only: proportions stay; none
+  on a turned picture, which can only be moved) and a small glass bar:
+  Turn Left, Turn Right, Delete. The tab adds Bring to Front, Send to
+  Back, Replace… with Fit, Fill or Stretch (each said in one sentence) and
+  Save Image As…. Pictures can be pasted or dropped onto the page.
+- **Add Text says what it is not**: real page text, unlike a Text Box,
+  which floats on top as a comment. The tab says once, in a disclosure,
+  what keeping the original font can and can't do.
+
+### Scan (text recognition)
+
+- **OCR is explained in the engine's own sentence**, where the tool is.
+- **A quiet banner** on a document with scans nobody has read: one
+  sentence, Not Now, and Make This Document Searchable (prominent), which
+  opens the tab with those pages chosen. It never comes back for pages
+  already read.
+- **Ask for the language.** The installed languages are listed by name,
+  the computer's own ticked; the line under them says the wrong language
+  gets letters wrong. A second language can be ticked, with a sentence on
+  the cost; a third can't.
+- **Choices with one line each**: which pages (This Page, Selected, All,
+  Scanned Only), Straighten tilted pages, Clean up speckles, Detect
+  sideways pages.
+- **The document stays usable while it reads.** The button becomes
+  Cancel, a progress bar and "Reading page 3 of 14…" show how far it got,
+  and screen readers hear each page. Cancel stops at once and adds
+  nothing. The end is one Undo, with a summary in plain words ("Text found
+  on 12 of 14 pages; 2 pages look blank."), the average confidence and
+  the pages worth checking.
+- **Show Recognized Text** draws the words read over the scan on a light
+  wash, doubtful ones tinted yellow (not the accent); clicking one opens
+  a small field to correct it.
+- **New from Images…** is on Recents (a quiet tile beside Open a PDF),
+  in the File menu and the Scan tab, and opening or dropping pictures
+  offers it. A sheet lists the pictures in order (arrows to move them),
+  Paper (Picture Size, Letter, A4, each explained), and Make It
+  Searchable. The PDF opens unsaved; Save asks where, starting beside the
+  pictures.
+
+### Export To… (conversion)
+
+One sheet, from the document menu, the File menu or Ctrl Shift E (Command
+Shift E), the way Pages has one Export To… for every format.
+
+- **Formats on the leading side, settings beside them.** Word Document,
+  OpenDocument Text, Excel Workbook, PowerPoint Slides, Images, Web Page,
+  Plain Text, as a list of radio buttons. A format this computer can't make
+  stays in the list, greyed, with the reason under its name ("Coming soon."
+  and the engine's sentence), so the list never changes shape.
+- **Two ways, side by side.** Where a format comes two ways the choices are
+  two cards: Exact Match and Easy to Edit (Keep Layout and Reading Order
+  for plain text), each with the engine's own sentence about what it is
+  good for. Exact Match is the default for Word (Settings > Files can
+  change it); the chosen card gets the accent edge.
+- **A few settings, then the save panel.** Images: PNG, JPEG or TIFF,
+  resolution, colour or gray, quality for JPEG, all pages in one TIFF.
+  Web Page: one file with pictures inside. Pages: All, or a range typed as
+  "1-3, 7"; a mistake is said in a sentence before the panel opens.
+- **While it works** a progress bar and Cancel; for Exact Match a sentence
+  says beforehand that Word measures and checks the result and that this
+  takes from about ten seconds to a minute and a half.
+- **The result line** is the engine's report in plain words ("2 slides.
+  Text is real text; 1 slide kept what couldn’t be rebuilt as a picture
+  behind the text."). For Exact Match: the engine's own check sentence,
+  "How close is it?" as a disclosure with the measured numbers, and each
+  font that got a stand-in with the reason. Nothing claims "exact" that the
+  check didn't confirm; without Word it says the result wasn't checked here.
+
+### AI Tools and Find a Topic
+
+- **Off, and out of sight, until turned on.** With the switch off (the
+  default) there is no AI Tools button and no AI menu entry that does
+  anything. Find a Topic is always there, under Find (a Topic… button in
+  the find capsule, Ctrl Shift F), in the same trailing panel, with the line
+  "Works on this computer. No AI, and nothing is sent anywhere."
+- **The panel** sits on the trailing side like Explain, with a segmented
+  control: Summarize (Short, Medium, Detailed), Key Points, Ask, Find a
+  Topic, and a Pages field. Answers stream in as they are written, with a
+  Stop button.
+- **Who reads it is always on screen.** The panel's header names the
+  provider and says "This stays on this computer." or, in bold, "Text you
+  send goes to api.example.com."
+- **Asking before sending.** Before any request that sends text away, an
+  alert in the manner of a mac: "Send to api.example.com?", the engine's
+  sentence ("This will send your question and the text of pages 3–7
+  (about 2,400 words) to api.example.com."), the start of the text, a box
+  "Don’t ask again for Online service and this document", and Cancel (which
+  has the focus) beside Send. There is no box for "never ask".
+- **Answers you can check.** Each quote in an answer is a small chip,
+  "Page 4"; a click goes to the page and outlines the passage. "The
+  document doesn’t say." is shown as it is. Quotes the engine couldn't find
+  in the document are listed in red as not linked.
+- **Errors** are the engine's sentences, with Try Again when trying again
+  may help and Open Settings when it won't.
+
+### Settings
+
+A window of its own (Ctrl , or Command , the gear in Recents, the app
+menu on a mac), with sections down the leading side like a mac's Settings:
+General, Typing, Files, Fonts, Scanning, Accounts, AI Tools, Privacy.
+Every change is kept at once; there is no Save button to forget. Sections
+are a list of tabs the arrows move through. The AI Tools section starts
+with the switch and one paragraph about what turning it on means; the key
+field is a password field whose text goes straight to the system's
+password store. Privacy lists everything that can leave the computer and
+when, says there is no telemetry, and has the Default App paragraph with
+Open Default Apps Settings… on Windows.
+
+### Search All Documents, Go To and reading aids
+
+- **One screen, one field.** Search All Documents (Ctrl Shift G, or
+  Everywhere beside the Recents search field) is a screen of its own over
+  the window, like Compare. Its one prominent control is the wide search
+  capsule. Filter chips sit under it: kinds, a date pull-down, a folder
+  pull-down and Titles and Headings. Chips are raised, never coloured,
+  except the accent tint on a chosen one.
+- **Results read like a book's index.** Each document shows its kind, its
+  title, its folder and date, then its best pages with the words
+  highlighted in the system's yellow, never the accent. The keyboard does
+  everything: arrows move a row, Page Up and Down a document, Enter opens,
+  Ctrl Enter opens in a new window, Escape clears and then goes back.
+- **The words say what the index is.** "The index is kept on this
+  computer. Nothing is sent anywhere." is always on the screen. Empty
+  states offer the next step ("Add a folder to search…"); while indexing,
+  "No Results Yet" says why.
+- **Go To is a capsule, not a dialog.** Ctrl G drops a small capsule under
+  the toolbar that understands "p 12", "xii", "50%", "ch 3", "#methods"
+  and "last", lists the places as you type, and lists bookmarks when empty.
+  Back and Forward (Alt Left and Right) follow the browser's habit.
+- **Progress stays quiet.** One footnote-sized line at the bottom: page,
+  percent, and time left only once the reader's own speed is known. The
+  scrubber on the right edge appears only from 30 pages and shows the page
+  and chapter in a bubble while dragged.
+- **Organising looks like the Finder.** Ctrl or Command-click and
+  Shift-click choose tiles, which get the accent ring. A bar at the bottom
+  carries the actions; questions use the Finder's own words ("An item
+  named … already exists in this location."), Delete always asks, and the
+  toast's Undo really undoes.
+
+### Code files
+
+A small screen for the code and text files students hand in beside their
+documents (HTML, C, Python, Java and the rest). It is an editor for
+reading and fixing, not a programming environment: nothing is ever run.
+
+- **Content first, as everywhere.** The code is a white sheet (dark in dark
+  mode) on the desk; the toolbar, the Problems panel and the status bar
+  float as glass. Toolbar: Recents, the file's name with its language under
+  it and Save at the leading edge; Find, Go to Line and Comment in the
+  centre; Problems (with a red count when there are errors), Open in VS
+  Code, Show in Folder, New Window and Explain at the trailing edge.
+- **The checks say how much to trust them.** The status bar names who
+  checked the file: "Checked by gcc 16.2", "Checked inside Letters", or
+  "Basic check only: no C compiler (gcc or clang) found on this computer."
+  Its tooltip, Explain and the Problems panel say in one sentence what the
+  check looks at. Every Explain entry about checking says that nothing is
+  run.
+- **Problems** are squiggles in the text, marks in the gutter, a count in
+  the status bar and a list (Ctrl Shift M) with line, message, a plain hint
+  for the commonest beginner mistakes under the raw message ("A semicolon
+  is probably missing at the end of the line before this one.") and who
+  said it. Errors are a red dot, warnings an amber triangle: shape as well
+  as colour. F8 goes to the next one.
+- **The editor's own keys** are the ones VS Code uses (Ctrl F with replace
+  and a regexp switch, Ctrl G, Ctrl /, Alt Z to wrap, Ctrl D for the next
+  match), because students meet VS Code first. More cursors are a Ctrl-click
+  (Command-click) away, as CodeMirror sets it, and Alt-drag selects a
+  rectangle.
+  The language, the indentation, the encoding and line endings are quiet
+  items in the status bar; the two choices are the system's pop-up menus.
+- **Honest limits, said where they matter.** A file over 2 MB says that
+  colours and checks are off to stay quick; over 32 MB it opens read-only.
+  Saving a file whose bytes weren't all valid text asks first. Code found
+  in a document starts with "Code copied into a document can lose
+  characters… Treat these results as a hint", and each curly quote or
+  non-breaking space it repaired is listed.
+- **Not the default app for code.** Letters doesn't register itself for
+  source files; they open through Open…, dropping, and Open With.
 
 ### Where Letters differs from the HIG on purpose
 
