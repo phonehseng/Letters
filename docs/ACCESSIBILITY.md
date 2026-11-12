@@ -62,6 +62,9 @@ checked.
 | White text on the accent below 4.5:1 in light and dark | accent rgb(0 112 230) light, rgb(0 110 220) dark; black text on the accent in dark with more contrast | `app.css` |
 | Accent text on a pressed toolbar button 3.85:1 | `--accent-label` rgb(0 90 190) | `app.css` |
 | Red text 3.28:1 | `--danger` rgb(215 0 21) | `app.css` |
+| Keyboard trap: the writer's page and the slide canvas keep Tab for themselves, so the toolbar couldn't be reached | F6 and Shift F6 move between the toolbar, the page and the side panels on every screen, as in Word and PowerPoint | `lib/regions.ts`, `App.svelte` |
+| Recents' toolbar came after every recent and pinned file in the Tab order | its markup comes first, still drawn on top | `Home.svelte` |
+| The slide show announced nothing | each step is announced ("Slide 2 of 5, title"); the show takes the focus | `slides/SlideShow.svelte` |
 | Secondary text on a control on the glass just under 4.5:1 (the sidebar's Thumbnails / Outline control) | `--label-secondary` 0.6 (light), 0.62 (dark) | `app.css` |
 | No main landmark or level-one heading in the viewer; the toolbar and pages outside any landmark | the stage is `<main>` with a hidden `<h1>` naming the document | `Viewer.svelte` |
 | Recents' toolbar outside any landmark | in a `<header>` | `Home.svelte` |

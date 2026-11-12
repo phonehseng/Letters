@@ -34,6 +34,7 @@
   // protect: the question before marks for redaction are lost (lib/protect)
   import { protectMayLeave } from "./lib/protect/protectGuard";
   import { keepAnnotateDrafts } from "./lib/annotate/annotateGuard";
+  import { moveToRegion } from "./lib/regions";
   // compare: its own screen over the document or Recents (lib/compare)
   import CompareScreen from "./lib/compare/CompareScreen.svelte";
   import { compareCommands } from "./lib/compare/compareKeys";
@@ -437,6 +438,21 @@
     comparing = null;
     openPath(path);
   }
+
+  // F6 and Shift F6 move between the toolbar, the page and the side panels
+  // on every screen (lib/regions.ts), heard before any screen's own keys so
+  // the writer's page and the slide canvas can't keep the keyboard
+  $effect(() => {
+    const onRegionKey = (event: KeyboardEvent) => {
+      if (event.key !== "F6" || event.ctrlKey || event.altKey || event.metaKey) return;
+      if (moveToRegion(event.shiftKey ? -1 : 1)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    window.addEventListener("keydown", onRegionKey, true);
+    return () => window.removeEventListener("keydown", onRegionKey, true);
+  });
 
   // one window per file: the shell is told which file this window shows,
   // so opening it again (from Recents, Explorer or another window) comes here
