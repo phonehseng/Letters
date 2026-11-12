@@ -1,0 +1,9 @@
+[package]
+name = "letters-layout"
+description = "lays out office documents into pages on its own, measured against word and libreoffice"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"
