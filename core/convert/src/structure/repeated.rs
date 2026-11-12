@@ -54,6 +54,15 @@ pub(crate) fn find_repeated(pages: &[PageFragments]) -> Repeated {
         let group = same_place(&groups[&key]);
         let numbers = page_number_share(&group);
         let is_page_number = numbers >= 0.7;
+        // digits are ignored when grouping, so "Chapter 1" ... "Chapter 10"
+        // at the top of each page group together; only one text is kept
+        // for a header, so the others would vanish. text that differs from
+        // page to page is a header only when the difference is the page
+        // number; anything else stays in the body
+        let same_text = group.iter().all(|c| c.text.trim() == group[0].text.trim());
+        if !same_text && !is_page_number {
+            continue;
+        }
         let (accepted, confidence) = if group.len() >= needed {
             let share = group.len() as f32 / pages.len().max(1) as f32;
             (true, (0.6 + 0.4 * share).min(0.95))
@@ -238,5 +247,35 @@ mod tests {
             .unwrap();
         assert!(footer.page_number);
         assert_eq!(found.covered.len(), 6);
+    }
+
+    #[test]
+    fn a_different_title_at_the_top_of_each_page_stays_in_the_body() {
+        // "Chapter 1" ... "Chapter 4": the same shape, but a different text
+        // on each page, and not a page number
+        let pages: Vec<Vec<Fragment>> = (0..4)
+            .map(|page| {
+                vec![
+                    fragment(&format!("Chapter {}", page + 1), 72.0, 40.0, 16.0, true),
+                    fragment("Body text here", 72.0, 300.0, 12.0, false),
+                ]
+            })
+            .collect();
+        let input: Vec<PageFragments> = pages
+            .iter()
+            .enumerate()
+            .map(|(page, fragments)| PageFragments {
+                page,
+                height: 792.0,
+                fragments,
+            })
+            .collect();
+        let found = find_repeated(&input);
+        assert!(
+            found.texts.is_empty(),
+            "{:?}",
+            found.texts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
+        assert!(found.covered.is_empty());
     }
 }
