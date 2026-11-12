@@ -32,7 +32,7 @@ pub use detect::{detect_fields, DetectedField, DetectedKind};
 pub use edit::{remove_field, update_field, FieldChanges};
 pub use error::{FormError, FormResult};
 pub use fill::{set_value, FieldValue};
-pub use flatten::{flatten, redraw_fields, FlattenOptions, FlattenReport};
+pub use flatten::{flatten, redraw_fields, FlattenOptions, FlattenReport, FLATTEN_EXPLANATION};
 pub use geometry::VisibleRect;
 pub use read::{fields, Alignment, ChoiceOption, FieldInfo, FieldKind, WidgetInfo};
 pub use signing::{

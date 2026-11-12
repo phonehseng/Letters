@@ -135,10 +135,14 @@ pub fn decode_text_string(bytes: &[u8]) -> String {
     }
 }
 
-/// encodes text as a pdf text string. plain ascii stays readable in the
-/// file; anything else is written as utf-16 so no letter is lost.
+/// encodes text as a pdf text string. plain ascii (with line breaks)
+/// stays readable in the file; anything else is written as utf-16 so no
+/// letter is lost.
 pub fn text_string(text: &str) -> Object {
-    if text.chars().all(is_printable_ascii) {
+    if text
+        .chars()
+        .all(|character| character == '\n' || is_printable_ascii(character))
+    {
         Object::String(text.as_bytes().to_vec(), StringFormat::Literal)
     } else {
         let mut bytes = vec![0xFE, 0xFF];

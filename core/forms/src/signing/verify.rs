@@ -193,19 +193,33 @@ fn check_one(
         summary: String::new(),
         problems: Vec::new(),
     };
-    match (range, get(doc, dict, b"Contents")) {
-        (Some(range), Some(Object::String(contents, _))) => {
-            check_covered_bytes(&mut report, bytes, range, signature_ends, revision_ends);
-            if let Some(covered) = covered_parts(bytes, range) {
-                check_cms(&mut report, contents, &covered);
+    let mut signing_moment = None;
+    match get(doc, dict, b"Contents") {
+        Some(Object::String(contents, _)) => {
+            let covered = range.and_then(|range| covered_parts(bytes, range));
+            if let Some(range) = range {
+                check_covered_bytes(&mut report, bytes, range, signature_ends, revision_ends);
             }
+            if covered.is_none() {
+                // the byte range no longer fits the file: it was rewritten
+                // (or cut) after signing. the signature itself can still say
+                // who signed and when.
+                report.changed_after_signing = true;
+                report.covers_whole_file = false;
+                if range.is_none() {
+                    report
+                        .problems
+                        .push("The signature has no byte range.".into());
+                }
+            }
+            signing_moment = check_cms(&mut report, contents, covered.as_ref());
         }
         _ => report
             .problems
-            .push("The signature has no byte range or no signature data.".into()),
+            .push("The signature has no signature data.".into()),
     }
     report.valid = report.digest_matches && report.signature_correct;
-    report.summary = summary(&report);
+    report.summary = summary(&report, signing_moment);
     report
 }
 
@@ -257,40 +271,76 @@ fn check_covered_bytes(
     }
 }
 
-fn check_cms(report: &mut SignatureReport, contents: &[u8], covered: &[&[u8]; 2]) {
+/// reads the cms signature: who signed, when, and with which certificate,
+/// then checks it. `covered` is none when the byte range no longer fits
+/// the file; the signer is still read, but the document can't be checked.
+/// returns the signing time from the signature, if it has one.
+fn check_cms(
+    report: &mut SignatureReport,
+    contents: &[u8],
+    covered: Option<&[&[u8]; 2]>,
+) -> Option<SystemTime> {
     let signed_data = match parse_signed_data(contents) {
         Ok(signed_data) => signed_data,
         Err(problem) => {
             report
                 .problems
                 .push(format!("The signature data can’t be read: {problem}."));
-            return;
+            return None;
         }
     };
     let Some(signer_info) = signed_data.signer_infos.0.iter().next() else {
         report
             .problems
             .push("The signature names no signer.".into());
-        return;
+        return None;
     };
+    let signing_time = signing_time(signer_info);
+    if let Some(time) = signing_time {
+        report.signed_at = Some(readable_date(time));
+    }
     let certificates = certificates_of(&signed_data);
     let Some(certificate) = find_signer_certificate(&certificates, &signer_info.sid) else {
         report
             .problems
             .push("The signer’s certificate isn’t included in the signature.".into());
-        return;
+        return signing_time;
     };
     report.signer = common_name(&certificate.tbs_certificate().subject().to_string());
-    let Some(content_digest) = digest(&signer_info.digest_alg.oid, covered) else {
-        report.problems.push(format!(
-            "The digest algorithm {} isn’t supported.",
-            signer_info.digest_alg.oid
-        ));
-        return;
+    let summary = summarise_certificate(certificate, &certificates, signing_time);
+    report.trust = if summary.self_signed {
+        TrustStatus::SelfSigned
+    } else {
+        TrustStatus::NotChecked
     };
-    let message = match signed_message(report, signer_info, &content_digest) {
-        Some(message) => message,
-        None => return,
+    report.certificate = Some(summary);
+
+    let message = match covered {
+        Some(covered) => {
+            let Some(content_digest) = digest(&signer_info.digest_alg.oid, covered) else {
+                report.problems.push(format!(
+                    "The digest algorithm {} isn’t supported.",
+                    signer_info.digest_alg.oid
+                ));
+                return signing_time;
+            };
+            signed_message(report, signer_info, &content_digest)
+        }
+        // the document's bytes can't be compared any more, but the signed
+        // attributes can still be checked against the certificate
+        None => {
+            report.problems.push(
+                "The file was rewritten after signing, so the signed bytes can’t be checked."
+                    .into(),
+            );
+            signer_info
+                .signed_attrs
+                .as_ref()
+                .and_then(|attributes| attributes.to_der().ok())
+        }
+    };
+    let Some(message) = message else {
+        return signing_time;
     };
     let key = &certificate
         .tbs_certificate()
@@ -306,17 +356,7 @@ fn check_cms(report: &mut SignatureReport, contents: &[u8], covered: &[&[u8]; 2]
         Ok(()) => report.signature_correct = true,
         Err(problem) => report.problems.push(problem),
     }
-    let signing_time = signing_time(signer_info);
-    if let Some(time) = signing_time {
-        report.signed_at = Some(readable_date(time));
-    }
-    let summary = summarise_certificate(certificate, &certificates, signing_time);
-    report.trust = if summary.self_signed {
-        TrustStatus::SelfSigned
-    } else {
-        TrustStatus::NotChecked
-    };
-    report.certificate = Some(summary);
+    signing_time
 }
 
 /// what the signature is over: the signed attributes when there are any
@@ -552,26 +592,49 @@ fn readable_pdf_date(date: &str) -> String {
     )
 }
 
-fn summary(report: &SignatureReport) -> String {
+/// "3 March 2026": the kind of date people say, for the summary sentence.
+fn spoken_date(time: SystemTime) -> String {
+    const MONTHS: [&str; 12] = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    let (year, month, day, _, _, _) = super::sign::utc_parts(time);
+    format!("{day} {} {year}", MONTHS[(month as usize).clamp(1, 12) - 1])
+}
+
+/// the plain sentences the ui shows for one signature, such as "Signed by
+/// Ada Lovelace on 3 March 2026. The document was changed after signing."
+fn summary(report: &SignatureReport, signing_time: Option<SystemTime>) -> String {
     let who = report
         .signer
         .clone()
         .or(report.name.clone())
         .unwrap_or_else(|| "an unknown signer".into());
-    let when = report
-        .signed_at
-        .as_deref()
+    let when = signing_time
+        .map(spoken_date)
+        .or_else(|| report.signed_at.clone())
         .map(|time| format!(" on {time}"))
         .unwrap_or_default();
-    let state = if !report.digest_matches && report.signer.is_some() {
-        "The document was changed after it was signed, so this signature no longer holds."
-            .to_owned()
+    let state = if !report.digest_matches
+        && (report.signer.is_some() || report.changed_after_signing)
+    {
+        "The document was changed after signing, so this signature no longer covers it.".to_owned()
     } else if !report.valid {
         "This signature couldn’t be confirmed.".to_owned()
     } else if report.changed_after_signing && report.later_updates_are_signatures {
         "The signed part is unchanged; later additions are further signatures.".to_owned()
     } else if report.changed_after_signing {
-        "The signed part is unchanged, but the document was changed after it was signed.".to_owned()
+        "The signed part is unchanged, but the document was changed after signing.".to_owned()
     } else {
         "The document hasn’t changed since it was signed.".to_owned()
     };
@@ -585,10 +648,15 @@ fn summary(report: &SignatureReport) -> String {
     };
     format!("Signed by {who}{when}. {state} {trust}")
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn summaries_use_spoken_dates() {
+        let time = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_772_496_000);
+        assert_eq!(spoken_date(time), "3 March 2026");
+    }
 
     #[test]
     fn reads_pdf_dates() {

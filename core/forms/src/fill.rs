@@ -8,7 +8,9 @@ use crate::date::{format_date, parse_date, DEFAULT_PATTERN};
 use crate::error::{FormError, FormResult};
 use crate::objects::{check_document, text_string};
 use crate::read::{date_pattern, export_value, kind_of, state_for_export, FieldKind};
-use crate::text::encode_win_ansi;
+use crate::text::{
+    encode_win_ansi, encode_win_ansi_lines, line_breaks_to_spaces, normalize_line_breaks,
+};
 use crate::tree::{find_field, flags, options_of, FieldNode};
 
 /// an answer for a field.
@@ -31,6 +33,10 @@ pub enum FieldValue {
 /// the value is checked first: a read-only field, a required field left
 /// empty, text longer than the field allows, or a choice that isn't
 /// offered is refused with a message, and nothing is changed.
+///
+/// line breaks (\n, \r\n or \r) are kept in multiline fields, stored as \n
+/// in /V and drawn as new lines. one line fields can't show them, so there
+/// each line break becomes a space.
 pub fn set_value(doc: &mut Document, name: &str, value: &FieldValue) -> FormResult<()> {
     check_document(doc)?;
     let field = find_field(doc, name)?;
@@ -84,11 +90,14 @@ fn fill_text(
     kind: FieldKind,
     value: &FieldValue,
 ) -> FormResult<()> {
-    let mut text = text_of(field, value)?;
-    if kind == FieldKind::Text {
+    let text = text_of(field, value)?;
+    let text = if kind == FieldKind::Text {
         // a one line field can't show line breaks, so they become spaces
-        text = text.replace("\r\n", " ").replace(['\r', '\n'], " ");
-    }
+        line_breaks_to_spaces(&text)
+    } else {
+        // multiline fields keep them, all written the same way (\n)
+        normalize_line_breaks(&text)
+    };
     check_required(doc, field, text.trim().is_empty())?;
     if let Some(max) = field.max_length(doc) {
         if text.chars().count() > max as usize {
@@ -102,7 +111,8 @@ fn fill_text(
 }
 
 fn store_text(doc: &mut Document, field: &FieldNode, text: &str) -> FormResult<()> {
-    encode_win_ansi(text).map_err(FormError::UnsupportedCharacters)?;
+    // line breaks are fine here: only multiline fields still have them
+    encode_win_ansi_lines(text).map_err(FormError::UnsupportedCharacters)?;
     let dict = doc.get_dictionary_mut(field.id)?;
     dict.set("V", text_string(text));
     // a rich text copy of the old value would contradict the new one

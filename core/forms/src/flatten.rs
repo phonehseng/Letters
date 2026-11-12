@@ -35,8 +35,12 @@ pub struct FlattenReport {
     pub flattened: Vec<String>,
 }
 
+/// what flattening does, in one sentence the ui can show as it is.
+pub const FLATTEN_EXPLANATION: &str = "Flattening makes your answers a permanent part of the page: they look exactly the same, but can no longer be changed as form fields.";
+
 /// flattening makes the answers part of the page itself, so they look the
-/// same everywhere but can no longer be changed as form fields.
+/// same everywhere but can no longer be changed as form fields. (the same
+/// sentence is in `FLATTEN_EXPLANATION` for the ui.)
 ///
 /// each field's drawing is painted into its page's content exactly where
 /// the widget was, then the widget and the field are removed. hidden

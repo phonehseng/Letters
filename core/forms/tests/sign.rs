@@ -113,7 +113,38 @@ fn changing_one_signed_byte_breaks_the_signature() {
     assert!(!report.digest_matches);
     assert!(!report.valid);
     assert!(
-        report.summary.contains("changed after it was signed"),
+        report.summary.contains("changed after signing"),
+        "{}",
+        report.summary
+    );
+}
+
+#[test]
+fn a_rewritten_file_still_says_who_signed_it() {
+    let pkcs12 = certificate(KeyKind::Rsa2048, "Ada Lovelace");
+    let signed = sign(&form(), &request(&pkcs12, new_field(72.0))).unwrap();
+    // saving through lopdf rewrites the whole file, so the byte range no
+    // longer points at the signature
+    let mut doc = load(&signed);
+    let mut rewritten = Vec::new();
+    doc.save_to(&mut rewritten).unwrap();
+    let report = &verify(&rewritten).unwrap()[0];
+    assert!(!report.valid && !report.digest_matches);
+    assert!(report.changed_after_signing && !report.covers_whole_file);
+    assert_eq!(report.signer.as_deref(), Some("Ada Lovelace"));
+    let certificate = report
+        .certificate
+        .as_ref()
+        .expect("the certificate is still read");
+    assert!(certificate.self_signed);
+    // the signature over its own attributes still checks out
+    assert!(report.signature_correct, "{report:#?}");
+    assert!(report.signed_at.is_some());
+    assert!(
+        report.summary.starts_with("Signed by Ada Lovelace on ")
+            && report
+                .summary
+                .contains("The document was changed after signing"),
         "{}",
         report.summary
     );
@@ -132,7 +163,7 @@ fn changes_after_signing_are_reported() {
     assert_eq!(report.later_updates, 1);
     assert!(!report.later_updates_are_signatures);
     assert!(
-        report.summary.contains("changed after it was signed"),
+        report.summary.contains("changed after signing"),
         "{}",
         report.summary
     );

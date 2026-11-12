@@ -245,16 +245,31 @@ impl Layout {
         let mut fields = Vec::new();
         let mut start = 0;
         while start < order.len() {
+            if used[order[start]] {
+                start += 1;
+                continue;
+            }
             let first = self.boxes[order[start]];
             let mut run = vec![order[start]];
+            let mut first_gap: Option<f32> = None;
             for &candidate in &order[start + 1..] {
+                if used[candidate] {
+                    continue;
+                }
                 let last = self.boxes[*run.last().unwrap()];
                 let next = self.boxes[candidate];
                 let same_row = (next.y - first.y).abs() <= TOUCH
                     && (next.height - first.height).abs() <= TOUCH;
-                let touching = (next.x - last.right()).abs() <= TOUCH;
                 let same_width = (next.width - first.width).abs() <= TOUCH;
-                if same_row && touching && same_width {
+                // boxes may touch or stand apart by up to about a box width,
+                // as long as every gap in the row is the same
+                let gap = next.x - last.right();
+                let close = gap >= -TOUCH && gap <= first.width * 1.1 + TOUCH;
+                let even = first_gap
+                    .map(|wanted| (gap - wanted).abs() <= TOUCH.max(0.15 * first.width))
+                    .unwrap_or(true);
+                if same_row && same_width && close && even && !self.text_between(&last, &next) {
+                    first_gap.get_or_insert(gap);
                     run.push(candidate);
                 } else if !same_row {
                     break;
@@ -263,9 +278,27 @@ impl Layout {
             let all_empty = run
                 .iter()
                 .all(|&index| !self.has_text_inside(&self.boxes[index]));
-            if run.len() >= 4 && small(&first) && all_empty {
+            let gapped = first_gap.is_some_and(|gap| gap > TOUCH);
+            // separate boxes with words over, under or after them are a row
+            // of checkboxes (a rating scale, a list of options), not a comb
+            let looks_like_options =
+                gapped && self.boxes_have_own_labels(&run, first_gap.unwrap_or(0.0));
+            if run.len() >= 4 && small(&first) && all_empty && !looks_like_options {
                 let last = self.boxes[*run.last().unwrap()];
-                let rect = VisibleRect::new(first.x, first.y, last.right() - first.x, first.height);
+                // a comb field splits its width into equal cells. with gaps,
+                // half a gap is added on each side so every cell is one box
+                // plus one gap wide and its letter lands in the middle of a box
+                let half_gap = if gapped {
+                    first_gap.unwrap_or(0.0) / 2.0
+                } else {
+                    0.0
+                };
+                let rect = VisibleRect::new(
+                    first.x - half_gap,
+                    first.y,
+                    last.right() - first.x + 2.0 * half_gap,
+                    first.height,
+                );
                 for &index in &run {
                     used[index] = true;
                 }
@@ -277,12 +310,48 @@ impl Layout {
                     0.8,
                     Some(run.len() as u32),
                 ));
-                start += run.len();
+                start += 1;
             } else {
                 start += 1;
             }
         }
         fields
+    }
+
+    /// whether any letter sits in the gap between two boxes of a row.
+    fn text_between(&self, left: &VisibleRect, right: &VisibleRect) -> bool {
+        let gap = VisibleRect::new(left.right(), left.y, right.x - left.right(), left.height);
+        gap.width > 0.0
+            && self
+                .letters
+                .iter()
+                .any(|letter| letter.character != '_' && contains_center(&gap, &letter.rect))
+    }
+
+    /// whether the boxes of a gapped row have words of their own: right
+    /// above or below a box (not the first, which may sit under the
+    /// row's label), or right after the last box.
+    fn boxes_have_own_labels(&self, run: &[usize], gap: f32) -> bool {
+        let boxes: Vec<&VisibleRect> = run.iter().map(|&index| &self.boxes[index]).collect();
+        let overlaps_x = |phrase: &Phrase, rect: &VisibleRect| {
+            phrase.rect.right() > rect.x && phrase.rect.x < rect.right()
+        };
+        let over_or_under = boxes.iter().skip(1).any(|rect| {
+            self.phrases.iter().any(|phrase| {
+                overlaps_x(phrase, rect)
+                    && ((rect.y - phrase.rect.bottom() >= -1.0
+                        && rect.y - phrase.rect.bottom() < 12.0)
+                        || (phrase.rect.y - rect.bottom() >= -1.0
+                            && phrase.rect.y - rect.bottom() < 12.0))
+            })
+        });
+        let last = boxes[boxes.len() - 1];
+        let after_last = self.phrases.iter().any(|phrase| {
+            vertical_overlap(&phrase.rect, last) > 0.3 * phrase.rect.height
+                && phrase.rect.x >= last.right() - 1.0
+                && phrase.rect.x - last.right() <= gap.max(last.width)
+        });
+        over_or_under || after_last
     }
 
     /// small empty squares become checkboxes.
@@ -428,7 +497,9 @@ impl Layout {
             .iter()
             .filter(|letter| {
                 let bottom = letter.rect.bottom();
-                bottom <= line.y + 1.5
+                // a rule drawn at the baseline runs above the descent part
+                // of the letter boxes, so allow for that much overlap
+                bottom <= line.y + 1.5_f32.max(0.3 * letter.rect.height)
                     && bottom >= line.y - 6.0
                     && letter.rect.right() > line.left
                     && letter.rect.x < line.right
@@ -442,20 +513,36 @@ impl Layout {
         if on_line.is_empty() {
             return Some(line.left);
         }
+        let length = line.right - line.left;
         let covered: f32 = on_line
             .iter()
             .map(|letter| letter.rect.right().min(line.right) - letter.rect.x.max(line.left))
             .sum();
-        if covered >= 0.5 * (line.right - line.left) {
-            return None;
-        }
-        let text_end = on_line
+        let last = on_line
             .iter()
-            .map(|letter| letter.rect.right())
-            .fold(line.left, f32::max);
+            .max_by(|a, b| a.rect.right().total_cmp(&b.rect.right()))
+            .expect("on_line is not empty");
+        let text_end = last.rect.right().max(line.left);
+        // the text begins in the left half of the line (a long label may
+        // reach past the middle; what matters is where it starts)
         let text_starts_at_left = on_line
             .iter()
-            .all(|letter| letter.rect.x < line.left + 0.5 * (line.right - line.left));
+            .map(|letter| letter.rect.x)
+            .fold(f32::MAX, f32::min)
+            < line.left + 0.5 * length;
+        let room_after = line.right - text_end;
+        // "Parent or guardian: ______" drawn as one rule under the whole
+        // row: a label ending in a colon, or text that leaves a long empty
+        // stretch after it, is written on the line rather than underlined
+        let label_then_room = text_starts_at_left
+            && ((last.character == ':' && room_after >= 24.0)
+                || room_after >= MIN_LINE_LENGTH.max(0.3 * length));
+        if label_then_room {
+            return Some(text_end + 3.0);
+        }
+        if covered >= 0.5 * length {
+            return None;
+        }
         text_starts_at_left.then_some(text_end + 3.0)
     }
 

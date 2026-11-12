@@ -17,7 +17,10 @@ use crate::objects::{
     rect_object, resolve,
 };
 use crate::read::{kind_of, Alignment, FieldKind};
-use crate::text::{encode_win_ansi, literal_string};
+use crate::text::{
+    encode_win_ansi, encode_win_ansi_lines, line_breaks_to_spaces, literal_string,
+    normalize_line_breaks,
+};
 use crate::tree::{flags, on_state, options_of, FieldNode};
 
 /// the resource name letters gives its own helvetica in the form's fonts.
@@ -380,7 +383,14 @@ pub fn text_appearance(
     font: &AppearanceFont,
     layout: &TextLayout,
 ) -> FormResult<Appearance> {
-    let bytes = encode_win_ansi(&layout.text).map_err(FormError::UnsupportedCharacters)?;
+    // multiline fields keep the breaks people typed; one line fields (and
+    // combs) show them as spaces, since they have nowhere to break
+    let bytes = if layout.multiline && layout.comb_cells.is_none() {
+        encode_win_ansi_lines(&normalize_line_breaks(&layout.text))
+    } else {
+        encode_win_ansi(&line_breaks_to_spaces(&layout.text))
+    }
+    .map_err(FormError::UnsupportedCharacters)?;
     let mut content = frame_content(widget, false);
     content.push_str("/Tx BMC\nq\n");
     let inset = widget.border_width.max(0.0) + 1.0;

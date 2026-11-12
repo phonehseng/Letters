@@ -116,6 +116,44 @@ pub fn encode_win_ansi(text: &str) -> Result<Vec<u8>, String> {
     }
 }
 
+/// like `encode_win_ansi`, but keeps line breaks as a 0x0a byte. multiline
+/// fields store the breaks people typed; the drawing code then starts a
+/// new line there instead of drawing the byte.
+pub fn encode_win_ansi_lines(text: &str) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::with_capacity(text.len());
+    let mut missing = String::new();
+    for line in text.split('\n') {
+        match encode_win_ansi(line) {
+            Ok(encoded) => bytes.extend_from_slice(&encoded),
+            Err(characters) => {
+                for character in characters.chars() {
+                    if !missing.contains(character) {
+                        missing.push(character);
+                    }
+                }
+            }
+        }
+        bytes.push(b'\n');
+    }
+    // the loop adds one break too many, after the last line
+    bytes.pop();
+    if missing.is_empty() {
+        Ok(bytes)
+    } else {
+        Err(missing)
+    }
+}
+
+/// turns windows (\r\n) and old mac (\r) line breaks into plain \n.
+pub fn normalize_line_breaks(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+/// a one line field can't show line breaks, so each becomes a space.
+pub fn line_breaks_to_spaces(text: &str) -> String {
+    normalize_line_breaks(text).replace('\n', " ")
+}
+
 pub fn decode_win_ansi_byte(byte: u8) -> char {
     match byte {
         0x80..=0x9F => WIN_ANSI_HIGH[(byte - 0x80) as usize].unwrap_or('\u{FFFD}'),
@@ -165,6 +203,18 @@ mod tests {
     #[test]
     fn other_scripts_are_reported() {
         assert_eq!(encode_win_ansi("hi Ωλ Ω").unwrap_err(), "Ωλ");
+    }
+
+    #[test]
+    fn line_breaks_are_kept_or_turned_into_spaces() {
+        assert_eq!(encode_win_ansi_lines("a\n\nb").unwrap(), b"a\n\nb");
+        assert_eq!(
+            encode_win_ansi_lines("\ncaf\u{e9}\n").unwrap(),
+            b"\ncaf\xE9\n"
+        );
+        assert_eq!(encode_win_ansi_lines("x\nΩ").unwrap_err(), "Ω");
+        assert_eq!(normalize_line_breaks("a\r\nb\rc"), "a\nb\nc");
+        assert_eq!(line_breaks_to_spaces("a\r\nb"), "a b");
     }
 
     #[test]

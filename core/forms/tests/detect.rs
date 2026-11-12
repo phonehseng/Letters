@@ -283,6 +283,113 @@ fn finds_fields_drawn_in_other_ways() {
     }
 }
 
+/// labelled rules, a comb of separate boxes, and rows of checkboxes that
+/// must stay checkboxes. positions are distances from the top.
+fn rules_and_box_rows(top: f32) -> String {
+    let y = |from_top: f32| top - from_top;
+    let mut out = String::new();
+    // a rule under the whole row, label included, drawn at the baseline
+    out += &text(72.0, y(94.0), 11.0, "Parent or guardian:");
+    out += &format!("0.5 w 72 {0} m 250 {0} l S\n", y(94.0));
+    // a rule that starts right after the colon
+    out += &text(72.0, y(140.0), 11.0, "Signature:");
+    out += &format!("124 {0} m 300 {0} l S\n", y(140.0));
+    // typed underscores after a colon
+    out += &text(72.0, y(180.0), 11.0, "Phone: ______");
+    // six separate boxes with even gaps: one comb
+    out += &text(72.0, y(226.0), 11.0, "Postcode");
+    for cell in 0..6 {
+        out += &format!("{} {} 14 16 re S\n", 140 + 20 * cell, y(230.0));
+    }
+    // checkboxes with a one letter label between each
+    for (index, letter) in ["a", "b", "c", "d"].iter().enumerate() {
+        let x = 72.0 + 24.0 * index as f32;
+        out += &format!("{x} {} 12 12 re S\n", y(272.0));
+        out += &text(x + 15.0, y(270.0), 10.0, letter);
+    }
+    // a rating scale: numbers over evenly spaced boxes
+    for index in 0..5 {
+        let x = 72.0 + 22.0 * index as f32;
+        out += &text(x + 3.5, y(300.0), 9.0, &(index + 1).to_string());
+        out += &format!("{x} {} 12 12 re S\n", y(318.0));
+    }
+    // evenly spaced boxes with a word right after the last one
+    for index in 0..4 {
+        out += &format!("{} {} 12 12 re S\n", 72 + 20 * index, y(352.0));
+    }
+    out += &text(148.0, y(350.0), 10.0, "Weekly");
+    out
+}
+
+#[test]
+fn finds_labelled_rules_and_combs_with_gaps_but_keeps_checkbox_rows() {
+    for rotate in [0, 90] {
+        let top = if rotate == 0 { 792.0 } else { 612.0 };
+        let mut page = PageSetup::letter(rotate);
+        page.content = upright_on(rotate, &rules_and_box_rows(top));
+        let found = detect_fields(&load(&plain_page_pdf(&page)), 0).unwrap();
+        let summary: Vec<String> = found
+            .iter()
+            .map(|f| format!("{:?} {:?} {:?} {:?}", f.kind, f.rect, f.label, f.max_length))
+            .collect();
+        let summary = summary.join("\n");
+        let wanted = [
+            (
+                DetectedKind::Text,
+                VisibleRect::new(169.2, 76.0, 80.8, 18.0),
+                "Parent or guardian",
+            ),
+            (
+                DetectedKind::Text,
+                VisibleRect::new(124.0, 122.0, 176.0, 18.0),
+                "Signature",
+            ),
+            (
+                DetectedKind::Text,
+                VisibleRect::new(109.9, 168.3, 36.7, 14.0),
+                "Phone",
+            ),
+            (
+                DetectedKind::Comb,
+                VisibleRect::new(137.0, 214.0, 120.0, 16.0),
+                "Postcode",
+            ),
+        ];
+        for (kind, rect, label) in wanted {
+            let hit = found
+                .iter()
+                .find(|field| field.kind == kind && near(&field.rect, &rect))
+                .unwrap_or_else(|| panic!("no {kind:?} near {rect:?} at {rotate}:\n{summary}"));
+            assert_eq!(hit.label.as_deref(), Some(label), "at {rotate}:\n{summary}");
+        }
+        let comb = found
+            .iter()
+            .find(|field| field.kind == DetectedKind::Comb)
+            .unwrap();
+        assert_eq!(comb.max_length, Some(6));
+        let combs = found
+            .iter()
+            .filter(|field| field.kind == DetectedKind::Comb)
+            .count();
+        assert_eq!(
+            combs, 1,
+            "only the postcode is a comb at {rotate}:\n{summary}"
+        );
+        let checkboxes: Vec<&DetectedField> = found
+            .iter()
+            .filter(|field| field.kind == DetectedKind::Checkbox)
+            .collect();
+        assert_eq!(checkboxes.len(), 4 + 5 + 4, "at {rotate}:\n{summary}");
+        let lettered: Vec<&str> = checkboxes
+            .iter()
+            .filter(|field| (field.rect.y - 260.0).abs() < 1.0)
+            .filter_map(|field| field.label.as_deref())
+            .collect();
+        assert_eq!(lettered, ["a", "b", "c", "d"]);
+        assert_eq!(found.len(), 4 + 13, "at {rotate}:\n{summary}");
+    }
+}
+
 #[test]
 fn proposes_nothing_on_a_page_of_plain_text() {
     let mut page = PageSetup::letter(0);

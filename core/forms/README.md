@@ -32,7 +32,7 @@ shell can pass them straight to the interface as JSON.
 | `update_field(&mut doc, name, &FieldChanges)` | Renames, moves, resizes, moves to another page, changes options, flags, tooltip, font size, alignment or date format, then redraws. Returns the new full name. |
 | `remove_field(&mut doc, name)` | Removes the field, its widgets from the pages, and parents left empty. |
 | `detect_fields(&doc, page)` | Reads the page's drawing and returns `DetectedField` proposals. Changes nothing. The interface confirms each one and calls `add_field`. |
-| `flatten(&mut doc, &FlattenOptions)` | Paints each field's appearance into its page's content and removes the fields (and an empty `/AcroForm`). Returns the names flattened. |
+| `flatten(&mut doc, &FlattenOptions)` | Paints each field's appearance into its page's content and removes the fields (and an empty `/AcroForm`). Returns the names flattened. `FLATTEN_EXPLANATION` is the one sentence for the interface: *Flattening makes your answers a permanent part of the page: they look exactly the same, but can no longer be changed as form fields.* |
 | `redraw_fields(&mut doc, only_missing)` | Draws appearance streams again from the values, for files that leave drawing to the reader (`/NeedAppearances`). |
 | `place_signature_image(&mut doc, &SignatureImage)` | Puts a PNG (typed or drawn signature, made by the interface) on a page, keeping its transparency through a soft mask: as page content, or as a stamp annotation. Not a digital signature. |
 | `create_self_signed_certificate(&CertificateRequest)` | Makes an RSA 2048 or P-256 key and a self-signed certificate (subject includes `OU=Self-signed`), packed as a password-protected PKCS#12 (.p12). |
@@ -52,7 +52,9 @@ Text also chooses a radio button or dropdown option (by value or label), and
 - Text: the `/DA` size, or a size that fits when it is 0 (single line: fits
   height and width, 4 to 24 pt; multiline: shrinks from 12 pt until the text
   fits, down to 4 pt). Alignment from `/Q`. Multiline text wraps at spaces,
-  at typed line breaks, and inside words that are too long for a line. Comb
+  at typed line breaks, and inside words that are too long for a line. Line
+  breaks typed into a multiline field (`\n`, `\r\n` or `\r`) are kept and
+  stored as `\n` in `/V`; in a one line field each becomes a space. Comb
   fields put one character in each of `/MaxLen` cells. Text is clipped to the
   box. Password fields show asterisks.
 - Checkboxes and radio buttons: `/V` holds the on-state name and every
@@ -130,9 +132,18 @@ Finding fields (`detect_fields`)
 - Tested on synthetic layouts, upright and turned: lines to write on (stroked
   or drawn as thin filled rectangles), typed underscores, boxes and table
   cells (from rectangles or loose lines, with labels inside or beside them),
-  small squares, small circles, combs (separate boxes or one box with
-  dividers). On those, every proposal is within 2 points of the expected
+  small squares, small circles, combs (touching boxes, one box with
+  dividers, or separate boxes with even gaps up to about a box width), and
+  rules after a label ending in a colon, also when the rule runs under the
+  label. On those, every proposal is within 2 points of the expected
   rectangle and carries the expected label; a page of plain text gives none.
+- Rows of separate boxes stay checkboxes when there is text between them,
+  right above or below them (a rating scale), or right after the last one. A
+  comb of separate boxes is proposed half a gap wider on each side, so that
+  its equal cells line up with the boxes.
+- A rule counts as underlining (no field) when text covers half of it or
+  more, unless that text starts the rule and ends in a colon (with 24 points
+  of rule left) or leaves at least 36 points (and a third of the rule) empty.
 - Real forms will do worse. Dashed or dotted lines (gaps over 1 point) and
   dot leaders are not found. Rounded boxes count as curves, not boxes. Merged
   table cells may be missed or split. Decorative rules may be proposed as
@@ -162,9 +173,16 @@ Checking signatures (`verify`)
   unchanged. It does not check certificate authorities, trust lists or
   revocation, so it can't confirm who the signer is. Every report says so
   (`trust` is `selfSigned` or `notChecked`, never trusted).
-- "Changed after signing" means bytes follow the signed range. Letters says
-  whether each later update ends with another signature, but does not compare
-  what those updates changed.
+- "Changed after signing" means bytes follow the signed range, or the byte
+  range no longer fits the file at all (it was rewritten, for example saved
+  by a program that doesn't append). In the rewritten case the signer, time
+  and certificate are still read from the signature and the signature over
+  its own attributes is still checked, but the document can't be compared,
+  so `valid` is false. Letters says whether each later update ends with
+  another signature, but does not compare what those updates changed.
+- `summary` is plain sentences for the interface, such as "Signed by Ada
+  Lovelace on 3 March 2026. The document was changed after signing, so this
+  signature no longer covers it." followed by what Letters can't check.
 - Only signatures reachable from `/AcroForm /Fields` are found. Only the first
   signer in a CMS structure is checked. BER-encoded (indefinite length)
   signatures from other tools can't be read. Certificate chains are listed but

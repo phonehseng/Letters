@@ -269,6 +269,77 @@ fn checkboxes_store_their_on_state() {
 }
 
 #[test]
+fn multiline_fields_keep_typed_line_breaks() {
+    let mut doc = sample(0);
+    let typed = "First line\r\nSecond line\rThird line\n\nFifth line";
+    set_value(&mut doc, "notes", &FieldValue::Text(typed.into())).unwrap();
+    let doc = round_trip(&mut doc);
+    // every kind of break is stored as \n
+    let wanted = "First line\nSecond line\nThird line\n\nFifth line";
+    assert_eq!(
+        field(&fields(&doc).unwrap(), "notes").value.as_deref(),
+        Some(wanted)
+    );
+    let drawing = appearance_text(&doc, "notes", None);
+    // four lines with text; the empty fourth line is drawn as an empty string
+    assert_eq!(drawing.matches(" Tj").count(), 5, "{drawing}");
+    for line in [
+        "(First line) Tj",
+        "(Second line) Tj",
+        "(Third line) Tj",
+        "() Tj",
+        "(Fifth line) Tj",
+    ] {
+        assert!(drawing.contains(line), "{line} missing from {drawing}");
+    }
+}
+
+#[test]
+fn one_line_fields_turn_line_breaks_into_spaces() {
+    let mut doc = sample(0);
+    set_value(
+        &mut doc,
+        "name",
+        &FieldValue::Text("Ada\r\nLovelace".into()),
+    )
+    .unwrap();
+    let doc = round_trip(&mut doc);
+    assert_eq!(
+        field(&fields(&doc).unwrap(), "name").value.as_deref(),
+        Some("Ada Lovelace")
+    );
+    assert!(appearance_text(&doc, "name", None).contains("(Ada Lovelace) Tj"));
+}
+
+#[test]
+fn typed_line_breaks_show_as_separate_lines() {
+    let mut doc = sample(0);
+    set_value(
+        &mut doc,
+        "notes",
+        &FieldValue::Text("One\nTwo\nThree".into()),
+    )
+    .unwrap();
+    let bytes = save(&mut doc);
+    let all = fields(&load(&bytes)).unwrap();
+    let rect = field(&all, "notes").widgets[0].rect;
+    let image = render_page(&bytes, 0, 2000, "multiline-breaks");
+    // count the bands of ink from top to bottom, one point at a time
+    let mut bands = 0;
+    let mut inside = false;
+    let mut y = rect.y;
+    while y < rect.bottom() {
+        let ink = image.ink_in(VisibleRect::new(rect.x, y, rect.width, 1.0)) > 0;
+        if ink && !inside {
+            bands += 1;
+        }
+        inside = ink;
+        y += 1.0;
+    }
+    assert_eq!(bands, 3, "expected three lines of text in {rect:?}");
+}
+
+#[test]
 fn radio_groups_turn_on_exactly_one_button() {
     let mut doc = sample(0);
     set_value(&mut doc, "colour", &FieldValue::Text("Green".into())).unwrap();
