@@ -5,7 +5,7 @@
 import { cellName, columnName } from "./geometry";
 import type { SheetsContext } from "./gridActions";
 import { startEditing } from "./gridActions";
-import { clampRange, isWholeColumns, isWholeRows, rangeOf } from "./selection";
+import { clampRange, isWholeColumns, isWholeRows, rangeOf, single } from "./selection";
 import { book, currentRegion, dataEdge, type Range, type StyleChange } from "./sheetsApi";
 
 function lastRange(context: SheetsContext): Range {
@@ -146,8 +146,34 @@ export function freeze(context: SheetsContext, kind: FreezeKind) {
 // --- autosum
 
 /** alt =: starts =SUM( over the numbers above (or to the left), for Enter to confirm. */
+/**
+ * the AutoSum formulas for a selection of several cells, as Excel and
+ * Google Sheets place them: below each selected column, or to the right of
+ * a selected row. the selected numbers are left as they are. null for a
+ * single cell, which AutoSum fills in place.
+ */
+export function autoSumCells(range: Range): { row: number; col: number; formula: string }[] | null {
+  const { start, end } = range;
+  if (start.row === end.row && start.col === end.col) return null;
+  if (start.row === end.row) {
+    return [{ row: start.row, col: end.col + 1, formula: `=SUM(${cellName(start.row, start.col)}:${cellName(end.row, end.col)})` }];
+  }
+  const cells: { row: number; col: number; formula: string }[] = [];
+  for (let col = start.col; col <= end.col; col += 1) {
+    cells.push({ row: end.row + 1, col, formula: `=SUM(${cellName(start.row, col)}:${cellName(end.row, col)})` });
+  }
+  return cells;
+}
+
 export async function autoSum(context: SheetsContext) {
   const { view, session } = context;
+  // several cells selected: totals go beside them, never over them
+  const many = autoSumCells(clampRange(view.selection.ranges[0], view.usedRows(), view.usedCols()));
+  if (many) {
+    const edits = many.map((cell) => book({ op: "setCell", sheet: view.sheet, row: cell.row, col: cell.col, input: cell.formula }));
+    if (await session.apply(edits, "AutoSum")) view.select(single({ row: many[0].row, col: many[0].col }));
+    return;
+  }
   const at = view.selection.active;
   const above = at.row > 0 ? view.cache.get(view.sheet, at.row - 1, at.col) : undefined;
   const left = at.col > 0 ? view.cache.get(view.sheet, at.row, at.col - 1) : undefined;
