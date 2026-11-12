@@ -48,6 +48,31 @@ const FILE_COMMANDS: [Command; 2] = [
     command(NEW_WINDOW, "New Window", "CmdOrCtrl+N"),
 ];
 
+const SAVE_COMMANDS: [Command; 2] = [
+    command("save", "Save", "CmdOrCtrl+S"),
+    command("save-as", "Save As…", "CmdOrCtrl+Shift+S"),
+];
+
+/// undo and redo are our own items, not the standard ones.
+///
+/// the standard items send undo straight to the web view, which only
+/// knows about typing in text fields and nothing about document edits.
+/// our items send "undo" and "redo" to the window like every other
+/// command, and the ui decides: in a text field it undoes the typing
+/// (as the standard item would), anywhere else it undoes the last edit
+/// to the document. cut, copy, paste and select all stay standard,
+/// because only text fields use them.
+const UNDO_COMMANDS: [Command; 2] = [
+    command("undo", "Undo", "CmdOrCtrl+Z"),
+    command("redo", "Redo", "CmdOrCtrl+Shift+Z"),
+];
+
+/// the same keys as Preview's Rotate Left and Rotate Right.
+const TOOL_COMMANDS: [Command; 2] = [
+    command("rotate-left", "Rotate Left", "CmdOrCtrl+L"),
+    command("rotate-right", "Rotate Right", "CmdOrCtrl+R"),
+];
+
 const ZOOM_COMMANDS: [Command; 3] = [
     command("zoom-in", "Zoom In", "CmdOrCtrl+="),
     command("zoom-out", "Zoom Out", "CmdOrCtrl+-"),
@@ -66,7 +91,7 @@ const PANEL_COMMANDS: [Command; 5] = [
     },
 ];
 
-/// builds the whole menu bar: the app menu, File, Edit and View.
+/// builds the whole menu bar: the app menu, File, Edit, View and Tools.
 pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let app_menu = SubmenuBuilder::new(app, "Letters")
         .about(None)
@@ -87,18 +112,23 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .items(&as_items(&menu_items(app, &FILE_COMMANDS)?))
         .separator()
         .item(&close_window)
+        .items(&as_items(&menu_items(app, &SAVE_COMMANDS)?))
         .build()?;
 
-    // the standard edit items are what make copy, paste and select all
-    // work in text fields on macos
+    // the standard cut, copy, paste and select all items are what make
+    // them work in text fields on macos. undo and redo are ours (see
+    // UNDO_COMMANDS for why)
     let edit_menu = SubmenuBuilder::new(app, "Edit")
-        .undo()
-        .redo()
+        .items(&as_items(&menu_items(app, &UNDO_COMMANDS)?))
         .separator()
         .cut()
         .copy()
         .paste()
         .select_all()
+        .build()?;
+
+    let tools_menu = SubmenuBuilder::new(app, "Tools")
+        .items(&as_items(&menu_items(app, &TOOL_COMMANDS)?))
         .build()?;
 
     let view_menu = SubmenuBuilder::new(app, "View")
@@ -108,7 +138,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .build()?;
 
     MenuBuilder::new(app)
-        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu])
+        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &tools_menu])
         .build()
 }
 
@@ -156,8 +186,11 @@ fn as_items(items: &[MenuItem<Wry>]) -> Vec<&dyn tauri::menu::IsMenuItem<Wry>> {
 fn is_window_command(id: &str) -> bool {
     FILE_COMMANDS
         .iter()
+        .chain(&SAVE_COMMANDS)
+        .chain(&UNDO_COMMANDS)
         .chain(&ZOOM_COMMANDS)
         .chain(&PANEL_COMMANDS)
+        .chain(&TOOL_COMMANDS)
         .any(|command| command.id == id)
 }
 

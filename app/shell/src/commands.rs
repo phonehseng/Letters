@@ -7,64 +7,25 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use letters_pdf::{
-    DocumentId, DocumentInfo, OutlineItem, PageSize, PdfError, RenderWorker, SearchMatch,
-    SearchResults, TextRect, TileKey,
+    DocumentId, OutlineItem, RenderWorker, SearchMatch, SearchResults, TextRect, TileKey,
 };
 use serde::Serialize;
 use tauri::{AppHandle, State, Window};
 
+use crate::documents::DocumentState;
+use crate::errors::CommandError;
 use crate::state::AppState;
 use crate::windows;
 use letters_shell_core::pinned::{describe_folders, PinnedFolder};
 use letters_shell_core::recents::{thumbnail_name, RecentFile};
+use letters_shell_core::rotate;
+use letters_shell_core::session::with_pdf_extension;
 
 /// thumbnails on the home screen are drawn about this wide.
 const THUMBNAIL_WIDTH_PIXELS: f32 = 240.0;
 
-/// an error the ui can both show and react to.
-///
-/// `kind` lets the ui tell "ask for a password" apart from "show a message".
-#[derive(Debug, Serialize)]
-pub struct CommandError {
-    kind: &'static str,
-    message: String,
-}
-
-impl From<PdfError> for CommandError {
-    fn from(error: PdfError) -> Self {
-        let kind = match error {
-            PdfError::PasswordRequired => "password-required",
-            PdfError::EngineUnavailable(_) => "engine-unavailable",
-            _ => "failed",
-        };
-        Self {
-            kind,
-            message: error.to_string(),
-        }
-    }
-}
-
 fn engine_unavailable(reason: String) -> CommandError {
-    CommandError {
-        kind: "engine-unavailable",
-        message: reason,
-    }
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OpenedDocument {
-    id: u64,
-    name: String,
-    path: String,
-    /// page sizes in points (1/72 inch)
-    pages: Vec<PageDto>,
-}
-
-#[derive(Serialize)]
-pub struct PageDto {
-    width: f32,
-    height: f32,
+    CommandError::engine_unavailable(reason)
 }
 
 #[derive(Serialize)]
@@ -111,40 +72,92 @@ pub struct RectDto {
     height: f32,
 }
 
+/// opens a pdf for viewing and editing.
+///
+/// the engine shows a working copy in the app's cache, never the file
+/// itself, so edits stay away from the person's file until they save.
 #[tauri::command(async)]
 pub fn open_document(
     window: Window,
     state: State<AppState>,
     path: String,
     password: Option<String>,
-) -> Result<OpenedDocument, CommandError> {
+) -> Result<DocumentState, CommandError> {
     let worker = state.worker().map_err(engine_unavailable)?;
     let path = PathBuf::from(path);
-    let info = worker.open(&path, password.as_deref())?;
-    state.remember_document(window.label(), info.id);
+    let opened = state.documents.open(worker, &path, password.as_deref())?;
+    state.remember_document(window.label(), DocumentId(opened.id));
+    remember_in_recents(&state, worker, &opened);
+    Ok(opened)
+}
 
-    let recent = state
-        .recents
-        .lock()
-        .unwrap()
-        .add(&path, info.page_sizes.len());
-    save_thumbnail(worker, &info, &state.thumbnail_dir, &path);
+/// closes a document and throws away any unsaved changes. the ui asks
+/// the person before it calls this when there are some.
+#[tauri::command(async)]
+pub fn close_document(window: Window, state: State<AppState>, id: u64) {
+    state.close_document(window.label(), DocumentId(id));
+}
 
-    Ok(OpenedDocument {
-        id: info.id.0,
-        name: recent.name,
-        path: recent.path,
-        pages: info.page_sizes.iter().map(page_dto).collect(),
-    })
+/// the document as it is now: pages, revision, and whether it has
+/// unsaved changes or anything to undo.
+#[tauri::command(async)]
+pub fn document_state(state: State<AppState>, id: u64) -> Result<DocumentState, CommandError> {
+    state.documents.state(DocumentId(id))
 }
 
 #[tauri::command(async)]
-pub fn close_document(window: Window, state: State<AppState>, id: u64) {
-    let id = DocumentId(id);
-    state.forget_document(window.label(), id);
+pub fn undo(state: State<AppState>, id: u64) -> Result<DocumentState, CommandError> {
+    let worker = state.worker().map_err(engine_unavailable)?;
+    state.documents.undo(worker, DocumentId(id))
+}
+
+#[tauri::command(async)]
+pub fn redo(state: State<AppState>, id: u64) -> Result<DocumentState, CommandError> {
+    let worker = state.worker().map_err(engine_unavailable)?;
+    state.documents.redo(worker, DocumentId(id))
+}
+
+/// writes the changes to the document's file.
+#[tauri::command(async)]
+pub fn save_document(state: State<AppState>, id: u64) -> Result<DocumentState, CommandError> {
+    let saved = state.documents.save(DocumentId(id))?;
     if let Ok(worker) = state.worker() {
-        worker.close(id);
+        remember_in_recents(&state, worker, &saved);
     }
+    Ok(saved)
+}
+
+/// writes the document to a new file, which it then belongs to.
+#[tauri::command(async)]
+pub fn save_document_as(
+    state: State<AppState>,
+    id: u64,
+    path: String,
+) -> Result<DocumentState, CommandError> {
+    let destination = with_pdf_extension(Path::new(&path));
+    let saved = state.documents.save_as(DocumentId(id), &destination)?;
+    if let Ok(worker) = state.worker() {
+        remember_in_recents(&state, worker, &saved);
+    }
+    Ok(saved)
+}
+
+/// turns pages a quarter, half or three quarter turn.
+///
+/// this is the reference example every editing command follows: check
+/// nothing here, call one pure edit function from a core crate through
+/// `state.edit`, and return the new state. `pages` are counted from 0;
+/// `degrees` is a multiple of 90, clockwise, negative for anticlockwise.
+#[tauri::command(async)]
+pub fn rotate_pages(
+    state: State<AppState>,
+    id: u64,
+    pages: Vec<u32>,
+    degrees: i32,
+) -> Result<DocumentState, CommandError> {
+    state.edit(DocumentId(id), |document| {
+        rotate::rotate_pages(document, &pages, degrees)
+    })
 }
 
 /// the file this window was opened for, if any. answers only once, so
@@ -265,23 +278,34 @@ fn rect_dto(rect: &TextRect) -> RectDto {
     }
 }
 
-fn page_dto(size: &PageSize) -> PageDto {
-    PageDto {
-        width: size.width_pt,
-        height: size.height_pt,
-    }
+/// puts the document at the top of Recents with a fresh picture of its
+/// first page. called after opening and after saving, so Recents shows
+/// the file as it is on disk.
+fn remember_in_recents(state: &AppState, worker: &RenderWorker, document: &DocumentState) {
+    let path = Path::new(&document.path);
+    state
+        .recents
+        .lock()
+        .unwrap()
+        .add(path, document.pages.len());
+    save_thumbnail(worker, document, &state.thumbnail_dir, path);
 }
 
 /// draws a small picture of the first page for the home screen.
 ///
 /// a failed thumbnail is not worth failing the open for, so errors are ignored.
-fn save_thumbnail(worker: &RenderWorker, info: &DocumentInfo, thumbnail_dir: &Path, path: &Path) {
-    let Some(first_page) = info.page_sizes.first() else {
+fn save_thumbnail(
+    worker: &RenderWorker,
+    document: &DocumentState,
+    thumbnail_dir: &Path,
+    path: &Path,
+) {
+    let Some(first_page) = document.pages.first() else {
         return;
     };
-    let scale = THUMBNAIL_WIDTH_PIXELS / first_page.width_pt.max(1.0);
+    let scale = THUMBNAIL_WIDTH_PIXELS / first_page.width.max(1.0);
     let key = TileKey {
-        document: info.id,
+        document: DocumentId(document.id),
         page: 0,
         scale_milli: (scale * 1000.0) as u32,
         column: 0,

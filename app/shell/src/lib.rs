@@ -5,7 +5,9 @@
 //! windows share one pdf engine and one tile cache.
 
 mod commands;
+mod documents;
 mod engine_location;
+mod errors;
 mod menu;
 mod state;
 mod tile_protocol;
@@ -31,6 +33,12 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::open_document,
             commands::close_document,
+            commands::document_state,
+            commands::undo,
+            commands::redo,
+            commands::save_document,
+            commands::save_document_as,
+            commands::rotate_pages,
             commands::take_startup_file,
             commands::new_window,
             commands::recent_files,
@@ -66,8 +74,9 @@ pub fn run() {
             ..
         } = event
         {
-            // a closed window must not keep its documents (and their
-            // cached tiles) alive
+            // a closed window must not keep its documents (their cached
+            // tiles and working copies) alive. unsaved changes were
+            // already offered for saving by the window's close sheet
             handle.state::<AppState>().close_documents_of_window(&label);
         }
     });

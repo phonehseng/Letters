@@ -3,5 +3,11 @@
   "identifier": "default",
   "description": "what every document window is allowed to do",
   "windows": ["window-*"],
-  "permissions": ["core:default", "core:window:allow-set-title", "dialog:allow-open"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-title",
+    "core:window:allow-destroy",
+    "dialog:allow-open",
+    "dialog:allow-save"
+  ]
 }

@@ -1,13 +1,16 @@
 //! everything the running app remembers, shared by all windows.
 
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 use letters_pdf::{DocumentId, RenderWorker};
 use tauri::{AppHandle, Manager};
 
+use crate::documents::{DocumentState, OpenDocuments};
 use crate::engine_location::find_pdfium_dir;
+use crate::errors::CommandError;
 use letters_shell_core::pinned::PinnedFolders;
 use letters_shell_core::recents::RecentFiles;
 
@@ -23,6 +26,8 @@ pub struct AppState {
     /// the engine, or the reason it could not start. keeping the reason
     /// lets the ui explain the problem instead of the app just closing
     worker: Result<RenderWorker, String>,
+    /// every open document with its working copy and undo history
+    pub documents: OpenDocuments,
     /// which documents each window has open, so they can be closed with it
     documents_by_window: Mutex<HashMap<String, Vec<DocumentId>>>,
     /// a file a new window should open as soon as its ui is ready
@@ -40,6 +45,7 @@ impl AppState {
         let cache_dir = app.path().app_cache_dir().unwrap_or_default();
         Self {
             worker,
+            documents: OpenDocuments::new(cache_dir.join("working copies")),
             documents_by_window: Mutex::new(HashMap::new()),
             startup_files: Mutex::new(HashMap::new()),
             recents: Mutex::new(RecentFiles::load(data_dir.join("recent-files.json"))),
@@ -52,24 +58,44 @@ impl AppState {
         self.worker.as_ref().map_err(Clone::clone)
     }
 
+    /// changes a document. this is the one door every editing tool uses.
+    ///
+    /// `edit` gets the document's working copy loaded with lopdf and changes
+    /// it in memory. if it returns an error (its message is shown to the
+    /// person as it is) or anything else fails, the document stays exactly
+    /// as it was. otherwise the change becomes an undo step, the windows'
+    /// old tiles are dropped, and the new state is returned for the ui.
+    /// the person's file is not touched until they save.
+    ///
+    /// see `rotate_pages` in commands.rs for the example to copy.
+    pub fn edit<E: Display>(
+        &self,
+        id: DocumentId,
+        edit: impl FnOnce(&mut lopdf::Document) -> Result<(), E>,
+    ) -> Result<DocumentState, CommandError> {
+        let worker = self.worker().map_err(CommandError::engine_unavailable)?;
+        self.documents.edit(worker, id, edit)
+    }
+
     pub fn remember_document(&self, window: &str, id: DocumentId) {
         let mut documents = self.documents_by_window.lock().unwrap();
         documents.entry(window.to_owned()).or_default().push(id);
     }
 
-    pub fn forget_document(&self, window: &str, id: DocumentId) {
-        let mut documents = self.documents_by_window.lock().unwrap();
-        if let Some(ids) = documents.get_mut(window) {
+    /// closes one document of a window and throws away its session.
+    pub fn close_document(&self, window: &str, id: DocumentId) {
+        let mut by_window = self.documents_by_window.lock().unwrap();
+        if let Some(ids) = by_window.get_mut(window) {
             ids.retain(|other| *other != id);
         }
+        drop(by_window);
+        self.documents.close(self.worker.as_ref().ok(), id);
     }
 
     pub fn close_documents_of_window(&self, window: &str) {
         let ids = self.documents_by_window.lock().unwrap().remove(window);
-        if let (Some(ids), Ok(worker)) = (ids, self.worker()) {
-            for id in ids {
-                worker.close(id);
-            }
+        for id in ids.unwrap_or_default() {
+            self.documents.close(self.worker.as_ref().ok(), id);
         }
     }
 
