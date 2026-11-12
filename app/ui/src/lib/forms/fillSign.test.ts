@@ -238,6 +238,8 @@ describe("validation messages", () => {
 
   it("keeps any other sentence, with this field for the internal name", () => {
     expect(plainFieldMessage("The field “student_id” can’t take that kind of answer. It takes text.", id)).toBe("The field this field can’t take that kind of answer. It takes text.");
+    // form logic's refusals begin with the field's name
+    expect(plainFieldMessage("“student_id” takes a number, such as 1,234.50.", id)).toBe("This field takes a number, such as 1,234.50.");
   });
 
   it("marks required fields without an answer", () => {

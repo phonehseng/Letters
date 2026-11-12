@@ -34,7 +34,9 @@ export function plainFieldMessage(engineMessage: string, field: FieldInfo): stri
     if (match) return rule.say(match, field);
   }
   // anything else is the engine's own sentence, with "this field" for its internal name
-  return engineMessage.replace(`“${field.name}”`, "this field");
+  const said = engineMessage.replace(`“${field.name}”`, "this field");
+  // a sentence that began with the name still begins with a capital (form logic's refusals do)
+  return said.startsWith("this field") ? `T${said.slice(1)}` : said;
 }
 
 /** the mark beside a required field that has no answer yet. */

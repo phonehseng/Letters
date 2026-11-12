@@ -73,3 +73,9 @@ seals it, starts a trail, and adds the readable pages, which are refused
 once the document is signed because a certification forbids new pages.
 The Privacy summary in Settings now lists trusted time stamps as the one
 way signing can leave the computer.
+
+## 2026-11-12: refusals that begin with the field's name
+
+Seen in the app: form logic's refusals begin with the field's name, so
+"this field takes a number" started with a small letter beside the field.
+The sentence now starts with a capital when it began with the name.
