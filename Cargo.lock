@@ -2790,6 +2790,7 @@ dependencies = [
  "letters-pdf",
  "letters-redact",
  "letters-search",
+ "letters-sheets",
  "letters-shell-core",
  "lopdf",
  "serde",

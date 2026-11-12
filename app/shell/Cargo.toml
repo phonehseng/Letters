@@ -45,6 +45,8 @@ letters-ai = { path = "../../core/ai" }
 # search all documents and the page finder (search_commands.rs, reading_commands.rs)
 letters-search = { path = "../../core/search" }
 letters-shell-core = { path = "../shell-core" }
+# the spreadsheet screen's engine (sheets_commands.rs, sheets_help_commands.rs)
+letters-sheets = { path = "../../core/sheets" }
 # the document type every edit closure receives (mit licence)
 lopdf = "0.47"
 serde = { version = "1", features = ["derive"] }

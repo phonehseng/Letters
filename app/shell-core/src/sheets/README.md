@@ -7,6 +7,7 @@ docs/worklogs/shell-core-sheets.md.
 | File | What it is for |
 |---|---|
 | `document.rs` | one open workbook: the model, its calculation engine, undo and redo |
+| `entry.rs` | the engine's formula-typing helpers (argument hints, reference colours, F4), with utf-16 cursors |
 | `files.rs` | reading each format, writing it safely, what csv and ods leave out |
 | `formats.rs` | number formats, bold, colours and style presets on a selection, as one edit |
 | `history.rs` | an edit (an engine operation or a size change), undo steps |

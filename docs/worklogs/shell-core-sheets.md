@@ -44,3 +44,12 @@ Cargo.toml now builds letters-sheets with opt-level 2 in debug too: 1.7 s
 and 1.4 s. Typing into a cell and recalculating took 0.25 ms, 61 rows of
 cells for the grid 0.24 ms, the status bar's numbers for a whole column
 167 ms the first time after an edit.
+
+## 2026-11-12 the shell's commands, and cursors counted as javascript does
+
+The commands (app/shell/src/sheets_commands.rs and sheets_help_commands.rs)
+are thin doors over this module and the engine's help. `entry.rs` wraps the
+engine's formula-typing helpers because they count the cursor in bytes (and
+the argument hint in characters) while the web view counts utf-16 units: a
+formula with an accent or an emoji before the cursor would otherwise put the
+engine's cursor inside a letter and panic.

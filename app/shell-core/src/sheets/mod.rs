@@ -8,6 +8,7 @@
 //! - `document`: one workbook, its edits, undo and redo, recalculation
 //! - `history`: edits (the engine's operations and size changes) and undo steps
 //! - `layout`: column widths, row heights and hiding
+//! - `entry`: the formula-typing helpers, with the cursor counted as javascript does
 //! - `formats`: number formats, bold, colours and style presets on a selection
 //! - `paste`: text pasted from other apps, typed into cells
 //! - `look`: the tabs, a sheet's sizes, styles and the cells on screen
@@ -16,6 +17,7 @@
 //! - `tips`: tips a person dismissed, kept between runs
 
 pub mod document;
+pub mod entry;
 pub mod files;
 pub mod formats;
 pub mod history;
