@@ -20,6 +20,7 @@ use super::files::{
 };
 use super::recovery::{SheetRecoveryInfo, SheetRecoveryStore};
 use super::tips::TipStore;
+use crate::disk_stamp::{changed_on_disk_message, DiskStamp};
 use crate::session::file_name;
 
 /// what the ui gets when a workbook opens.
@@ -152,17 +153,55 @@ impl SheetSessions {
         opened
     }
 
+    /// the sentence for a save over the workbook's own file that another
+    /// program changed since this window read or wrote it; `None` when it
+    /// is as this window left it (the ui then asks Replace, Cancel or Save As).
+    /// `to` is where the save goes (none: the workbook's own file); a save
+    /// elsewhere is never asked about.
+    pub fn changed_on_disk(&self, id: u64, to: Option<&Path>) -> Result<Option<String>, String> {
+        self.with(id, |document| {
+            let Some(path) = &document.path else {
+                return Ok(None);
+            };
+            if to.is_some_and(|to| to != path.as_path()) {
+                return Ok(None);
+            };
+            Ok(document
+                .disk_stamp
+                .is_some_and(|stamp| stamp.changed_since(path))
+                .then(|| changed_on_disk_message(&file_name(path))))
+        })
+    }
+
     /// saves to the workbook's file, or to `to` (Save As; the format comes
     /// from the name). csv writes `sheet`, the one on screen.
-    pub fn save(&self, id: u64, to: Option<&Path>, sheet: usize) -> Result<SavedSheet, String> {
+    /// `replace_changed`: the person chose to write over a change made to
+    /// the file elsewhere; otherwise such a save is refused.
+    pub fn save(
+        &self,
+        id: u64,
+        to: Option<&Path>,
+        sheet: usize,
+        replace_changed: bool,
+    ) -> Result<SavedSheet, String> {
         self.with(id, |document| {
             let target = match (to, &document.path) {
                 (Some(path), _) => with_sheet_extension(path, document.format),
                 (None, Some(path)) => path.clone(),
                 (None, None) => return Err("Choose where to save this new workbook.".into()),
             };
+            let over_own_file = document.path.as_ref() == Some(&target);
+            if over_own_file
+                && !replace_changed
+                && document
+                    .disk_stamp
+                    .is_some_and(|stamp| stamp.changed_since(&target))
+            {
+                return Err(changed_on_disk_message(&file_name(&target)));
+            }
             let format = format_for_path(&target).unwrap_or(document.format);
             save_workbook(&document.book, &target, format, sheet)?;
+            document.disk_stamp = DiskStamp::of(&target);
             if let Some(old) = &document.path {
                 self.recovery.discard(old);
             }

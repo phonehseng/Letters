@@ -182,7 +182,8 @@ export const pictureWithout = (id: number, slideId: string, leftOut: LeftOut) =>
 export const findInDeck = (id: number, words: string, matchCase: boolean) => invoke<Found[]>("slides_find", { id, words, matchCase });
 export const replaceOne = (id: number, found: Found, words: string, replacement: string, matchCase: boolean) =>
   invoke<Edited>("slides_replace", { id, found, words, replacement, matchCase });
-export const saveDeck = (id: number, to: string | null) => invoke<SavedDeck>("slides_save", { id, to });
+/** `replaceChanged`: the person chose to write over a change made to the file elsewhere. */
+export const saveDeck = (id: number, to: string | null, replaceChanged = false) => invoke<SavedDeck>("slides_save", { id, to, replaceChanged });
 export const autosaveDeck = (id: number) => invoke<void>("slides_autosave", { id });
 export const discardDeckRecovery = (id: number) => invoke<void>("slides_discard_recovery", { id });
 export const exportDeckPdf = (id: number, layout: PdfLayout, path: string) => invoke<string[]>("slides_export_pdf", { id, layout, path });

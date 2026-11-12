@@ -115,7 +115,7 @@ fn saving_writes_the_edit_and_the_file_reads_back() {
     sessions
         .with(opened.id, |d| d.apply(&[typed(2, 0, "hello")], "Typing"))
         .unwrap();
-    let saved = sessions.save(opened.id, None, 0).unwrap();
+    let saved = sessions.save(opened.id, None, 0, false).unwrap();
     assert!(!saved.state.dirty);
     let again = sessions.open("main", &path, false).unwrap();
     assert_eq!(value(&sessions, again.id, 2, 0), Value::text("hello"));
@@ -135,7 +135,7 @@ fn save_as_ods_changes_the_format_and_csv_of_two_sheets_stays_unsaved() {
     let sessions = sessions(&dir);
     let opened = sessions.open("main", &two_and_triple(&dir), false).unwrap();
     let saved = sessions
-        .save(opened.id, Some(&dir.join("marks.ods")), 0)
+        .save(opened.id, Some(&dir.join("marks.ods")), 0, false)
         .unwrap();
     assert_eq!(saved.format, SheetFormat::Ods);
     let add = Edit::Book(Operation::AddSheet {
@@ -145,7 +145,7 @@ fn save_as_ods_changes_the_format_and_csv_of_two_sheets_stays_unsaved() {
     sessions
         .with(opened.id, |d| d.apply(&[add], "Add Sheet"))
         .unwrap();
-    let csv = sessions.save(opened.id, Some(&dir.join("marks")), 0);
+    let csv = sessions.save(opened.id, Some(&dir.join("marks")), 0, false);
     // a name without an extension keeps the current format (ods here)
     assert!(csv.unwrap().path.ends_with("marks.ods"));
     let losses = sessions
@@ -154,7 +154,7 @@ fn save_as_ods_changes_the_format_and_csv_of_two_sheets_stays_unsaved() {
         .unwrap();
     assert!(losses.contains("other sheet"), "{losses}");
     let as_csv = sessions
-        .save(opened.id, Some(&dir.join("marks.csv")), 0)
+        .save(opened.id, Some(&dir.join("marks.csv")), 0, false)
         .unwrap();
     assert!(as_csv.state.dirty);
 }
@@ -166,7 +166,7 @@ fn a_new_workbook_asks_where_to_save_and_a_starter_one_is_calculated() {
     let blank = sessions.new_workbook("main", None).unwrap();
     assert!(blank.path.is_none() && !blank.state.dirty);
     assert!(sessions
-        .save(blank.id, None, 0)
+        .save(blank.id, None, 0, false)
         .unwrap_err()
         .contains("Choose where"));
     for name in letters_sheets::help::presets::TEMPLATES {
@@ -297,4 +297,43 @@ fn a_fault_inside_the_engine_takes_the_change_back_with_a_sentence() {
         .unwrap();
     assert_eq!(outcome.undo_label.as_deref(), Some("Typing"));
     assert_eq!(value(&sessions, opened.id, 0, 1), Value::Number(12.0));
+}
+
+#[test]
+fn saving_over_a_workbook_changed_elsewhere_asks_first() {
+    let dir = folder("changed-elsewhere");
+    let sessions = sessions(&dir);
+    let path = two_and_triple(&dir);
+    let opened = sessions.open("main", &path, false).unwrap();
+    sessions
+        .with(opened.id, |d| d.apply(&[typed(2, 0, "mine")], "Typing"))
+        .unwrap();
+    // another program writes the file (a later time is what the stamp sees)
+    let theirs = fs::read(&path).unwrap();
+    fs::write(&path, &theirs).unwrap();
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_modified(later)
+        .unwrap();
+
+    assert!(sessions.changed_on_disk(opened.id, None).unwrap().is_some());
+    // Save passes the file's own path too; a copy elsewhere isn't asked about
+    assert!(sessions
+        .changed_on_disk(opened.id, Some(&path))
+        .unwrap()
+        .is_some());
+    assert!(sessions
+        .changed_on_disk(opened.id, Some(&dir.join("copy.xlsx")))
+        .unwrap()
+        .is_none());
+    let refused = sessions.save(opened.id, None, 0, false).unwrap_err();
+    assert!(refused.contains("Save As"), "{refused}");
+    // Replace writes over it on purpose, and the window then owns the file again
+    sessions.save(opened.id, None, 0, true).unwrap();
+    assert!(sessions.changed_on_disk(opened.id, None).unwrap().is_none());
+    let again = sessions.open("main", &path, false).unwrap();
+    assert_eq!(value(&sessions, again.id, 2, 0), Value::text("mine"));
 }

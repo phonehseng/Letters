@@ -93,7 +93,7 @@ fn a_hidden_slide_stays_hidden_after_saving_and_undo_shows_it_again() {
     let edited = sessions.set_hidden(id, &slide_id, true, &viewer).unwrap();
     assert!(edited.deck.slides[0].hidden);
     sessions
-        .save(id, Some(&folder.join("hidden.pptx")))
+        .save(id, Some(&folder.join("hidden.pptx")), false)
         .unwrap();
     let reopened = sessions
         .open("window-2", &folder.join("hidden.pptx"), false)
@@ -247,7 +247,7 @@ fn saving_then_reopening_keeps_the_edit_and_drops_the_recovery_copy() {
         again.recovery.is_some(),
         "an unsaved change leaves a recovery copy"
     );
-    let saved = sessions.save(id, None).unwrap();
+    let saved = sessions.save(id, None, false).unwrap();
     assert!(!saved.state.dirty);
     let reopened = sessions.open("window-3", &copy, false).unwrap();
     assert_eq!(reopened.deck.slides.len(), 1);
@@ -310,4 +310,31 @@ fn closing_a_window_closes_its_decks_and_their_pictures() {
     assert_eq!(sessions.open_count(), 1);
     assert_eq!(viewer.closed.borrow().len(), 1);
     assert!(sessions.deck(first).is_err());
+}
+
+#[test]
+fn saving_over_a_deck_changed_elsewhere_asks_first() {
+    let folder = scratch_folder("sessions-changed-elsewhere-files");
+    let copy = folder.join("talk.pptx");
+    std::fs::copy(deck_path("pp_title_bullets.pptx"), &copy).unwrap();
+    let sessions = sessions("sessions-changed-elsewhere");
+    let viewer = FakeViewer::default();
+    let id = sessions.open("window-1", &copy, false).unwrap().id;
+    sessions
+        .apply(id, &Operation::DeleteSlide { index: 1 }, &viewer)
+        .unwrap();
+    // another program replaces the file
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    std::fs::File::options()
+        .write(true)
+        .open(&copy)
+        .unwrap()
+        .set_modified(later)
+        .unwrap();
+
+    assert!(sessions.changed_on_disk(id).unwrap().is_some());
+    let refused = sessions.save(id, None, false).unwrap_err();
+    assert!(refused.contains("Save As"), "{refused}");
+    sessions.save(id, None, true).unwrap();
+    assert!(sessions.changed_on_disk(id).unwrap().is_none());
 }
