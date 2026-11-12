@@ -5,7 +5,7 @@
   // the shell holds the workbook (lib/sheets/sheetsApi.ts); this screen
   // holds what is on show and sends every change as the engine's edits.
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { onDestroy, onMount, untrack } from "svelte";
+  import { onDestroy, onMount, tick, untrack } from "svelte";
   import { appCommands, keyPressOf, type Command } from "../commands";
   import ContextMenu, { type ContextItem } from "../ContextMenu.svelte";
   import type { PullDownItem } from "../writer/PullDown.svelte";
@@ -145,6 +145,22 @@
       if (!editor.active) grid?.focus();
     }
   }
+
+  // when the cell editor closes, the keyboard comes back to the grid if it
+  // went nowhere: a formula finishes after a round trip to the shell, and by
+  // then the editor's field is gone and focus has fallen to the page, so the
+  // next entry typed was lost (Excel goes straight on to the next cell)
+  let wasEditing = false;
+  $effect(() => {
+    const editing = editor.active;
+    if (wasEditing && !editing) {
+      tick().then(() => {
+        const focused = document.activeElement;
+        if (!focused || focused === document.body) grid?.focus();
+      });
+    }
+    wasEditing = editing;
+  });
 
   const hooks = {
     copy: (cut: boolean) => void copySelection(context, cut).then((made) => (copied = made ?? copied)),
