@@ -1,0 +1,80 @@
+# builds the installers and puts them on a github release, so a student can
+# download one file and run it. a tag like v0.2.0 makes a draft release;
+# it can also be started by hand from the actions tab to check a build.
+#
+# windows: a per-user installer (no administrator needed) carrying pdfium,
+# tesseract and its runtime, the fonts, and the webview2 bootstrapper, run
+# silently when a computer lacks webview2. macos: a disk image for apple
+# and intel macs. neither is code-signed yet, so windows and macos ask
+# once before the first run.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: ""
+          - os: macos-latest
+            target: universal-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.1
+          # a universal mac app holds both kinds of mac processor
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      # the root package installs the tauri command and, after it, the interface's packages
+      - run: npm ci
+
+      - name: fetch pdfium, tesseract and the fonts (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./tools/fetch-pdfium.ps1
+          ./tools/fetch-tesseract.ps1
+          ./tools/fetch-fonts.ps1
+      - name: fetch pdfium, tesseract and the fonts (macos)
+        if: runner.os == 'macOS'
+        run: |
+          brew install tesseract
+          sh tools/fetch-pdfium.sh
+          sh tools/fetch-tesseract.sh
+          sh tools/fetch-fonts.sh
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app/shell
+          tauriScript: npx tauri
+          args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+          # a tag makes a draft release named after it; a run by hand only builds
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: Letters ${{ github.ref_name }}
+          releaseBody: "Download the installer for your computer below. Letters isn't code-signed yet: Windows shows \"Windows protected your PC\" (choose More info, then Run anyway), and macOS asks you to allow it once in System Settings, Privacy & Security."
+          releaseDraft: true
+      # a run by hand leaves its installers on the run's page
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: letters-${{ matrix.os }}
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/*/release/bundle/dmg/*.dmg
+          if-no-files-found: warn

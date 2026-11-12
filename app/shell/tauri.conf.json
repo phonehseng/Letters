@@ -52,6 +52,7 @@
       { "ext": ["webp"], "name": "Letters.webp", "description": "WebP Picture", "role": "Viewer", "mimeType": "image/webp", "contentTypes": ["org.webmproject.webp"] }
     ],
     "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper", "silent": true },
       "nsis": {
         "installMode": "currentUser",
         "installerHooks": "installer-hooks.nsh",
