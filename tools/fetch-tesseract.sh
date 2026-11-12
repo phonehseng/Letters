@@ -55,11 +55,31 @@ sha256() {
 }
 
 staging=$(mktemp -d)
+
+# downloads $1 into $2, or stops with a sentence a person can act on.
+# curl on its own only says "curl: (22) The requested URL returned error: 403"
+download() {
+  url=$1
+  file=$2
+  status=$(curl -sSL -w '%{http_code}' -o "$file" "$url" 2>"$staging/curl-error") || status=none
+  [ "$status" = 200 ] && return 0
+  echo "Couldn't download $(basename "$file") from $url" >&2
+  case "$status" in
+    403) echo "The server refused it (403). GitHub turns away downloads from some networks and when too many arrive at once: wait a few minutes and run this again, or try from another network." >&2 ;;
+    404) echo "It isn't there (404): the address in this script may be out of date." >&2 ;;
+    none) echo "The connection failed ($(cat "$staging/curl-error")). Check that this computer can reach github.com; a proxy or firewall may be blocking it." >&2 ;;
+    *) echo "The server answered $status. Try again later." >&2 ;;
+  esac
+  echo "Nothing was installed." >&2
+  rm -rf "$staging"
+  exit 1
+}
+
 mkdir -p "$staging/bin" "$staging/tessdata" "$staging/licenses"
 for language in eng spa fra deu osd; do
   echo "fetching language data $language"
   file="$staging/tessdata/$language.traineddata"
-  curl -fsSL "$tessdata_url/$language.traineddata" -o "$file"
+  download "$tessdata_url/$language.traineddata" "$file"
   actual=$(sha256 "$file")
   if [ "$actual" != "$(checksum "$language")" ]; then
     echo "$language.traineddata did not match its checksum. nothing was installed." >&2
@@ -67,7 +87,7 @@ for language in eng spa fra deu osd; do
     exit 1
   fi
 done
-curl -fsSL "$tessdata_url/LICENSE" -o "$staging/licenses/tessdata_fast-LICENSE.txt"
+download "$tessdata_url/LICENSE" "$staging/licenses/tessdata_fast-LICENSE.txt"
 ln -s "$program" "$staging/bin/tesseract"
 echo "$version (system install at $program), tessdata_fast 4.1.0" > "$staging/VERSION"
 

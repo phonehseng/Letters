@@ -14,6 +14,9 @@
 # the sha256 values below were recorded when the script was written.
 
 $ErrorActionPreference = 'Stop'
+# windows powershell 5.1 doesn't always offer tls 1.2, which github and
+# conda require; without it the download fails as a closed connection
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = 'SilentlyContinue'
 
 $channel = 'https://conda.anaconda.org/conda-forge'
@@ -68,8 +71,31 @@ $languages = @(
     @{ name = 'osd'; sha256 = '9cf5d576fcc47564f11265841e5ca839001e7e6f38ff7f7aacf46d15a96b00ff' }
 )
 
+# downloads a file, or stops with a sentence a person can act on instead of
+# a bare web error such as "(403) Forbidden"
+function Get-Download([string]$url, [string]$file) {
+    try {
+        Invoke-WebRequest $url -OutFile $file -UseBasicParsing
+        return
+    } catch {
+        $problem = $_.Exception
+    }
+    $status = 0
+    if ($problem.Response) { $status = [int]$problem.Response.StatusCode }
+    if ($status -eq 403) {
+        $why = 'The server refused it (403). GitHub and conda turn away downloads from some networks and when too many arrive at once: wait a few minutes and run this again, or try from another network.'
+    } elseif ($status -eq 404) {
+        $why = 'It isn''t there (404): the address in this script may be out of date.'
+    } elseif ($status -eq 0) {
+        $why = "The connection failed ($($problem.Message)). Check that this computer can reach github.com and conda.anaconda.org; a proxy or firewall may be blocking them."
+    } else {
+        $why = "The server answered $status. Try again later."
+    }
+    throw "Couldn't download $(Split-Path $file -Leaf) from $url. $why Nothing was installed."
+}
+
 function Get-Checked([string]$url, [string]$file, [string]$sha256) {
-    Invoke-WebRequest $url -OutFile $file
+    Get-Download $url $file
     $actual = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
     if ($actual -ne $sha256) {
         throw "$url did not match its checksum (expected $sha256, got $actual). nothing was installed."
@@ -125,7 +151,7 @@ foreach ($language in $languages) {
     $file = Join-Path $tessdata "$($language.name).traineddata"
     Get-Checked "$tessdataUrl/$($language.name).traineddata" $file $language.sha256
 }
-Invoke-WebRequest "$tessdataUrl/LICENSE" -OutFile (Join-Path $licenses 'tessdata_fast-LICENSE.txt')
+Get-Download "$tessdataUrl/LICENSE" (Join-Path $licenses 'tessdata_fast-LICENSE.txt')
 
 Set-Content (Join-Path $staging 'VERSION') 'tesseract 5.5.4 (conda-forge h8c7c6a5_0), tessdata_fast 4.1.0'
 
