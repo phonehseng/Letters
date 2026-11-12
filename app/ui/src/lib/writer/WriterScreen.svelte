@@ -7,7 +7,7 @@
   // through the app's one dispatcher (commands.ts).
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onDestroy, onMount, tick, untrack } from "svelte";
-  import { appCommands, keyPressOf, type Command } from "../commands";
+  import { appCommands, isTextField, keyPressOf, type Command } from "../commands";
   import { remInPixels } from "../dom";
   import { zoomIn, zoomOut } from "../layout";
   import { closePanel, fitPanels, inspectorFloats, togglePanel, openPanel, type SidePanel } from "../sidePanels";
@@ -342,6 +342,12 @@
 
   /** the writer's keys are matched first (see shortcuts.ts), anywhere in the window. */
   function onKeyCapture(event: KeyboardEvent) {
+    // keys typed in a field outside the page (the comment and link sheets,
+    // find) belong to that field: Ctrl Enter there confirms the sheet, not
+    // a page break over the selected text, and Ctrl B or Ctrl Z act on what
+    // is typed there. the window's own shortcuts (save, print) still work
+    const target = event.target as Element | null;
+    if (isTextField(target) && !target?.closest(".ProseMirror")) return;
     const command = writerCommandForKey(keyPressOf(event));
     if (!command) return;
     event.preventDefault();
