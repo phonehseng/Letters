@@ -133,7 +133,7 @@ export class FillSignSession {
   lastPress: "pointer" | "keyboard" = "keyboard";
 
   readonly fields = $derived(this.overview?.fields ?? []);
-  readonly stops = $derived(tabStops(this.fields));
+  readonly stops = $derived(tabStops(this.fields, this.overview?.tabOrders ?? []));
   readonly signatures = $derived(this.overview?.signatures ?? []);
   readonly picture = $derived(this.pictures.find((picture) => picture.id === this.chosenPicture) ?? null);
   readonly pageTool: PageTool | null = $derived(this.#toolFor(this.tool));

@@ -15,7 +15,7 @@ mod values;
 pub use buttons::{add_button, ButtonAction, NewButton};
 pub use groups::{duplicate_across_pages, group_fields};
 pub use look::{set_field_appearance, BorderStyle, Color, FieldAppearance, FieldFont};
-pub use tab_order::{set_tab_order, tab_order, TabOrder};
+pub use tab_order::{set_tab_order, tab_kind, tab_order, TabOrder};
 pub use values::{reset_form, set_default_value, set_export_value};
 
 /// the sentence the ui shows where a submit button would be.

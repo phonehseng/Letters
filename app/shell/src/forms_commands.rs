@@ -87,6 +87,19 @@ pub struct FormsOverview {
     protected: bool,
     /// the engine's sentence about what checking a signature does and doesn't mean
     trust_note: &'static str,
+    /// for each page with fields, the order Tab goes through them as the
+    /// file says it (Prepare Form › Order writes it), so Letters' own Tab
+    /// follows it as other pdf apps do
+    tab_orders: Vec<PageTabOrder>,
+}
+
+/// a page's tab order: "R" rows, "C" columns, otherwise `fields` in order.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageTabOrder {
+    page: u32,
+    kind: Option<String>,
+    fields: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -164,15 +177,31 @@ fn yes() -> bool {
 #[tauri::command(async)]
 pub fn forms_overview(state: State<AppState>, id: u64) -> Result<FormsOverview, CommandError> {
     let document_id = DocumentId(id);
-    let (fields, problem, custom_script_note) = state.read_document(document_id, |document| {
-        let note = forms::form_logic(document)
-            .ok()
-            .and_then(|logic| logic.custom_script_note);
-        Ok(match forms::fields(document) {
-            Ok(fields) => (fields, None, note),
-            Err(error) => (Vec::new(), Some(error.to_string()), note),
-        })
-    })?;
+    let (fields, problem, custom_script_note, tab_orders) =
+        state.read_document(document_id, |document| {
+            let note = forms::form_logic(document)
+                .ok()
+                .and_then(|logic| logic.custom_script_note);
+            let (fields, problem) = match forms::fields(document) {
+                Ok(fields) => (fields, None),
+                Err(error) => (Vec::new(), Some(error.to_string())),
+            };
+            let mut pages: Vec<u32> = fields
+                .iter()
+                .flat_map(|field| field.widgets.iter().filter_map(|widget| widget.page))
+                .collect();
+            pages.sort_unstable();
+            pages.dedup();
+            let tab_orders = pages
+                .into_iter()
+                .map(|page| PageTabOrder {
+                    page,
+                    kind: forms::tab_kind(document, page).ok().flatten(),
+                    fields: forms::tab_order(document, page).unwrap_or_default(),
+                })
+                .collect();
+            Ok((fields, problem, note, tab_orders))
+        })?;
     // checking signatures reads the whole file, so only signed forms pay for it
     let any_signed = fields.iter().any(|field| field.signed);
     let (signatures, verdicts, protected) = if any_signed {
@@ -188,6 +217,7 @@ pub fn forms_overview(state: State<AppState>, id: u64) -> Result<FormsOverview, 
         verdicts,
         protected,
         trust_note: TRUST_NOTE,
+        tab_orders,
     })
 }
 

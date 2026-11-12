@@ -38,8 +38,8 @@ pub use audit::{
 };
 pub use build::{
     add_button, duplicate_across_pages, group_fields, reset_form, set_default_value,
-    set_export_value, set_field_appearance, set_tab_order, tab_order, BorderStyle, ButtonAction,
-    Color, FieldAppearance, FieldFont, NewButton, TabOrder, NO_SUBMIT_NOTE,
+    set_export_value, set_field_appearance, set_tab_order, tab_kind, tab_order, BorderStyle,
+    ButtonAction, Color, FieldAppearance, FieldFont, NewButton, TabOrder, NO_SUBMIT_NOTE,
 };
 pub use data::{
     export_data, import_data, merge_form_data, DataFormat, FilledCopy, ImportReport, MergedData,
@@ -59,11 +59,6 @@ pub use logic::{
 };
 pub use read::{fields, Alignment, ChoiceOption, FieldInfo, FieldKind, WidgetInfo};
 pub use signing::{
-    create_self_signed_certificate, sign, verify, CertificateRequest, CertificateSummary,
-    CreatedCertificate, KeyKind, SignRequest, SignatureAppearance, SignaturePlacement,
-    SignatureReport, TrustStatus, TRUST_NOTE,
-};
-pub use signing::{
     add_document_timestamp, sign_with_options, verify_document, DocumentVerification,
     SignatureDetails, SignatureKind, SigningOptions, TimeSource, TimestampAuthority, TimestampInfo,
     CLOCK_TIME_NOTE, TIMESTAMP_DISCLOSURE,
@@ -72,5 +67,10 @@ pub use signing::{
     add_validation_data, revisions, save_incremental, set_signature_lock, set_signing_order,
     signature_lock, signing_workflow, CertificationLevel, Change, ChangeKind, ChangeVerdict,
     FieldLock, RevisionReport, SignatureChanges, ValidationData, WorkflowStep,
+};
+pub use signing::{
+    create_self_signed_certificate, sign, verify, CertificateRequest, CertificateSummary,
+    CreatedCertificate, KeyKind, SignRequest, SignatureAppearance, SignaturePlacement,
+    SignatureReport, TrustStatus, TRUST_NOTE,
 };
 pub use stamp::{place_signature_image, SignatureImage};

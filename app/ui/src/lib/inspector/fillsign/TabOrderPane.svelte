@@ -95,8 +95,8 @@
             <span class="number">{index + 1}</span>
             <span class="name">{fieldLabel(field)}</span>
           </span>
-          <button class="small" aria-label="Move up" disabled={index === 0} onclick={() => move(index, index - 1)}>↑</button>
-          <button class="small" aria-label="Move down" disabled={index === listed.length - 1} onclick={() => move(index, index + 1)}>↓</button>
+          <button class="small" aria-label="Move {fieldLabel(field)} up" disabled={index === 0} onclick={() => move(index, index - 1)}>↑</button>
+          <button class="small" aria-label="Move {fieldLabel(field)} down" disabled={index === listed.length - 1} onclick={() => move(index, index + 1)}>↓</button>
         </li>
       {/each}
     </ol>

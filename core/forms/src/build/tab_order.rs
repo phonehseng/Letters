@@ -89,6 +89,19 @@ pub fn set_tab_order(doc: &mut Document, page: u32, order: &TabOrder) -> FormRes
     Ok(())
 }
 
+/// how a page says Tab goes through its fields (iso 32000 12.5.1, /Tabs):
+/// "R" rows, "C" columns, "S" the structure; none means the order of the
+/// page's annotation list, which is what a manual order writes.
+pub fn tab_kind(doc: &Document, page: u32) -> FormResult<Option<String>> {
+    let page_id = page_id(doc, page)?;
+    let dict = doc.get_dictionary(page_id)?;
+    Ok(dict
+        .get(b"Tabs")
+        .ok()
+        .and_then(|tabs| tabs.as_name().ok())
+        .map(|tabs| String::from_utf8_lossy(tabs).into_owned()))
+}
+
 /// rows (or columns) first, with half a box of tolerance for "the same row".
 fn reading_order(
     a: Option<VisibleRect>,

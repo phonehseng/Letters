@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 use super::eval::{number_to_text, parse_number};
 use crate::date::{format_date, parse_date};
 
+pub use super::masks::TIME_PATTERNS;
 use super::masks::{apply_mask, format_time, mask_example, parse_time};
 use super::numbers::{example, group, read_number, round_to};
-pub use super::masks::TIME_PATTERNS;
 
 /// how digits are grouped and which mark starts the decimals
 /// (AFNumber_Format's sepStyle, 0 to 4).
