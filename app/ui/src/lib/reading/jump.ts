@@ -101,7 +101,7 @@ function relative(document: JumpDocument, text: string, found: JumpCandidate[]) 
   const steps = Number(match[2]);
   const sign = match[1] === "+" ? 1 : -1;
   const target = Math.max(0, Math.min(document.pageCount - 1, document.currentPage + sign * steps));
-  found.push(candidate(document, "relative", target, `${steps} Pages ${sign > 0 ? "On" : "Back"}, page ${target + 1}`));
+  found.push(candidate(document, "relative", target, `${steps} ${steps === 1 ? "Page" : "Pages"} ${sign > 0 ? "On" : "Back"}, page ${target + 1}`));
 }
 
 /** "p 12", "page12", "pg. 12" -> "12". a prefix needs a space or dot after it, or a digit. */
