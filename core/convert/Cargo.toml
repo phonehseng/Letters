@@ -1,0 +1,9 @@
+[package]
+name = "letters-convert"
+description = "converts between pdf and other formats: images, text, html, spreadsheets, slides and office documents"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"

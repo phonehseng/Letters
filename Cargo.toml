@@ -12,6 +12,7 @@ members = [
     "core/compare",
     "core/edit",
     "core/ai",
+    "core/convert",
     "app/shell-core",
     "app/shell",
 ]
