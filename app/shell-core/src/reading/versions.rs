@@ -109,7 +109,11 @@ impl VersionStore {
             bytes,
             file: copy.to_string_lossy().into_owned(),
         };
-        versions.push(version.clone());
+        // the list is kept newest first, so the new version goes at the front.
+        // two saves can land in the same millisecond (restoring saves a
+        // "before restoring" copy right after another save), and the sort in
+        // list() is stable, so the order here is what breaks the tie
+        versions.insert(0, version.clone());
         self.write_list(document, &versions)?;
         Ok(version)
     }
