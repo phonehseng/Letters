@@ -44,9 +44,3 @@ export function placeSignatureEffect(hasPicture: boolean, placing: boolean): str
   if (placing) return "Click the page or an empty signature field to place it, or drag to choose its size. Escape stops.";
   return `Puts the picture on the page in your working copy. Click it with Select later to move or resize it. ${ONLY_THE_WORKING_COPY}`;
 }
-
-export function signEffect(dirty: boolean, ready: boolean, missing: string | null): string {
-  if (!ready && missing) return missing;
-  const save = dirty ? "Saves your changes, then signs" : "Signs";
-  return `${save} the saved file and saves it again at once, adding the signature at its end. Later changes are saved after the signature, which lists them as made since.`;
-}

@@ -63,7 +63,15 @@ describe("the AI Tools section", () => {
 
   it("the privacy summary names every way out and that there is no telemetry", () => {
     const items = privacyItems();
-    expect(items.map((item) => item.what)).toEqual(["Font downloads", "Google Drive", "AI Tools", "Everything else"]);
-    expect(items[3].when).toContain("no telemetry");
+    expect(items.map((item) => item.what)).toEqual(["Font downloads", "Google Drive", "AI Tools", "Trusted time stamps", "Everything else"]);
+    expect(items[3].when).toContain("fingerprint");
+    expect(items[4].when).toContain("no telemetry");
+  });
+
+  // forms round two
+  it("no time stamp server is set until one is typed", () => {
+    expect(defaultSettings().signing.timestampServer).toBe("");
+    expect(fromStored({ signing: { timestampServer: "http://127.0.0.1:3180/tsr" } }).signing.timestampServer).toBe("http://127.0.0.1:3180/tsr");
+    expect(fromStored({ signing: { timestampServer: 7 } }).signing.timestampServer).toBe("");
   });
 });

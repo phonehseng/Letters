@@ -11,8 +11,9 @@
 //! so it is made on the saved file and written back exactly through the
 //! edit session (see shell-core's forms/signed.rs), never through lopdf.
 //!
-//! everything happens on this computer: no server, no time stamps, no
-//! record of who opened or filled a form.
+//! everything happens on this computer: no server and no record of who
+//! opened or filled a form. the one exception is a time stamp the person
+//! asks for, which sends only a hash (see signing_commands.rs).
 
 use std::path::Path;
 use std::sync::Mutex;
@@ -24,14 +25,16 @@ use letters_forms::{
 };
 use letters_pdf::DocumentId;
 use letters_shell_core::forms::{
-    data_url, password_blocks_signing, picture_mime, read_chosen_file, sign_saved_document,
-    write_chosen_bytes, PictureKind, SavedSignature, SignaturePictures,
+    data_url, picture_mime, read_chosen_file, write_chosen_bytes, PictureKind, SavedSignature,
+    SignaturePictures,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 use crate::documents::DocumentState;
 use crate::errors::CommandError;
+use crate::settings_commands::SettingsState;
+use crate::signing_commands::{change_saved_bytes, signing_options, SigningChoices};
 use crate::state::AppState;
 
 /// a certificate file is a few kilobytes; anything bigger is the wrong file.
@@ -404,14 +407,18 @@ pub fn forms_create_certificate(
 }
 
 /// signs the saved document with a certificate file. the password is
-/// used for this one signature and never kept.
+/// used for this one signature and never kept. `choices` are the extras
+/// (a trusted time, certifying, locks...), see signing_commands.rs.
 #[tauri::command(async)]
 pub fn forms_sign(
     state: State<AppState>,
     forms_state: State<FormsState>,
+    settings_state: State<SettingsState>,
     id: u64,
     settings: SignSettings,
+    choices: Option<SigningChoices>,
 ) -> Result<DocumentState, CommandError> {
+    let options = signing_options(&state, &settings_state, &choices.unwrap_or_default())?;
     let pkcs12 = read_chosen_file(Path::new(&settings.certificate_path), MAX_CERTIFICATE_BYTES)
         .map_err(CommandError::failed)?;
     let image_png = match &settings.signature_id {
@@ -438,22 +445,10 @@ pub fn forms_sign(
             show_details: settings.show_details,
         },
     };
-    let worker = state.worker().map_err(CommandError::engine_unavailable)?;
     // a password set under Protect (or one the file still has) can't go with a signature yet
-    let password_blocked = password_blocks_signing(&state.protection.get(id));
-    let (_, document) = state
-        .documents
-        .with_session(worker, DocumentId(id), |session, show| {
-            let shown = sign_saved_document(
-                session,
-                password_blocked,
-                |bytes| forms::sign(bytes, &request),
-                |path| show(path),
-            )
-            .map_err(|error| CommandError::failed(error.to_string()))?;
-            Ok(((), Some(shown)))
-        })?;
-    Ok(document)
+    change_saved_bytes(&state, id, |bytes| {
+        forms::sign_with_options(bytes, &request, &options)
+    })
 }
 
 /// adds ".p12" to a certificate name typed without it.

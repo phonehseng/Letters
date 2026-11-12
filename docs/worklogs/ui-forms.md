@@ -47,3 +47,29 @@ back from the file's name), imports answers from any of them, and merges
 many filled copies into one CSV with a File column. An import is one undo
 step and says how many answers went in and which were left out and why, in
 the engine's sentences.
+
+## 2026-11-12: signing options, Verify Signatures and the audit trail
+
+Sign with a Certificate has Signing Options under a disclosure, so a plain
+signature stays one click. Add a Trusted Time is only on when a server is
+set under Settings, Signing (a new section there, with the engine's
+disclosure); ticking it shows TIMESTAMP_DISCLOSURE word for word before
+Sign can send anything, and the effect line names the server. Certify
+offers the three levels in plain words ("No changes allowed", "Filling in
+and signing allowed", "Filling in, signing and comments allowed") and is
+off once the document has a signature, because only the first may
+certify. Locks are None, All or the fields ticked; signature fields stay
+open. Follow the signing order appears with two or more signature fields;
+the order itself is set in Prepare Form's new Signers pane. Store the
+certificates adds validation data; Record it in the audit trail is on by
+default and shows AUDIT_TRAIL_NOTE as is.
+
+Signatures became Verify Signatures: each signature's verdict sentence
+(unchanged, changed as allowed, not allowed, changed with no limits),
+where its time comes from with the engine's note, the certification and
+what it allows, and every revision with its changes sorted into kinds.
+Audit Trail shows the verdict, each entry and whether a later signature
+seals it, starts a trail, and adds the readable pages, which are refused
+once the document is signed because a certification forbids new pages.
+The Privacy summary in Settings now lists trusted time stamps as the one
+way signing can leave the computer.

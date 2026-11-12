@@ -13,7 +13,7 @@ import {
   widgetIsOn,
   withinLimit,
 } from "./fieldEditing";
-import { addFieldEffect, fillEffect, findEffect, flattenEffect, placeSignatureEffect, signEffect } from "./fillSignEffects";
+import { addFieldEffect, fillEffect, findEffect, flattenEffect, placeSignatureEffect } from "./fillSignEffects";
 import type { FieldInfo, SignatureReport } from "./formsApi";
 import { newFieldSpec, parseChoices, radioButtonRects, suggestedName } from "./newFields";
 import { acceptAll, counts, moveProposal, newFieldsFrom, proposalLabel, proposalsFrom, setKind, setStatus } from "./proposals";
@@ -425,7 +425,5 @@ describe("what each button will do", () => {
     expect(flattenEffect(3, true, 1)).toContain("1 signature field stays a field");
     expect(flattenEffect(0, true, 0)).toBe("There are no form fields to flatten.");
     expect(placeSignatureEffect(false, false)).toContain("Keep Signature");
-    expect(signEffect(true, true, null)).toMatch(/^Saves your changes, then signs/);
-    expect(signEffect(false, false, "Type the certificate’s password.")).toBe("Type the certificate’s password.");
   });
 });

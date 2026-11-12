@@ -16,6 +16,7 @@
   import ToolSection from "../ToolSection.svelte";
   import ArrangePane from "./ArrangePane.svelte";
   import RulesPane from "./RulesPane.svelte";
+  import SignersPane from "./SignersPane.svelte";
   import TabOrderPane from "./TabOrderPane.svelte";
   import ValuesPane from "./ValuesPane.svelte";
 
@@ -27,7 +28,7 @@
 
   let { context, open, onToggle }: Props = $props();
 
-  type Pane = "rules" | "order" | "arrange" | "values";
+  type Pane = "rules" | "order" | "arrange" | "values" | "signers";
   let pane = $state<Pane>("rules");
   let logic = $state<FormLogicView | null>(null);
 
@@ -58,6 +59,7 @@
       { value: "order", label: "Order" },
       { value: "arrange", label: "Arrange" },
       { value: "values", label: "Values" },
+      { value: "signers", label: "Signers" },
     ]}
     bind:value={pane}
   />
@@ -67,7 +69,9 @@
     <TabOrderPane {context} />
   {:else if pane === "arrange"}
     <ArrangePane {context} />
-  {:else}
+  {:else if pane === "values"}
     <ValuesPane {context} noSubmitNote={logic?.noSubmitNote ?? null} />
+  {:else}
+    <SignersPane {context} />
   {/if}
 </ToolSection>

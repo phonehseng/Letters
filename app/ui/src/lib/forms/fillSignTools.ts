@@ -91,8 +91,9 @@ export const fillSignTools = {
     whenToUse:
       "When a document must be signed in a way that can be checked, such as a contract. You need a certificate file (.p12 or .pfx) and its password, or you can make one here.",
     fileEffect:
-      "Signs the saved file and saves it again at once, adding the signature at the end of the file. The password is used for this signature only and is never kept. Changes afterwards are saved after the signature, which still checks out and lists them, so Letters asks first. A document with a password to open, or restrictions, can’t be signed yet.",
-    meaning: "A digital signature that lets others check the file has not changed since you signed.",
+      "Signs the saved file and saves it again at once, adding the signature at the end of the file. The password is used for this signature only and is never kept. Changes afterwards are saved after the signature, which still checks out and lists them, so Letters asks first. A document with a password to open, or restrictions, can’t be signed yet. Signing Options can add a trusted time (only a fingerprint is sent, to the server you chose in Settings), certify the document, lock fields, follow a signing order and store the certificates.",
+    meaning:
+      "A digital signature that lets others check the file has not changed since you signed. Certifying is the author’s signature that says which changes may still follow: none, filling in and signing, or also comments.",
   },
   selfSignedCertificate: {
     label: "Create a Self-Signed Certificate…",
@@ -103,11 +104,23 @@ export const fillSignTools = {
       "Self-signed means you made the certificate yourself, so nobody vouches for your name: other people’s apps show the signature as not verified.",
   },
   signatures: {
-    label: "Signatures",
-    tooltip: "Check who signed this document and whether it has changed since",
-    whenToUse: "When you receive a signed document, or after signing one, to see that each signature is still valid.",
-    fileEffect: "Nothing. Checking a signature only reads the file.",
+    label: "Verify Signatures",
+    tooltip: "Check who signed, whether each signature still checks out, and what changed since",
+    whenToUse:
+      "When you receive a signed document, or after signing one: each signature’s verdict, where its time comes from, what a certification allows, and every change saved after it.",
+    fileEffect: "Nothing. Checking only reads the file. Add Validation Data stores the signers’ certificates in it and saves.",
     meaning:
-      "Valid means the document hasn’t changed since it was signed. Letters doesn’t check trust lists, so it can’t confirm who the signer really is.",
+      "Valid means the signed part hasn’t changed. Changes saved after a signature are listed with whether the author allowed them. Letters doesn’t check trust lists, so it can’t confirm who the signer really is.",
+  },
+  // forms round two: the audit trail (inspector/fillsign/AuditTrailTool.svelte)
+  auditTrail: {
+    label: "Audit Trail",
+    tooltip: "See the record Letters keeps in the PDF of who prepared, signed and saved it",
+    whenToUse:
+      "When a document passes through several hands, such as a form a student fills and a supervisor signs, and you want a record inside the file that shows if anyone rewrote it.",
+    fileEffect:
+      "Reading it changes nothing. Starting it, or adding the readable audit pages, adds them at the end of the saved file and saves. Add the pages before certifying: a certification doesn’t allow new pages.",
+    meaning:
+      "An audit trail is a list of what happened to the document, each entry linked to the one before so a changed or removed entry shows. It records only what happens in Letters on this computer.",
   },
 } satisfies Record<string, ToolHelp>;

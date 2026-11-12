@@ -132,6 +132,8 @@ export const INSPECTOR_TABS: InspectorTab[] = [
       "signWithCertificate",
       "selfSignedCertificate",
       "signatures",
+      // forms round two: the audit trail (inspector/fillsign/AuditTrailTool.svelte)
+      "auditTrail",
     ],
     load: () => import("./inspector/FillSignTab.svelte"),
   },

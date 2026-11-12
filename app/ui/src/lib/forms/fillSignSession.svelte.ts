@@ -43,6 +43,7 @@ import {
   type SignSettings,
 } from "./formsApi";
 import { fillField, type ChangedField } from "./formLogicApi";
+import type { SigningChoices } from "./signingApi";
 import { recalculatedSentence } from "./formRules";
 import { NEW_FIELD_SIZE, newFieldSpec, parseChoices, suggestedName, type AddableKind } from "./newFields";
 import { acceptAll, moveProposal, newFieldsFrom, proposalsFrom, setKind, setStatus, type Proposal, type ProposalStatus } from "./proposals";
@@ -658,12 +659,12 @@ export class FillSignSession {
   }
 
   /** signs the saved document. the guard isn't asked: signing never rewrites the file. */
-  async sign(settings: SignSettings): Promise<boolean> {
+  async sign(settings: SignSettings, choices: SigningChoices | null = null): Promise<boolean> {
     const id = this.#host.documentId();
     this.#bypassGuard = true;
     let worked: boolean;
     try {
-      worked = await this.#host.change(() => signDocument(id, settings));
+      worked = await this.#host.change(() => signDocument(id, settings, choices));
     } finally {
       this.#bypassGuard = false;
     }

@@ -36,6 +36,8 @@ export interface AppSettings {
   scanning: { ocrLanguage: string };
   ai: { enabled: boolean; provider: ProviderConfig | null };
   aiServer: { executable: string; modelFile: string };
+  /** forms round two: the time stamp server a signature may ask; empty for none */
+  signing: { timestampServer: string };
   /** anything a newer Letters wrote; kept and written back */
   [other: string]: unknown;
 }
@@ -48,6 +50,7 @@ export function defaultSettings(): AppSettings {
     scanning: { ocrLanguage: "eng" },
     ai: { enabled: false, provider: null },
     aiServer: { executable: "", modelFile: "" },
+    signing: { timestampServer: "" },
   };
 }
 
@@ -91,6 +94,8 @@ export function fromStored(raw: unknown): AppSettings {
       executable: typeof server.executable === "string" ? server.executable : "",
       modelFile: typeof server.modelFile === "string" ? server.modelFile : "",
     },
+    // forms round two: no server unless one was typed
+    signing: { timestampServer: typeof section(stored.signing).timestampServer === "string" ? (section(stored.signing).timestampServer as string) : "" },
   };
 }
 
@@ -159,6 +164,11 @@ export function privacyItems(): PrivacyItem[] {
     {
       what: "AI Tools",
       when: "Off until you turn them on. With a model on this computer nothing leaves. With an online service, Letters shows what it would send and where before each request, and sends only after you choose Send.",
+    },
+    // forms round two: the only network use of signing
+    {
+      what: "Trusted time stamps",
+      when: "Only when you set a time stamp server under Signing and tick Add a Trusted Time while signing: Letters sends that server a fingerprint (a SHA-256 hash) of the signature. The document itself never leaves this computer.",
     },
     {
       what: "Everything else",

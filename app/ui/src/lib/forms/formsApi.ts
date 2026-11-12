@@ -10,6 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as showOpenDialog, save as showSaveDialog } from "@tauri-apps/plugin-dialog";
 import type { DocumentState } from "../api";
 import type { Rect } from "../pageTools/pagePoints";
+import type { SigningChoices } from "./signingApi";
 
 export type FieldKind = "text" | "multilineText" | "checkbox" | "radioGroup" | "dropdown" | "list" | "date" | "signature" | "button";
 export type Alignment = "left" | "center" | "right";
@@ -249,8 +250,9 @@ export function createCertificate(request: CertificateRequest, path: string): Pr
   return invoke("forms_create_certificate", { request, path });
 }
 
-export function signDocument(id: number, settings: SignSettings): Promise<DocumentState> {
-  return invoke("forms_sign", { id, settings });
+/** `choices` are the signing extras (signingApi.ts); leave out for a plain signature */
+export function signDocument(id: number, settings: SignSettings, choices: SigningChoices | null = null): Promise<DocumentState> {
+  return invoke("forms_sign", { id, settings, choices });
 }
 
 /** the file picker for a certificate file. */

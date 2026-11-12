@@ -30,6 +30,7 @@ use crate::{sheets_commands, sheets_help_commands};
 use crate::form_logic_commands;
 use crate::form_building_commands;
 use crate::form_data_commands;
+use crate::signing_commands;
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -118,6 +119,15 @@ fn forms_round_two() -> Feature {
         form_data_commands::forms_export_data,
         form_data_commands::forms_import_data,
         form_data_commands::forms_merge_data,
+        signing_commands::forms_signing_notes,
+        signing_commands::forms_signing_workflow,
+        signing_commands::forms_set_signing_order,
+        signing_commands::forms_add_document_timestamp,
+        signing_commands::forms_add_validation_data,
+        signing_commands::forms_verify_document,
+        signing_commands::forms_audit_trail,
+        signing_commands::forms_append_audit_entry,
+        signing_commands::forms_add_audit_pages,
     ]
 }
 

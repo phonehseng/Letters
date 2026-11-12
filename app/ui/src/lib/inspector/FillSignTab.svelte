@@ -13,6 +13,7 @@
   import type { InspectorTabProps } from "../inspector";
   import type { ToolName } from "../tools";
   import AddFieldTool from "./fillsign/AddFieldTool.svelte";
+  import AuditTrailTool from "./fillsign/AuditTrailTool.svelte";
   import EditFieldsTool from "./fillsign/EditFieldsTool.svelte";
   import FillFormTool from "./fillsign/FillFormTool.svelte";
   import FindFieldsTool from "./fillsign/FindFieldsTool.svelte";
@@ -39,6 +40,7 @@
     { tool: "signWithPicture", component: SignPictureTool },
     { tool: "signWithCertificate", component: SignCertificateTool },
     { tool: "signatures", component: SignaturesTool },
+    { tool: "auditTrail", component: AuditTrailTool },
   ];
 
   // a document with fields opens on Fill Form, the reason most people come here

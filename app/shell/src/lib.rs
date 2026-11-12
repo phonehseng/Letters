@@ -70,6 +70,8 @@ mod sheets_help_commands;
 mod form_building_commands;
 mod form_data_commands;
 mod form_logic_commands;
+// forms round two: signing options, Verify and the audit trail
+mod signing_commands;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
