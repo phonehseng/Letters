@@ -1,0 +1,1 @@
+Letters now updates itself: it checks for a new version once a day and asks before restarting. Spreadsheets keep frozen rows in view, follow a form's own tab order and paste web tables correctly. The Edit tab keeps two-column pages apart. F6 moves between the toolbar and the page.
