@@ -109,7 +109,9 @@ pub enum FormError {
     #[error("This document is certified so that no further changes are allowed, so it can’t be signed again.")]
     CertifiedNoChanges,
 
-    #[error("Only the first signature can certify a document, and this one already has a signature.")]
+    #[error(
+        "Only the first signature can certify a document, and this one already has a signature."
+    )]
     CertifyFirst,
 
     #[error("“{field}” is to be signed after “{before}”.")]

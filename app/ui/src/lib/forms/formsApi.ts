@@ -157,6 +157,14 @@ export interface FormsOverview {
   /** the saved file is signed: changes are saved after its signatures */
   protected: boolean;
   trustNote: string;
+  /** each page's tab order as the file says it: "R" rows, "C" columns, else `fields` in order */
+  tabOrders?: PageTabOrder[];
+}
+
+export interface PageTabOrder {
+  page: number;
+  kind: string | null;
+  fields: string[];
 }
 
 export type PictureKind = "drawn" | "typed" | "image";

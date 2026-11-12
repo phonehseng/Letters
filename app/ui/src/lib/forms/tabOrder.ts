@@ -9,7 +9,7 @@
 // whose buttons the arrow keys move between, as in any app.
 
 import type { Rect } from "../pageTools/pagePoints";
-import type { FieldInfo } from "./formsApi";
+import type { FieldInfo, PageTabOrder } from "./formsApi";
 
 /** one place Tab stops: a field, at one of its widgets. */
 export interface FieldStop {
@@ -38,8 +38,31 @@ export function readingOrder(a: { page: number; rect: Rect }, b: { page: number;
   return a.rect.y - b.rect.y;
 }
 
-/** every Tab stop of a form, in order. */
-export function tabStops(fields: FieldInfo[]): FieldStop[] {
+/** reading order down the columns first, for a page whose /Tabs is "C". */
+function columnOrder(a: { rect: Rect }, b: { rect: Rect }): number {
+  const overlap = Math.min(a.rect.x + a.rect.width, b.rect.x + b.rect.width) - Math.max(a.rect.x, b.rect.x);
+  if (overlap >= Math.min(a.rect.width, b.rect.width) / 2) return a.rect.y - b.rect.y;
+  return a.rect.x - b.rect.x;
+}
+
+/**
+ * the order on one page as the file says it (iso 32000 12.5.1): rows for
+ * "R", columns for "C", otherwise the page's own list, which Prepare Form ›
+ * Order writes. Tab followed rows whatever the file said, so a tab order
+ * set there worked in other apps but not in Letters.
+ */
+function pageOrder(order: PageTabOrder | undefined): (a: FieldStop, b: FieldStop) => number {
+  if (!order || order.kind === "R") return readingOrder;
+  if (order.kind === "C") return columnOrder;
+  const rank = (stop: FieldStop) => {
+    const index = order.fields.indexOf(stop.field);
+    return index < 0 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  return (a, b) => rank(a) - rank(b) || readingOrder(a, b);
+}
+
+/** every Tab stop of a form, in order: page by page, each page in its own order. */
+export function tabStops(fields: FieldInfo[], orders: PageTabOrder[] = []): FieldStop[] {
   const stops: FieldStop[] = [];
   for (const field of fields) {
     if (!isFillable(field)) continue;
@@ -49,7 +72,7 @@ export function tabStops(fields: FieldInfo[]): FieldStop[] {
       .sort(readingOrder);
     if (places.length > 0) stops.push(places[0]);
   }
-  return stops.sort(readingOrder);
+  return stops.sort((a, b) => a.page - b.page || pageOrder(orders.find((order) => order.page === a.page))(a, b));
 }
 
 /** the stop after (or before) the field named `current`, going round at the ends. */

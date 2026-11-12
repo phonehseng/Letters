@@ -83,6 +83,14 @@ describe("tab order", () => {
     expect(tabStops(fields).map((stop) => stop.field)).toEqual(["first", "last", "course", "city"]);
   });
 
+  it("follows the order the file sets for a page, as Prepare Form › Order writes it", () => {
+    // no /Tabs: the page's own list (here "course" first on page 1, then "first", "last")
+    const manual = [{ page: 0, kind: null, fields: ["course", "first", "last"] }];
+    expect(tabStops(fields, manual).map((stop) => stop.field)).toEqual(["course", "first", "last", "city"]);
+    // /Tabs /R: rows, whatever the list says
+    expect(tabStops(fields, [{ page: 0, kind: "R", fields: ["course", "first", "last"] }]).map((stop) => stop.field)).toEqual(["first", "last", "course", "city"]);
+  });
+
   it("goes round at the ends, and backwards with shift", () => {
     const stops = tabStops(fields);
     expect(stepStop(stops, "course")?.field).toBe("city");
