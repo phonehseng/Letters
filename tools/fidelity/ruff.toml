@@ -1,0 +1,14 @@
+line-length = 120
+target-version = "py312"
+extend-exclude = [".venv", "out", "fonts"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[lint.per-file-ignores]
+# these modules are mostly ooxml and pdf operator literals kept on one line each
+# (marked fmt: skip), splitting them would hide the markup rather than clarify it
+"corpus_builder/*" = ["E501"]
+"prototype/*" = ["E501"]
+"corpus_run.py" = ["E501"]
+"run_prototype.py" = ["E501"]
