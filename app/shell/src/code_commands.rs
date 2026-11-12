@@ -20,6 +20,8 @@ use letters_shell_core::code::sources::{office_document, SourceKind};
 use letters_shell_core::code::text_file::{read_text_file, save_text_file, OpenedText, TextFormat};
 use letters_shell_core::code::tools::{find_tools, this_computers_folders, FoundTool, ToolKind};
 use letters_shell_core::code::untitled::{is_untitled, write_untitled};
+use letters_shell_core::disk_stamp::{changed_on_disk_message, DiskStamp};
+use letters_shell_core::session::file_name;
 use letters_shell_core::writer::thumbnail::save_generic_thumbnail;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, Window};
@@ -126,12 +128,18 @@ pub fn code_save(
     path: String,
     text: String,
     format: TextFormat,
-) -> Result<(), CommandError> {
+    expected: Option<DiskStamp>,
+) -> Result<Option<DiskStamp>, CommandError> {
     let path = PathBuf::from(path);
+    // `expected` is the file as this window last read or wrote it: a change
+    // made since by another window or program isn't written over
+    if expected.is_some_and(|stamp| stamp.changed_since(&path)) {
+        return Err(failed(changed_on_disk_message(&file_name(&path))));
+    }
     save_text_file(&path, &text, &format).map_err(failed)?;
     recovery_store(&app).discard(&path);
     remember(&state, &path);
-    Ok(())
+    Ok(DiskStamp::of(&path))
 }
 
 #[tauri::command(async)]

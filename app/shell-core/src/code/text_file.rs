@@ -4,6 +4,7 @@
 //! what the file on disk had (a byte order mark, crlf or lf, utf-16) so that
 //! saving writes the same kind of file back, and only the edits change.
 
+use crate::disk_stamp::DiskStamp;
 use std::fs;
 use std::path::Path;
 
@@ -100,6 +101,9 @@ pub struct OpenedText {
     pub read_only: bool,
     /// true up to FULL_FEATURES_LIMIT_BYTES
     pub full_features: bool,
+    /// the file as it was read, handed back with each save so a change made
+    /// by another window or program since isn't written over (disk_stamp.rs)
+    pub disk_stamp: Option<DiskStamp>,
 }
 
 /// true when the start of the file holds a zero byte and no utf-16 mark:
@@ -260,6 +264,7 @@ pub fn read_text_file(path: &Path) -> Result<OpenedText, String> {
         bytes: size,
         read_only: size > EDITABLE_LIMIT_BYTES || cannot_write,
         full_features: size <= FULL_FEATURES_LIMIT_BYTES,
+        disk_stamp: DiskStamp::of(path),
     })
 }
 

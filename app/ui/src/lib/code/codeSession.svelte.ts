@@ -5,7 +5,7 @@
 
 import type { Text } from "@codemirror/state";
 import { asCommandError } from "../api";
-import { autosaveCode, chooseCodeSaveLocation, discardCodeRecovery, saveCodeFile, type CodeDocument } from "./codeApi";
+import { autosaveCode, chooseCodeSaveLocation, discardCodeRecovery, saveCodeFile, type CodeDocument, type DiskStamp } from "./codeApi";
 import { languageForPath, languageInfo, type LanguageId } from "./languages";
 import { FULL_FEATURES_LIMIT_BYTES, type TextFormat } from "./textFormat";
 
@@ -31,6 +31,8 @@ export class CodeSession {
   private savedDoc: Text | null = null;
   private currentDoc: Text | null = null;
   private autosavedDoc: Text | null = null;
+  /** the file as this window last read or wrote it (see saveCodeFile) */
+  private diskStamp: DiskStamp | null;
 
   constructor(
     document: CodeDocument,
@@ -41,6 +43,7 @@ export class CodeSession {
     this.format = document.format;
     this.readOnly = document.readOnly;
     this.fullFeatures = document.fullFeatures && document.bytes <= FULL_FEATURES_LIMIT_BYTES;
+    this.diskStamp = document.diskStamp;
   }
 
   /** the language a file's name says, or the guess an untitled block came with. */
@@ -102,7 +105,9 @@ export class CodeSession {
     const doc = this.currentDoc;
     if (!doc) return false;
     try {
-      await saveCodeFile(path, doc.toString(), this.format);
+      // only a save over the file this window opened checks for changes made elsewhere
+      const expected = path === this.path ? this.diskStamp : null;
+      this.diskStamp = await saveCodeFile(path, doc.toString(), this.format, expected);
       this.savedDoc = doc;
       this.dirty = this.currentDoc !== null && this.currentDoc !== doc && !this.currentDoc.eq(doc);
       return true;
