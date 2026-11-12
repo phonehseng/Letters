@@ -31,7 +31,7 @@ export type ProviderConfig = LocalServerConfig | RemoteApiConfig;
 
 export interface AppSettings {
   version: number;
-  general: { defaultZoom: string; openInNewWindows: boolean };
+  general: { defaultZoom: string; openInNewWindows: boolean; checkForUpdates: boolean };
   files: { document: "docx" | "odt"; wordExportStyle: "exactMatch" | "easyToEdit"; picture: "png" | "jpeg" | "tiff" };
   scanning: { ocrLanguage: string };
   ai: { enabled: boolean; provider: ProviderConfig | null };
@@ -45,7 +45,7 @@ export interface AppSettings {
 export function defaultSettings(): AppSettings {
   return {
     version: CURRENT_VERSION,
-    general: { defaultZoom: "fitWidth", openInNewWindows: false },
+    general: { defaultZoom: "fitWidth", openInNewWindows: false, checkForUpdates: true },
     files: { document: "docx", wordExportStyle: "exactMatch", picture: "png" },
     scanning: { ocrLanguage: "auto" },
     ai: { enabled: false, provider: null },
@@ -81,6 +81,8 @@ export function fromStored(raw: unknown): AppSettings {
     general: {
       defaultZoom: typeof general.defaultZoom === "string" ? general.defaultZoom : base.general.defaultZoom,
       openInNewWindows: general.openInNewWindows === true,
+      // on unless turned off: a settings file from before updates has none
+      checkForUpdates: general.checkForUpdates !== false,
     },
     files: {
       document: pick(files.document, ["docx", "odt"], "docx"),
@@ -169,6 +171,10 @@ export function privacyItems(): PrivacyItem[] {
     {
       what: "Trusted time stamps",
       when: "Only when you set a time stamp server under Signing and tick Add a Trusted Time while signing: Letters sends that server a fingerprint (a SHA-256 hash) of the signature. The document itself never leaves this computer.",
+    },
+    {
+      what: "Updates",
+      when: "When Letters starts, at most once a day (turn it off in General), and when you choose Check for Updates…: Letters asks GitHub, where its releases are published, whether there is a newer version. Only the request for that file is sent, as for any download; nothing about you or your documents.",
     },
     {
       what: "Everything else",

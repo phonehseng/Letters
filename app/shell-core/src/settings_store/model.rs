@@ -50,6 +50,9 @@ pub struct General {
     pub default_zoom: String,
     /// a document opened from Recents goes to a window of its own
     pub open_in_new_windows: bool,
+    /// ask github once a day, when letters starts, whether there is a newer
+    /// version (listed in settings › privacy); check for updates… asks anyway
+    pub check_for_updates: bool,
 }
 
 impl Default for General {
@@ -57,6 +60,7 @@ impl Default for General {
         General {
             default_zoom: "fitWidth".into(),
             open_in_new_windows: false,
+            check_for_updates: true,
         }
     }
 }

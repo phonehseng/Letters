@@ -19,6 +19,8 @@ pub mod settings;
 pub mod startup;
 // which file each window shows, so a file opens once (see window_files.rs)
 pub mod window_files;
+// in-app updates: when a quiet check is due, and short release notes (see updates.rs)
+pub mod updates;
 // word-processor mode (.docx and .odt), see writer/mod.rs
 pub mod writer;
 // save to google drive (desktop folder or direct upload), see drive/mod.rs
