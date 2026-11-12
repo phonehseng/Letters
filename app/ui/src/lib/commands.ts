@@ -8,6 +8,7 @@
 import { WRITER_COMMANDS } from "./writer/writerCommands";
 import { FILL_SIGN_COMMANDS, FILL_SIGN_KEYS } from "./forms/fillSignCommands";
 import { PROTECT_COMMANDS, PROTECT_KEYS } from "./protect/protectCommands";
+import { FONT_COMMANDS, fontKey, registerFontCommands } from "./fonts/fontCommands";
 
 export const COMMANDS = [
   "open",
@@ -53,6 +54,8 @@ export const COMMANDS = [
   ...FILL_SIGN_COMMANDS,
   // redaction, hidden information and passwords (protect/protectCommands.ts)
   ...PROTECT_COMMANDS,
+  // the font library (fonts/fontCommands.ts)
+  ...FONT_COMMANDS,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];
@@ -142,6 +145,8 @@ export function commandForKey(press: KeyPress): Command | null {
   if (key === "o") return "open";
   if (key === "n") return "new-window";
   if (key === "f") return "find";
+  // the font library (fonts/fontCommands.ts)
+  if (key === "t") return fontKey(press);
   // print, for pdfs and writer documents alike (writer/print.ts)
   if (key === "p") return "print";
   if (key === "=" || key === "+" || press.code === "NumpadAdd") return "zoom-in";
@@ -235,3 +240,6 @@ export function createDispatcher(now: () => number = () => performance.now()): D
 
 /** the one dispatcher of this window. each window runs its own copy of the ui. */
 export const appCommands = createDispatcher();
+
+// the font library opens over any screen, so it is registered once here
+registerFontCommands(appCommands);

@@ -12,6 +12,7 @@
 import { writerTools } from "./writer/writerTools";
 import { fillSignTools } from "./forms/fillSignTools";
 import { protectTools } from "./protect/protectTools";
+import { fontTools } from "./fonts/fontTools";
 
 export interface ToolHelp {
   label: string;
@@ -417,6 +418,8 @@ export const tools = {
   ...fillSignTools,
   // redaction, hidden information and passwords: listed in protect/protectTools.ts
   ...protectTools,
+  // the font library and the font picker: listed in fonts/fontTools.ts
+  ...fontTools,
 } satisfies Record<string, ToolHelp>;
 
 export type ToolName = keyof typeof tools;

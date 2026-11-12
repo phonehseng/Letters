@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 use letters_fonts::coverage::WRITING;
 use letters_fonts::{
-    AddReport, Catalogue, Downloader, FamilyDetails, FamilySummary, FontError, FontLibrary, LibraryStatus,
-    MissingFont, Personal, Preview, Resolution, SearchQuery, SearchResults, Similar,
+    AddReport, Catalogue, Downloader, FamilyDetails, FamilySummary, FontError, FontLibrary,
+    LibraryStatus, MissingFont, Personal, Preview, Resolution, SearchQuery, SearchResults, Similar,
 };
 use letters_shell_core::fonts::library_paths;
 use serde::Serialize;
@@ -35,11 +35,9 @@ impl FontsState {
         let paths = library_paths(&data_dir, &cache_dir, &bundled_candidates(app));
         let library = FontLibrary::new(paths, Catalogue::shipped(), Downloader::library());
         library.start_scan();
+        // the scan thread needs no stopping: it only reads, and the cache
+        // is written through a temporary file, so quitting mid-scan is safe
         Self { library }
-    }
-
-    pub fn close(&self) {
-        self.library.close();
     }
 }
 
@@ -106,7 +104,10 @@ pub fn fonts_search(fonts: State<FontsState>, query: SearchQuery) -> SearchAnswe
 }
 
 #[tauri::command(async)]
-pub fn fonts_details(fonts: State<FontsState>, name: String) -> Result<FamilyDetails, CommandError> {
+pub fn fonts_details(
+    fonts: State<FontsState>,
+    name: String,
+) -> Result<FamilyDetails, CommandError> {
     Ok(fonts.library.details(&name)?)
 }
 
@@ -203,7 +204,12 @@ pub fn fonts_missing(fonts: State<FontsState>, names: Vec<String>) -> Vec<Missin
 }
 
 #[tauri::command(async)]
-pub fn fonts_resolve(fonts: State<FontsState>, name: String, weight: u16, italic: bool) -> Resolution {
+pub fn fonts_resolve(
+    fonts: State<FontsState>,
+    name: String,
+    weight: u16,
+    italic: bool,
+) -> Resolution {
     fonts.library.resolve(&name, weight, italic)
 }
 

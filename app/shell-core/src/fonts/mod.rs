@@ -11,7 +11,11 @@ use letters_fonts::LibraryPaths;
 /// the library's folders inside the app's data and cache folders.
 /// `bundled_candidates` are the places the shipped fonts may be, best
 /// first; the first that holds fonts is used.
-pub fn library_paths(data_dir: &Path, cache_dir: &Path, bundled_candidates: &[PathBuf]) -> LibraryPaths {
+pub fn library_paths(
+    data_dir: &Path,
+    cache_dir: &Path,
+    bundled_candidates: &[PathBuf],
+) -> LibraryPaths {
     LibraryPaths {
         data: data_dir.join("fonts"),
         cache: cache_dir.join("fonts"),
@@ -30,9 +34,9 @@ pub fn bundled_fonts_folder(candidates: &[PathBuf]) -> Option<PathBuf> {
                 entries.flatten().any(|entry| {
                     entry.path().is_dir()
                         && std::fs::read_dir(entry.path()).is_ok_and(|files| {
-                            files
-                                .flatten()
-                                .any(|file| letters_fonts::container::has_font_extension(&file.path()))
+                            files.flatten().any(|file| {
+                                letters_fonts::container::has_font_extension(&file.path())
+                            })
                         })
                 })
             })
@@ -58,7 +62,10 @@ mod tests {
         assert_eq!(bundled_fonts_folder(&[empty]), None);
         let paths = library_paths(&root.join("data"), &root.join("cache"), &candidates);
         assert_eq!(paths.data, root.join("data").join("fonts"));
-        assert_eq!(paths.custom(), root.join("data").join("fonts").join("added"));
+        assert_eq!(
+            paths.custom(),
+            root.join("data").join("fonts").join("added")
+        );
         std::fs::remove_dir_all(&root).ok();
     }
 }
