@@ -21,3 +21,10 @@ every edit.
 `balance_lines` took words until a line reached its share, which put
 three of four words on the first line; it now stops when the next word
 would take the line further past its share than it is short of it.
+
+## 2026-11-12 the font library lends its fonts to edits
+
+`DonorCache` makes letters-edit's `FontDonors` from the font library's
+index and keeps them until the index changes (a scan finishing, a font
+added). Each donor keeps its font bytes once read, so making the pool per
+edit would read the same font files again on every keystroke's commit.

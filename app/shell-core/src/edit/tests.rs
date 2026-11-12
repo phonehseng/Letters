@@ -243,3 +243,20 @@ fn a_stale_id_refuses_without_an_undo_step() {
     assert_eq!(session.revision(), revision, "nothing changed");
     assert!(session.can_undo());
 }
+
+#[test]
+fn the_donor_pool_is_kept_until_the_font_library_changes() {
+    let cache = super::donors::DonorCache::new(None);
+    let first = std::sync::Arc::new(letters_fonts::FontIndex::default());
+    assert!(
+        !cache.is_current(&first),
+        "nothing is made before it is asked for"
+    );
+    cache.donors_for(first.clone());
+    assert!(cache.is_current(&first));
+    // a scan that finished, or a font added, makes a new index
+    let rescanned = std::sync::Arc::new(letters_fonts::FontIndex::default());
+    cache.donors_for(rescanned.clone());
+    assert!(cache.is_current(&rescanned));
+    assert!(!cache.is_current(&first));
+}
