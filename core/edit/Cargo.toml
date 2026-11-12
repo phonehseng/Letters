@@ -6,4 +6,13 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+lopdf = "0.47"
+png = "0.18"
+serde = { version = "1", features = ["derive"] }
 thiserror = "2"
+ttf-parser = "0.25"
+
+[dev-dependencies]
+letters-pdf = { path = "../pdf" }
+png = "0.18"
+serde_json = "1"
