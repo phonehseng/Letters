@@ -31,7 +31,8 @@ export function groupFields(id: number, group: string, names: string[]): Promise
   return invoke("forms_group_fields", { id, group, names });
 }
 
-export function duplicateAcrossPages(id: number, name: string, pages: number[]): Promise<DocumentState> {
+/** `added`: the pages that got the field (pages already showing it are skipped). */
+export function duplicateAcrossPages(id: number, name: string, pages: number[]): Promise<{ document: DocumentState; added: number[] }> {
   return invoke("forms_duplicate_across_pages", { id, name, pages });
 }
 

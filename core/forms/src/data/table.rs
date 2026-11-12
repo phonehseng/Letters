@@ -169,21 +169,47 @@ fn parse_csv(text: &str) -> Vec<Vec<String>> {
     rows
 }
 
-/// a csv with a header row and one row of answers (the first, if more).
-pub(super) fn read_csv_single(text: &str) -> FormResult<Vec<(String, Answer)>> {
+/// the answers of a csv, and a sentence about its rows when it has several.
+pub(super) type CsvAnswers = (Vec<(String, Answer)>, Option<String>);
+
+/// a csv with a header row and one row of answers (the first, if more),
+/// and, when there are more, a sentence saying which row was used: a merged
+/// table of several filled copies used to fill the form from its first row
+/// without a word.
+pub(super) fn read_csv_single(text: &str) -> FormResult<CsvAnswers> {
     let rows = parse_csv(text);
-    let [header, values, ..] = rows.as_slice() else {
+    let [header, values, more @ ..] = rows.as_slice() else {
         return Err(FormError::BadFormData(
             "a CSV file needs a row of field names and a row of answers".into(),
         ));
     };
+    // rows of nothing (a blank last line) aren't answers
+    let others = more
+        .iter()
+        .filter(|row| row.iter().any(|cell| !cell.trim().is_empty()))
+        .count();
+    let note = (others > 0).then(|| {
+        // a merged table names each row's file in its "File" column
+        let file = header
+            .iter()
+            .position(|name| name == MERGED_FILE_COLUMN)
+            .and_then(|column| values.get(column))
+            .filter(|name| !name.is_empty())
+            .map(|name| format!(" ({name})"))
+            .unwrap_or_default();
+        format!(
+            "This file holds {} rows of answers; the first{file} was used. To fill the form from another, save a copy of the file with only that row under the names.",
+            others + 1
+        )
+    });
     // a "File" column from a merged table isn't a field
-    Ok(header
+    let pairs = header
         .iter()
         .zip(values.iter().chain(std::iter::repeat(&String::new())))
         .filter(|(name, _)| !name.is_empty() && name.as_str() != MERGED_FILE_COLUMN)
         .map(|(name, value)| (name.clone(), Answer::One(value.clone())))
-        .collect())
+        .collect();
+    Ok((pairs, note))
 }
 
 pub(super) fn read_json(data: &[u8]) -> FormResult<Vec<(String, Answer)>> {
@@ -297,6 +323,31 @@ pub fn merge_form_data(copies: &[FilledCopy]) -> MergedData {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_csv_with_several_answer_rows_says_which_was_used() {
+        let merged = "File,name,course
+ann.pdf,Ann,Art
+bob.pdf,Bob,Maths
+
+";
+        let (pairs, note) = read_csv_single(merged).unwrap();
+        assert_eq!(pairs.len(), 2, "the File column isn't a field");
+        let note = note.expect("two rows are worth a sentence");
+        assert!(
+            note.contains("2 rows of answers; the first (ann.pdf) was used"),
+            "{note}"
+        );
+        // one row: nothing to say
+        assert!(read_csv_single(
+            "name
+Ann
+"
+        )
+        .unwrap()
+        .1
+        .is_none());
+    }
 
     #[test]
     fn excel_csv_with_semicolons_is_read() {

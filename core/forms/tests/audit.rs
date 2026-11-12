@@ -205,7 +205,7 @@ fn entries_after_the_last_seal_are_marked_unsealed() {
     assert_eq!(report.verdict, AuditVerdict::Intact);
     assert!(!report.entries[3].sealed && report.entries[2].sealed);
     assert!(
-        report.summary.contains("The last 1 aren’t sealed yet"),
+        report.summary.contains("The last one isn’t sealed yet"),
         "{}",
         report.summary
     );

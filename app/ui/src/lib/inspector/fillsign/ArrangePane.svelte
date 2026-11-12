@@ -53,8 +53,14 @@
     const id = context.document.id;
     const name = fieldName;
     const pages = parsed.pages;
-    const worked = await context.change(() => duplicateAcrossPages(id, name, pages));
-    if (worked) context.notify(`“${name}” is now on ${pages.length} more ${pages.length === 1 ? "page" : "pages"}.`);
+    let added = 0;
+    const worked = await context.change(async () => {
+      const answer = await duplicateAcrossPages(id, name, pages);
+      added = answer.added.length;
+      return answer.document;
+    });
+    // the pages it really went on: one it was already on isn't counted
+    if (worked) context.notify(added === 0 ? `“${name}” was already on those pages.` : `“${name}” is now on ${added} more ${added === 1 ? "page" : "pages"}.`);
   }
 </script>
 

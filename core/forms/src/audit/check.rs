@@ -214,13 +214,22 @@ fn summary(verdict: AuditVerdict, entries: &[CheckedEntry], problems: &[String])
         AuditVerdict::Intact => {
             let sealed = entries.iter().filter(|entry| entry.sealed).count();
             let open = entries.len() - sealed;
+            let count = match entries.len() {
+                1 => "1 entry".to_owned(),
+                many => format!("{many} entries"),
+            };
             let mut text = format!(
-                "The audit trail is intact: {} entries, each linked to the one before; {sealed} sealed by a signature or time stamp.",
-                entries.len()
+                "The audit trail is intact: {count}, each linked to the one before; {sealed} sealed by a signature or time stamp."
             );
-            if open > 0 {
+            // "the last one isn't", not "the last 1 aren't"
+            let unsealed = match open {
+                0 => None,
+                1 => Some("The last one isn’t sealed yet, so it".to_owned()),
+                many => Some(format!("The last {many} aren’t sealed yet, so they")),
+            };
+            if let Some(unsealed) = unsealed {
                 text.push_str(&format!(
-                    " The last {open} aren’t sealed yet, so they could still be changed without it showing until the next signature or time stamp."
+                    " {unsealed} could still be changed without it showing until the next signature or time stamp."
                 ));
             }
             text

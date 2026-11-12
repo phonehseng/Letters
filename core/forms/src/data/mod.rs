@@ -127,6 +127,10 @@ pub struct ImportReport {
     pub skipped: Vec<SkippedField>,
     /// the calculations worked out after filling
     pub calculation: FillReport,
+    /// something about the file itself worth saying, such as which of a
+    /// csv's several rows of answers was used
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 /// fills the form from data. each answer goes through the field's own
@@ -138,11 +142,16 @@ pub fn import_data(
     format: DataFormat,
 ) -> FormResult<ImportReport> {
     check_document(doc)?;
+    let mut note = None;
     let pairs = match format {
         DataFormat::Fdf => read_fdf(data)?,
         DataFormat::Xfdf => read_xfdf(&String::from_utf8_lossy(data))?,
         // excel writes csv in the computer's code page, often with ';' (table.rs)
-        DataFormat::Csv => read_csv_single(&decode_csv(data))?,
+        DataFormat::Csv => {
+            let (pairs, rows_note) = read_csv_single(&decode_csv(data))?;
+            note = rows_note;
+            pairs
+        }
         DataFormat::Json => read_json(data)?,
     };
     let logic = form_logic(doc)?;
@@ -155,6 +164,7 @@ pub fn import_data(
             issues: Vec::new(),
             custom_script_note: None,
         },
+        note,
     };
     for (name, answer) in pairs {
         let skip = |reason: &str| SkippedField {
