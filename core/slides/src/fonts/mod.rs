@@ -1,5 +1,5 @@
 //! fonts: finding them, loading them, and reporting substitutions. copied
-//! from letters-layout's font module (see WORKLOG) so slides and documents
+//! from letters-layout's font module (see docs/worklogs/core-slides.md) so slides and documents
 //! substitute fonts by the same rules.
 //!
 //! the renderer asks a `FontSource` for faces by family and style; the

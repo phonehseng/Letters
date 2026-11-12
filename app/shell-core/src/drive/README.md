@@ -2,7 +2,7 @@
 
 Saving a writer document to Google Drive: the Drive folder on this computer,
 or direct upload with Google's sign-in. Why each piece changed is in
-WORKLOG.md.
+docs/worklogs/shell-core-drive.md.
 
 | File | What it is for |
 |---|---|

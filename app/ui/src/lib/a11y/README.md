@@ -17,4 +17,3 @@ app/shell/src/a11y_commands.rs.
 | `contrast.ts`, `tokenAudit.ts` | WCAG contrast maths, and the audit of app.css's tokens |
 | `a11yCommands.ts`, `a11yTools.ts` | command names and the words of each control |
 | `a11y.test.ts` | tests of the pure modules |
-| `WORKLOG.md` | what changed and why |

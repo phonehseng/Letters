@@ -4,7 +4,7 @@ it reports four things, described in docs/CONTRIBUTING.md:
   - source files with no opening comment saying what they are for
   - source files longer than a person can comfortably hold in their head
   - functions that no longer fit on a screen
-  - crates and feature folders with no WORKLOG.md
+  - crates and feature folders with no worklog in docs/worklogs
 
 it never fails a build: the list is for a person to read and judge.
 run from the repository root:  python tools/check-readability.py
@@ -69,6 +69,30 @@ def long_functions(lines):
     return found
 
 
+def worklog_name(root, folder):
+    """the name a folder's worklog has in docs/worklogs (see CONTRIBUTING.md)."""
+    parts = folder.relative_to(root).parts
+    if parts[0] == "core":
+        return f"core-{parts[1]}"
+    if parts[:4] == ("app", "ui", "src", "lib"):
+        return f"ui-{parts[4]}"
+    return parts[1]
+
+
+# folders that keep one worklog per feature inside them instead of one of
+# their own: shell-core's features (shell-core-ocr.md) and the interface's
+# (ui-writer.md)
+PER_FEATURE = ("shell-core", "ui")
+
+
+def has_worklog(root, folder):
+    worklogs = root / "docs" / "worklogs"
+    name = worklog_name(root, folder)
+    if name in PER_FEATURE:
+        return any(worklogs.glob(f"{name}-*.md"))
+    return (worklogs / f"{name}.md").is_file()
+
+
 def folders_needing_worklogs(root):
     """every crate, and every feature folder of the interface, should keep a worklog."""
     folders = [path for path in (root / "core").iterdir() if path.is_dir()]
@@ -76,7 +100,7 @@ def folders_needing_worklogs(root):
     library = root / "app" / "ui" / "src" / "lib"
     if library.is_dir():
         folders += [path for path in library.iterdir() if path.is_dir()]
-    return [folder for folder in folders if not (folder / "WORKLOG.md").is_file()]
+    return [folder for folder in folders if not has_worklog(root, folder)]
 
 
 def main():
@@ -108,7 +132,7 @@ def main():
         f"functions over {MAX_FUNCTION_LINES} lines",
         [f"{length:4}  {name}  {function}" for length, name, function in sorted(long_fns, reverse=True)],
     )
-    section("folders with no WORKLOG.md", [folder.relative_to(root).as_posix() for folder in folders_needing_worklogs(root)])
+    section("folders with no worklog in docs/worklogs", [folder.relative_to(root).as_posix() for folder in folders_needing_worklogs(root)])
     return 0
 
 

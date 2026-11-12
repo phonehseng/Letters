@@ -19,11 +19,14 @@ There are three places a reason lives. Use the one that fits.
    const MAX_SPACE_SQUEEZE: f32 = 0.25;
    ```
 
-2. **In the folder's `WORKLOG.md`.** One short dated entry per piece of work:
-   what changed and why, in plain sentences, newest last. This is the record
-   of decisions that do not belong to one line: "tables now reserve the top
-   border's width per row, because Word does and long tables drifted by a line
-   per page". Each crate and each feature folder of the interface has one.
+2. **In the folder's worklog**, `docs/worklogs/<folder>.md` (for example
+   `core-exact.md` for `core/exact`, `ui-writer.md` for `app/ui/src/lib/writer`).
+   One short dated entry per piece of work: what changed and why, in plain
+   sentences, newest last. This is the record of decisions that do not
+   belong to one line: "tables now reserve the top border's width per row,
+   because Word does and long tables drifted by a line per page". Each crate
+   and each feature folder has one; `docs/worklogs/README.md` lists them.
+   They live in `docs/` so source folders hold only what is built with them.
 
 3. **In the commit.** Commits are small and frequent. Each one names the file,
    what the file is for, which functions it touches, and the reason from the

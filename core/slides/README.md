@@ -186,7 +186,7 @@ cargo fmt -p letters-slides
 
 The ignored tests need the corpus: `tests/fidelity/powerpoint_corpus.ps1 -Out
 tests/fidelity/out/corpus` (PowerPoint), then `tests/fidelity/libreoffice_convert.ps1`
-for LibreOffice's PDF, ODP and PPTX versions (see WORKLOG for the exact calls).
+for LibreOffice's PDF, ODP and PPTX versions (see docs/worklogs/core-slides.md for the exact calls).
 The PowerPoint scripts refuse to run beside another PowerPoint, start their own
 (minimised; PowerPoint cannot run invisible), remember its process id and end
 only that one, in a `finally` block. LibreOffice runs headless with a private

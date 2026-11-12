@@ -2,7 +2,7 @@
 
 Word-processor mode: the editing surface, its objects, and the calls into
 the shell. How the pieces fit is in ARCHITECTURE.md (Word-processor mode);
-why each piece changed is in WORKLOG.md. `inspector/` holds the Format,
+why each piece changed is in docs/worklogs/ui-writer.md. `inspector/` holds the Format,
 Document and Review tabs; `fixtures/` the models the round-trip tests read.
 
 | File | What it is for |

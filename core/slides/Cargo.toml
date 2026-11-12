@@ -7,7 +7,7 @@ publish.workspace = true
 
 # every dependency is MIT or Apache-2.0 licensed (or both). the xml
 # reader, the zip helpers and the font lookup are this repository's own
-# code, copied from letters-office and letters-layout (see WORKLOG), so
+# code, copied from letters-office and letters-layout (see docs/worklogs/core-slides.md), so
 # nothing here restricts distribution.
 [dependencies]
 lopdf = "0.47"
