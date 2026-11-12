@@ -79,3 +79,10 @@ way signing can leave the computer.
 Seen in the app: form logic's refusals begin with the field's name, so
 "this field takes a number" started with a small letter beside the field.
 The sentence now starts with a capital when it began with the name.
+
+## 2026-11-12: a refusal goes when the old answer is typed back
+
+Seen in the app: after a refused answer, typing the stored answer back left
+the refusal showing, because the editor sends nothing when the text equals
+what is stored. It now sends it while a refusal is showing, and the session
+clears the refusal for an unchanged answer.
