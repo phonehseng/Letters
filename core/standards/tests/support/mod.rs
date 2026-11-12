@@ -63,9 +63,14 @@ pub fn save(doc: &mut Document) -> Vec<u8> {
 }
 
 pub fn temp_dir(name: &str) -> PathBuf {
+    // tests run on parallel threads of one process, and several render
+    // under the same name ("rasterise"), so the process id alone let one
+    // test wipe or overwrite another's file before pdfium read it
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let call = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = std::env::temp_dir()
         .join("letters-standards-tests")
-        .join(format!("{name}-{}", std::process::id()));
+        .join(format!("{name}-{}-{call}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir
