@@ -109,8 +109,11 @@ fn gcc_reports_a_missing_semicolon_without_building_or_running_anything() {
     };
     let outcome = run_check(&request, std::slice::from_ref(&gcc), &|| true).unwrap();
     assert!(outcome.output.contains("hello.c:6:"), "{}", outcome.output);
+    // gcc on linux uses curly quotes under a utf-8 locale, while the mac and
+    // windows compilers print straight ones, so accept either
     assert!(
-        outcome.output.contains("'y' undeclared"),
+        outcome.output.contains("'y' undeclared")
+            || outcome.output.contains("\u{2018}y\u{2019} undeclared"),
         "{}",
         outcome.output
     );
