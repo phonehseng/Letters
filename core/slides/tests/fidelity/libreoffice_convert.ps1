@@ -13,7 +13,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$soffice = "C:\Users\phone\AppData\Local\Programs\LibreOffice\program\soffice.com"
+# LETTERS_SOFFICE if set, else libreoffice unpacked into this user's programs
+$soffice = if ($env:LETTERS_SOFFICE) { $env:LETTERS_SOFFICE } else { Join-Path $env:LOCALAPPDATA 'Programs\LibreOffice\program\soffice.com' }
 $profile = Join-Path (Split-Path $Out -Parent) "lo_profile"
 $profileUrl = "file:///" + ($profile -replace "\\", "/")
 New-Item -ItemType Directory -Force $Out | Out-Null

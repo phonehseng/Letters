@@ -159,14 +159,33 @@ fn powerpoint_opens_our_edited_powerpoint_decks_unchanged_but_for_the_word() {
     }
 }
 
-const SOFFICE: &str = r"C:\Users\phone\AppData\Local\Programs\LibreOffice\program\soffice.com";
+/// libreoffice's command line program: LETTERS_SOFFICE, else the usual
+/// install folders on each system (the same places as
+/// letters_office::bridge::libreoffice_path, which this crate doesn't use)
+fn soffice() -> std::path::PathBuf {
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(path) = std::env::var("LETTERS_SOFFICE") {
+        candidates.push(path.into());
+    }
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        candidates
+            .push(std::path::Path::new(&local).join(r"Programs\LibreOffice\program\soffice.com"));
+    }
+    candidates.push(r"C:\Program Files\LibreOffice\program\soffice.com".into());
+    candidates.push("/Applications/LibreOffice.app/Contents/MacOS/soffice".into());
+    candidates.push("/usr/bin/soffice".into());
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .expect("libreoffice was not found; set LETTERS_SOFFICE to its soffice program")
+}
 
 /// converts decks to odp with a private-profile headless libreoffice,
 /// waiting for it to finish.
 fn libreoffice_to_odp(decks: &[PathBuf], folder: &Path) {
     let profile = out().join("lo_profile");
     let profile_url = format!("file:///{}", profile.to_string_lossy().replace('\\', "/"));
-    let status = Command::new(SOFFICE)
+    let status = Command::new(soffice())
         .arg(format!("-env:UserInstallation={profile_url}"))
         .args([
             "--headless",
