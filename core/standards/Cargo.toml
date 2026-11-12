@@ -5,5 +5,20 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+# every dependency is mit or apache-2.0 (or both). see README.md.
 [dependencies]
 thiserror = "2"
+lopdf = "0.47"
+serde = { version = "1", features = ["derive"] }
+# file identifiers (/ID) and comparing streams when deduplicating
+sha2 = "0.11"
+# reading font files to embed them, with their licence permissions
+letters-fonts = { path = "../fonts" }
+ttf-parser = "0.25"
+# drawing form fields' appearance streams when converting to pdf/a
+letters-forms = { path = "../forms" }
+
+[dev-dependencies]
+letters-pdf = { path = "../pdf" }
+png = "0.18"
+serde_json = "1"

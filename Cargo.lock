@@ -2811,7 +2811,16 @@ dependencies = [
 name = "letters-standards"
 version = "0.1.0"
 dependencies = [
+ "letters-fonts",
+ "letters-forms",
+ "letters-pdf",
+ "lopdf",
+ "png",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
  "thiserror 2.0.21",
+ "ttf-parser",
 ]
 
 [[package]]
