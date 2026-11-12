@@ -106,7 +106,7 @@
     if (signed) {
       // the password is forgotten as soon as it has been used
       password = "";
-      context.notify("Signed and saved. Changing the document now would make the signature show as changed.");
+      context.notify("Signed and saved. Later changes are saved after the signature, which lists them.");
     }
   }
 </script>

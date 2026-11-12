@@ -53,12 +53,13 @@ letters-search = { path = "../../core/search" }
 letters-slides = { path = "../../core/slides" }
 # the spreadsheet screen (see src/sheets): reading, calculating and writing workbooks
 letters-sheets = { path = "../../core/sheets" }
+# forms and signatures: every save of a signed document is an incremental
+# update (see src/forms/signed.rs)
+letters-forms = { path = "../../core/forms" }
 
 [dev-dependencies]
 # the annotation engine, run through an edit session in the tests
 letters-annotate = { path = "../../core/annotate" }
-# forms and signatures: signing and checking through an edit session in the tests
-letters-forms = { path = "../../core/forms" }
 png = "0.18"
 # throwaway folders for the search and reading tests (MIT or Apache-2.0)
 tempfile = "3"

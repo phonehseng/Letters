@@ -150,7 +150,7 @@ export interface FormsOverview {
   problem: string | null;
   hasCalculations: boolean;
   signatures: SignatureReport[];
-  /** the saved file is signed: Save won't write a changed version over it */
+  /** the saved file is signed: changes are saved after its signatures */
   protected: boolean;
   trustNote: string;
 }
@@ -254,10 +254,6 @@ export function createCertificate(request: CertificateRequest, path: string): Pr
 
 export function signDocument(id: number, settings: SignSettings): Promise<DocumentState> {
   return invoke("forms_sign", { id, settings });
-}
-
-export function releaseSignatureGuard(id: number): Promise<void> {
-  return invoke("forms_release_signature_guard", { id });
 }
 
 /** the file picker for a certificate file. */

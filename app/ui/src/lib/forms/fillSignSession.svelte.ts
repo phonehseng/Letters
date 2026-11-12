@@ -30,7 +30,6 @@ import {
   formsOverview,
   keepSignaturePicture,
   placeSignature,
-  releaseSignatureGuard,
   removeField,
   setFieldValue,
   signaturePictures,
@@ -270,15 +269,17 @@ export class FillSignSession {
     return true;
   }
 
-  /** saves the document as a copy; the signed file stays as it is, and the copy is free to change. */
+  /**
+   * saves the document as a copy; the signed file stays exactly as it is.
+   * the copy is still signed, so its own changes are saved after the
+   * signature as well (shell-core's forms/signed.rs).
+   */
   async saveCopy(): Promise<boolean> {
     const doc = this.#host.document();
     const path = await chooseSaveLocation(pathBeside(doc.path, `${stemOf(doc.path)} (edited).pdf`));
     if (!path) return false;
     try {
       const saved = await saveDocumentAs(doc.id, path);
-      await releaseSignatureGuard(doc.id);
-      if (this.overview) this.overview = { ...this.overview, protected: false };
       this.#host.accept(saved);
       return true;
     } catch (problem) {

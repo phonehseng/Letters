@@ -19,6 +19,7 @@ the code so source folders hold only what is built or read with it.
 - [`shell-core-ai.md`](shell-core-ai.md): `app/shell-core/src/ai/`
 - [`shell-core-associations.md`](shell-core-associations.md): `app/shell-core/src/associations/`
 - [`shell-core-code.md`](shell-core-code.md): `app/shell-core/src/code/`
+- [`shell-core-forms.md`](shell-core-forms.md): `app/shell-core/src/forms/`
 - [`shell-core-compare.md`](shell-core-compare.md): `app/shell-core/src/compare/`
 - [`shell-core-drive.md`](shell-core-drive.md): `app/shell-core/src/drive/`
 - [`shell-core-edit.md`](shell-core-edit.md): `app/shell-core/src/edit/`

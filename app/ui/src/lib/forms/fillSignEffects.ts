@@ -48,5 +48,5 @@ export function placeSignatureEffect(hasPicture: boolean, placing: boolean): str
 export function signEffect(dirty: boolean, ready: boolean, missing: string | null): string {
   if (!ready && missing) return missing;
   const save = dirty ? "Saves your changes, then signs" : "Signs";
-  return `${save} the saved file and saves it again at once, adding the signature at its end. Changing the document afterwards makes the signature show as changed.`;
+  return `${save} the saved file and saves it again at once, adding the signature at its end. Later changes are saved after the signature, which lists them as made since.`;
 }

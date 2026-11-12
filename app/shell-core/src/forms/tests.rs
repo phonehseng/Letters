@@ -156,15 +156,39 @@ fn a_wrong_password_changes_nothing() {
 }
 
 #[test]
-fn a_later_full_save_is_refused_and_save_as_makes_a_copy() {
+fn a_later_change_is_appended_and_saved_over_the_signed_file() {
     let Signed {
         original,
         mut session,
     } = signed_document("sign-then-edit");
     let signed = fs::read(&original).unwrap();
 
-    // edit anyway: the working copy is rewritten, its signature broken
     session.apply(turn_first_page, show).unwrap();
+    session.save().unwrap();
+
+    let saved = fs::read(&original).unwrap();
+    assert!(
+        saved.starts_with(&signed),
+        "the signed bytes are kept as they are"
+    );
+    let reports = verify(&saved).unwrap();
+    assert_eq!(reports.len(), 1);
+    assert!(reports[0].valid, "the signature still checks out");
+    assert!(reports[0].changed_after_signing, "and the change shows");
+    assert!(session.original_is_protected());
+}
+
+#[test]
+fn a_clean_rewrite_of_a_signed_file_is_refused_and_save_as_makes_a_copy() {
+    let Signed {
+        original,
+        mut session,
+    } = signed_document("sign-rewrite");
+    let signed = fs::read(&original).unwrap();
+    // protect's clean save writer (after a redaction) rewrites every save
+    session.write_saves_with(Box::new(|path: &Path| Ok(fs::read(path).unwrap())), false);
+    session.apply(turn_first_page, show).unwrap();
+
     let result = session.save();
 
     assert!(matches!(result, Err(SessionError::SignedOriginal { .. })));
@@ -174,29 +198,10 @@ fn a_later_full_save_is_refused_and_save_as_makes_a_copy() {
         signed,
         "the signed file is untouched"
     );
-    assert!(only_report_is_valid(&fs::read(&original).unwrap()));
-
-    // the way out: a copy, which then saves normally
     let copy = original.with_file_name("form edited.pdf");
     session.save_as(&copy).unwrap();
-    assert!(!session.original_is_protected());
-    session.apply(turn_first_page, show).unwrap();
-    session.save().unwrap();
+    assert!(!session.original_is_protected(), "the copy was rewritten");
     assert_eq!(fs::read(&original).unwrap(), signed);
-}
-
-#[test]
-fn the_edited_copy_reports_the_signature_as_broken() {
-    let Signed { mut session, .. } = signed_document("sign-broken");
-    session.apply(turn_first_page, show).unwrap();
-
-    let reports = verify(&fs::read(session.working_copy()).unwrap()).unwrap();
-
-    assert_eq!(reports.len(), 1);
-    assert!(
-        !reports[0].valid,
-        "a rewritten file no longer matches its signature"
-    );
 }
 
 #[test]

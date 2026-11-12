@@ -1,8 +1,8 @@
 <script lang="ts">
   // the question before the first change to a digitally signed document:
   // Save a Copy keeps the signed file as it is and puts the change in a
-  // copy; Edit Anyway changes this document (its signature then shows as
-  // changed, and Save is refused so the signed file is never rewritten);
+  // copy; Edit Anyway changes this document (the change is saved after the
+  // signature, which still checks out and lists it as made since);
   // Cancel makes no change. a sheet, like the unsaved changes question:
   // Enter picks Save a Copy, Escape cancels, Tab stays inside.
   import { onMount } from "svelte";

@@ -1,7 +1,8 @@
 //! the parts of Fill & Sign that need no window.
 //!
 //! - `signed`: signing the saved file's exact bytes through the edit
-//!   session, so the signature is never rewritten by a later full save.
+//!   session, and saving every later change as an incremental update, so
+//!   a signature is never rewritten by a later save.
 //! - `scripts`: whether a form carries automatic calculations, which
 //!   Letters never runs.
 //! - `signature_pictures`: the pictures of a person's signature, kept in
@@ -22,5 +23,7 @@ pub use scripts::has_calculations;
 pub use signature_pictures::{PictureKind, SavedSignature, SignaturePictures};
 pub use signed::{password_blocks_signing, sign_saved_document, SignError, PASSWORD_MESSAGE};
 
+#[cfg(test)]
+mod incremental_tests;
 #[cfg(test)]
 mod tests;

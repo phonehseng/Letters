@@ -76,7 +76,7 @@ pub struct FormsOverview {
     /// the form expects scripts to calculate answers, which Letters never runs
     has_calculations: bool,
     signatures: Vec<SignatureReport>,
-    /// the saved file is signed, so Save won't write a changed version over it
+    /// the saved file is signed, so changes are saved after its signatures
     protected: bool,
     /// the engine's sentence about what checking a signature does and doesn't mean
     trust_note: &'static str,
@@ -464,19 +464,6 @@ pub fn forms_sign(
             Ok(((), Some(shown)))
         })?;
     Ok(document)
-}
-
-/// after Save a Copy: the copy is the person's to change, so its guard goes.
-#[tauri::command(async)]
-pub fn forms_release_signature_guard(state: State<AppState>, id: u64) -> Result<(), CommandError> {
-    let worker = state.worker().map_err(CommandError::engine_unavailable)?;
-    state
-        .documents
-        .with_session(worker, DocumentId(id), |session, _| {
-            session.protect_original(false);
-            Ok(((), None))
-        })?;
-    Ok(())
 }
 
 /// adds ".p12" to a certificate name typed without it.

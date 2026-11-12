@@ -1,9 +1,11 @@
 // what a signature check means, in plain words, and the guard that stands
 // in front of the first change to a signed document.
 //
-// a digital signature covers the file's exact bytes. any change Letters
-// makes rewrites the file, so the signature then shows as changed. the
-// person is asked first, and may keep the signed file and work on a copy.
+// a digital signature covers the file's exact bytes. a change to a signed
+// document is saved after the signed part (an incremental update, see
+// shell-core's forms/signed.rs), so the signature still checks out but
+// lists the change as made since. the person is asked first, and may keep
+// the signed file as it is and work on a copy.
 
 import type { SignatureReport } from "./formsApi";
 
@@ -82,7 +84,8 @@ export interface GuardState {
 }
 
 export const SIGNED_EDIT_TITLE = "This document is signed.";
-export const SIGNED_EDIT_QUESTION = "Changing this document will make its signature show as changed. Save a copy instead?";
+export const SIGNED_EDIT_QUESTION =
+  "Your changes will be saved after the signature. It stays valid for what was signed, and lists what changed since. Keep the signed file as it is and save a copy instead?";
 
 /** whether a change must ask first. undo and redo only move between versions, so they never do. */
 export function mustAsk(state: GuardState, isHistory: boolean): boolean {

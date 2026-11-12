@@ -72,7 +72,7 @@ export const fillSignTools = {
     whenToUse:
       "When a document must be signed in a way that can be checked, such as a contract. You need a certificate file (.p12 or .pfx) and its password, or you can make one here.",
     fileEffect:
-      "Signs the saved file and saves it again at once, adding the signature at the end of the file. The password is used for this signature only and is never kept. Changing the document afterwards makes the signature show as changed, so Letters asks first. A document with a password to open, or restrictions, can’t be signed yet.",
+      "Signs the saved file and saves it again at once, adding the signature at the end of the file. The password is used for this signature only and is never kept. Changes afterwards are saved after the signature, which still checks out and lists them, so Letters asks first. A document with a password to open, or restrictions, can’t be signed yet.",
     meaning: "A digital signature that lets others check the file has not changed since you signed.",
   },
   selfSignedCertificate: {

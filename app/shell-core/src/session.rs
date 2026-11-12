@@ -259,6 +259,9 @@ impl EditSession {
             return Err(cannot_start(error));
         }
         let bytes = file_size(&first);
+        // forms and signatures: a signed file is guarded from the start, so
+        // not even the first edit can be saved as a rewrite (see forms/signed.rs)
+        let protected_original = crate::forms::signed::looks_signed(&first);
         Ok(Self {
             original: original.to_path_buf(),
             disk_stamp: DiskStamp::of(original),
@@ -275,7 +278,7 @@ impl EditSession {
             revision: 0,
             next_version: 1,
             limits,
-            protected_original: false,
+            protected_original,
             save_writer: None,
             forget_history_on_save: false,
         })
@@ -396,8 +399,9 @@ impl EditSession {
     /// `save`, after the person chose to replace a file that changed on
     /// disk: the other change is thrown away on purpose.
     pub fn save_replacing_changes(&mut self) -> Result<(), SessionError> {
-        // a signed file is only ever written exactly (adopt_exact_bytes)
-        if self.protected_original && self.is_dirty() {
+        // a signed file is only written over by bytes that keep it whole at
+        // their start: an incremental update (forms/signed.rs) or a new signature
+        if self.protected_original && self.is_dirty() && !self.keeps_signed_bytes(&self.original) {
             return Err(SessionError::SignedOriginal {
                 name: file_name(&self.original),
             });
@@ -425,9 +429,10 @@ impl EditSession {
         } else {
             self.write_current(destination)?;
         }
-        // an unchanged signed document makes a copy that is still signed
-        // and stays protected; a changed one has nothing left to protect
-        if self.is_dirty() {
+        // an unchanged signed document, or one changed only by incremental
+        // updates, makes a copy that is still signed and stays protected; a
+        // rewritten one has nothing left to protect
+        if self.is_dirty() && !self.keeps_signed_bytes(&self.original) {
             self.protected_original = false;
         }
         self.original = destination.to_path_buf();
@@ -551,6 +556,15 @@ impl EditSession {
         self.protected_original
     }
 
+    /// whether saving the current version over `signed` keeps every
+    /// signature in it: the version must begin with the file's exact bytes
+    /// (each edit of a signed document is appended, see `store_version`)
+    /// and must not go through a clean save writer, which rewrites.
+    fn keeps_signed_bytes(&self, signed: &Path) -> bool {
+        self.save_writer.is_none()
+            && crate::forms::signed::file_starts_with(&self.current.path, signed)
+    }
+
     /// makes `bytes` the new version and the person's file, exactly as
     /// given, without passing through lopdf: a signature covers exact
     /// bytes. it is one undo step like an edit, and the file is then
@@ -629,6 +643,13 @@ impl EditSession {
     }
 
     fn store_version(&mut self, document: &mut Document) -> Result<Version, SessionError> {
+        // forms and signatures: a signed document's change is appended to
+        // the version before, so the signed bytes stay exactly as they are
+        if self.protected_original {
+            let bytes = crate::forms::signed::incremental_version(&self.current.path, document)
+                .map_err(|detail| SessionError::CannotStore { detail })?;
+            return self.store_exact_version(&bytes);
+        }
         let number = self.next_version;
         self.next_version += 1;
         let path = self.folder.join(version_file_name(number));

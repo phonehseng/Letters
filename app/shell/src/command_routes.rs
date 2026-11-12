@@ -230,7 +230,6 @@ fn forms() -> Feature {
         forms_commands::forms_read_picture,
         forms_commands::forms_create_certificate,
         forms_commands::forms_sign,
-        forms_commands::forms_release_signature_guard,
     ]
 }
 
