@@ -98,6 +98,41 @@
 
 <div class="home">
   <div class="stage">
+    <!-- accessibility: the toolbar sits in the window's banner, so every part is in a landmark. it comes
+         first in the markup (it is drawn on top by css) so Tab reaches Open… and Search before the
+         recent files and every pinned pdf, as it is seen; it used to be 250 Tabs away -->
+    <header>
+    <div class="toolbar" role="toolbar" aria-label="File tools">
+      <div class="glass group">
+        <ToolButton name="open" icon="open" onClick={onChooseFile} />
+        <ToolButton name="newWindow" icon="newWindow" onClick={onNewWindow} />
+        <!-- compare: choose (or drop) two versions; the window shows the Compare screen -->
+        <ToolButton name="compareTwoPdfs" icon="twoPages" onClick={() => appCommands.dispatch("compare-two-pdfs", "pointer")} />
+      </div>
+
+      <div class="trailing">
+        <label class="glass search" title="Type part of a file name to find it">
+          <Icon name="search" size={0.9375} />
+          <span class="visually-hidden">Search recent documents and pinned folders</span>
+          <input type="search" placeholder="Search" bind:value={search} bind:this={searchField} />
+        </label>
+        <!-- search all documents: the scope switch; Everywhere searches inside documents (lib/library) -->
+        <div class="glass group" role="group" aria-label="Search in">
+          <ToolButton name="searchEverywhere" icon="search" onClick={() => openLibrarySearch(search)} />
+        </div>
+        <div class="glass group">
+          <!-- settings: the gear of Recents (lib/settings) -->
+          <ToolButton name="settings" icon="tools" onClick={() => appCommands.dispatch("open-settings", "pointer")} />
+          <ToolButton
+            name="explain"
+            icon="sidePanel"
+            pressed={showExplain}
+            onClick={() => (showExplain = !showExplain)}
+          />
+        </div>
+      </div>
+    </div>
+    </header>
     <main>
       <h1>Recents</h1>
 
@@ -166,39 +201,6 @@
 
     <OrganiseBar chosen={chosen.paths} {pinned} request={organiseRequest} onChanged={afterOrganise} onClear={() => (chosen = NOTHING_CHOSEN)} />
 
-    <!-- accessibility: the toolbar sits in the window's banner, so every part is in a landmark -->
-    <header>
-    <div class="toolbar" role="toolbar" aria-label="File tools">
-      <div class="glass group">
-        <ToolButton name="open" icon="open" onClick={onChooseFile} />
-        <ToolButton name="newWindow" icon="newWindow" onClick={onNewWindow} />
-        <!-- compare: choose (or drop) two versions; the window shows the Compare screen -->
-        <ToolButton name="compareTwoPdfs" icon="twoPages" onClick={() => appCommands.dispatch("compare-two-pdfs", "pointer")} />
-      </div>
-
-      <div class="trailing">
-        <label class="glass search" title="Type part of a file name to find it">
-          <Icon name="search" size={0.9375} />
-          <span class="visually-hidden">Search recent documents and pinned folders</span>
-          <input type="search" placeholder="Search" bind:value={search} bind:this={searchField} />
-        </label>
-        <!-- search all documents: the scope switch; Everywhere searches inside documents (lib/library) -->
-        <div class="glass group" role="group" aria-label="Search in">
-          <ToolButton name="searchEverywhere" icon="search" onClick={() => openLibrarySearch(search)} />
-        </div>
-        <div class="glass group">
-          <!-- settings: the gear of Recents (lib/settings) -->
-          <ToolButton name="settings" icon="tools" onClick={() => appCommands.dispatch("open-settings", "pointer")} />
-          <ToolButton
-            name="explain"
-            icon="sidePanel"
-            pressed={showExplain}
-            onClick={() => (showExplain = !showExplain)}
-          />
-        </div>
-      </div>
-    </div>
-    </header>
   </div>
 
   {#if showExplain}
@@ -239,6 +241,8 @@
 
   .toolbar {
     position: absolute;
+    /* drawn above the scrolling tiles, which now come after it in the markup */
+    z-index: 1;
     inset: 0 0.75rem auto 0;
     display: flex;
     align-items: flex-start;
