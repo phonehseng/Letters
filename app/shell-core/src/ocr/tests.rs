@@ -458,6 +458,17 @@ fn making_text_editable_replaces_the_hidden_layer_with_visible_text() {
         "the words are there once: {text}"
     );
     assert!(session.can_undo());
+
+    // a second Make Editable Text on the same pages is refused with a
+    // sentence and changes nothing, rather than writing the lines twice
+    let revision = session.revision();
+    let again = session.apply(
+        |doc| super::editable::make_pages_editable(doc, &pages, &options).map(|_| ()),
+        show,
+    );
+    let message = again.unwrap_err().to_string();
+    assert!(message.contains("Page 1 already has editable text"), "{message}");
+    assert_eq!(session.revision(), revision);
 }
 
 #[test]

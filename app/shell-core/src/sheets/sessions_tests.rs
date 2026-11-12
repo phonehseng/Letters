@@ -274,11 +274,21 @@ fn a_fault_inside_the_engine_takes_the_change_back_with_a_sentence() {
     let dir = folder("fault");
     let sessions = sessions(&dir);
     let opened = sessions.open("main", &two_and_triple(&dir), false).unwrap();
-    // the engine indexes SUBSTITUTE's missing arguments (core/sheets text.rs)
-    let error = sessions
+    // a function given too few arguments used to be such a fault; it now
+    // gives #VALUE! (core/sheets checks the count against the catalogue)
+    sessions
         .with(opened.id, |d| {
-            d.apply(&[typed(5, 1, "=SUBSTITUTE(A1:A3)")], "Typing")
+            d.apply(&[typed(6, 1, "=SUBSTITUTE(A1:A3)")], "Typing")
         })
+        .unwrap();
+    assert_eq!(
+        value(&sessions, opened.id, 6, 1),
+        Value::Error(letters_sheets::ErrorValue::Value)
+    );
+    // so a fault is planted for the next calculation
+    crate::sheets::document::PLANTED_FAULT.with(|planted| planted.set(true));
+    let error = sessions
+        .with(opened.id, |d| d.apply(&[typed(5, 1, "=A1*2")], "Typing"))
         .unwrap_err();
     assert!(error.contains("wasn’t made"), "{error}");
     assert_eq!(value(&sessions, opened.id, 5, 1), Value::Blank);
