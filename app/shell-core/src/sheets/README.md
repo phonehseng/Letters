@@ -14,6 +14,7 @@ docs/worklogs/shell-core-sheets.md.
 | `layout.rs` | column widths, row heights, hidden rows and columns |
 | `look.rs` | what the grid draws: tabs, a sheet's sizes, styles, the cells on screen, copied text |
 | `mod.rs` | the module list |
+| `navigate.rs` | where ctrl with an arrow lands, and the block of data ctrl a selects first |
 | `paste.rs` | tab-separated text from other apps, typed into cells |
 | `recovery.rs` | recovery copies offered after a crash |
 | `sessions.rs` | every open workbook: opening, new and starter workbooks, saving, recovery |

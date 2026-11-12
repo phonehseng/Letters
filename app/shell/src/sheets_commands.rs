@@ -10,12 +10,13 @@ use std::path::{Path, PathBuf};
 use letters_sheets::analysis::SelectionStats;
 use letters_sheets::edit::{FindOptions, Found};
 use letters_sheets::view::ViewCell;
-use letters_sheets::Range;
+use letters_sheets::{CellRef, Range};
 use letters_shell_core::sheets::document::EditOutcome;
 use letters_shell_core::sheets::formats::{style_edit, StyleChange};
 use letters_shell_core::sheets::history::Edit;
 use letters_shell_core::sheets::layout::{resize, set_hidden, Axis};
 use letters_shell_core::sheets::look::{self, CopiedCells, SheetInfo, StyleLook};
+use letters_shell_core::sheets::navigate::{current_region, edge, Direction};
 use letters_shell_core::sheets::paste::{paste_edits, split_tab_separated};
 use letters_shell_core::sheets::sessions::{OpenedSheet, SavedSheet, SheetSessions};
 use letters_shell_core::writer::thumbnail::save_generic_thumbnail;
@@ -372,6 +373,49 @@ pub fn sheets_column_values(
         .sessions
         .with(id, |document| {
             Ok(look::column_values(&document.book, sheet, range, column))
+        })
+        .map_err(failed)
+}
+
+/// where ctrl and an arrow land from `at`.
+#[tauri::command(async)]
+pub fn sheets_edge(
+    sheets: State<SheetsState>,
+    id: u64,
+    sheet: usize,
+    at: CellRef,
+    direction: Direction,
+) -> Result<CellRef, CommandError> {
+    sheets
+        .sessions
+        .with(id, |document| {
+            let target = document
+                .book
+                .sheets
+                .get(sheet)
+                .ok_or("That sheet doesn’t exist any more.")?;
+            Ok(edge(target, at, direction))
+        })
+        .map_err(failed)
+}
+
+/// the block of data around `at` (ctrl a's first press).
+#[tauri::command(async)]
+pub fn sheets_region(
+    sheets: State<SheetsState>,
+    id: u64,
+    sheet: usize,
+    at: CellRef,
+) -> Result<Range, CommandError> {
+    sheets
+        .sessions
+        .with(id, |document| {
+            let target = document
+                .book
+                .sheets
+                .get(sheet)
+                .ok_or("That sheet doesn’t exist any more.")?;
+            Ok(current_region(target, at))
         })
         .map_err(failed)
 }

@@ -10,6 +10,7 @@
 //! - `layout`: column widths, row heights and hiding
 //! - `entry`: the formula-typing helpers, with the cursor counted as javascript does
 //! - `formats`: number formats, bold, colours and style presets on a selection
+//! - `navigate`: where ctrl with the arrows lands, and ctrl a's block of data
 //! - `paste`: text pasted from other apps, typed into cells
 //! - `look`: the tabs, a sheet's sizes, styles and the cells on screen
 //! - `sessions`: every open workbook, opening, new workbooks, saving, recovery
@@ -23,6 +24,7 @@ pub mod formats;
 pub mod history;
 pub mod layout;
 pub mod look;
+pub mod navigate;
 pub mod paste;
 pub mod recovery;
 pub mod sessions;

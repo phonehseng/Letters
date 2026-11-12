@@ -535,6 +535,8 @@ fn spreadsheets() -> Feature {
         sheets_commands::sheets_stats,
         sheets_commands::sheets_find,
         sheets_commands::sheets_column_values,
+        sheets_commands::sheets_edge,
+        sheets_commands::sheets_region,
     ]
 }
 
