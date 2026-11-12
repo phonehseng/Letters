@@ -3,6 +3,7 @@
 
 pub(crate) mod append;
 pub(crate) mod cmap;
+pub(crate) mod completion;
 pub(crate) mod donor;
 pub(crate) mod embed;
 pub(crate) mod encodings;

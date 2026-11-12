@@ -49,6 +49,17 @@ pub struct FontExtension {
     pub characters: String,
     /// where the new glyphs' outlines came from, e.g. "Arial on this computer"
     pub glyph_source: String,
+    /// the least faithful way any new glyph was made, as letters-fonts
+    /// labels it: "same font", "adjusted near font", "look-alike"...
+    #[serde(default)]
+    pub match_method: String,
+    /// how alike the least alike new glyph is to the font, percent
+    #[serde(default)]
+    pub similarity: Option<f32>,
+    /// one sentence for the person: which font drew the new letters and
+    /// how alike they are
+    #[serde(default)]
+    pub sentence: String,
 }
 
 /// how much a paragraph was set tighter to fit.

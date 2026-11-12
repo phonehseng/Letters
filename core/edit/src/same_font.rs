@@ -1,8 +1,8 @@
 //! choosing fonts for new text so it stays in the font of the text
 //! around it: when the original embedded font lacks a character, the font
-//! itself is extended with a look-alike glyph (see fonts/extend.rs) before
-//! round one's fallback chain (installed copy, then a standard font) is
-//! tried.
+//! itself is extended with glyphs from letters-fonts' completion (see
+//! fonts/extend.rs and fonts/completion.rs) before round one's fallback
+//! chain (installed copy, then a standard font) is tried.
 
 use std::collections::BTreeSet;
 
@@ -11,7 +11,7 @@ use lopdf::Document;
 use crate::draft::Draft;
 use crate::edit_run::{run_edit, Outcome};
 use crate::error::EditError;
-use crate::fonts::donor::{FontFileSource, GlyphSource};
+use crate::fonts::completion::{self, FontDonors};
 use crate::fonts::embed::{self, WriteFont};
 use crate::fonts::extend;
 use crate::fonts::pdf_font::PdfFont;
@@ -30,15 +30,15 @@ fn missing_chars(font: &PdfFont, text: &str) -> BTreeSet<char> {
 }
 
 /// fonts for `text` like the glyph `like`, extending its font when it
-/// lacks characters and a source of glyphs is at hand. returns the choice
-/// and, when the font was extended, what was added.
+/// lacks characters and fonts that may lend glyphs are at hand (installed
+/// fonts allowed). returns the choice and, when the font was extended,
+/// what was added.
 pub(crate) fn choose_same_font(
     model: &PageModel,
     draft: &mut Draft,
     like: usize,
     text: &str,
     options: &TextEditOptions,
-    donor: Option<&dyn GlyphSource>,
 ) -> Result<(FontChoice, Option<FontExtension>), EditError> {
     let record = &model.run.glyphs[like];
     let font = record.font.map(|index| &model.run.fonts[index]);
@@ -49,14 +49,12 @@ pub(crate) fn choose_same_font(
     if missing.is_empty() || !font.writable() {
         return Ok((choose_fonts(model, draft, like, text, None, options)?, None));
     }
-    let installed = options
+    let donors: Option<FontDonors> = options
         .allow_installed_fonts
-        .then(|| FontFileSource::installed(&font.name))
+        .then(|| completion::donors_for(&font.name))
         .flatten();
-    let source: Option<&dyn GlyphSource> =
-        donor.or(installed.as_ref().map(|source| source as &dyn GlyphSource));
-    let extension = match source {
-        Some(source) => extend::extend_font(draft, object, &font.name, &missing, source)?,
+    let extension = match donors {
+        Some(donors) => extend::extend_font(draft, object, font, &missing, &donors)?,
         None => None,
     };
     let Some(extension) = extension else {
@@ -98,9 +96,9 @@ fn add_unlisted_to_unicode(
 }
 
 /// adds glyphs for `characters` to a font on the page (by its `FontInfo`
-/// id), drawn from `donor_font` (a TrueType file: a look-alike chosen by
-/// the app). text already in the font is drawn exactly as before; new
-/// text with these characters can then use the same font.
+/// id), from `donor_font` (a font file the app chose), fitted to the font
+/// by letters-fonts' completion. text already in the font is drawn exactly
+/// as before; new text with these characters can then use the same font.
 pub fn extend_font(
     doc: &mut Document,
     page: usize,
@@ -109,13 +107,9 @@ pub fn extend_font(
     donor_font: &[u8],
     consent: &EditConsent,
 ) -> Result<ContentEditResult, EditError> {
-    let donor =
-        FontFileSource::look_alike(donor_font.to_vec(), "the chosen look-alike font".into())
-            .ok_or_else(|| {
-                EditError::UnsupportedFont(
-                    "It isn’t a TrueType font Letters may copy glyphs from.".into(),
-                )
-            })?;
+    let donor = completion::donors_from_file(donor_font.to_vec()).ok_or_else(|| {
+        EditError::UnsupportedFont("It isn’t a font Letters may copy glyphs from.".into())
+    })?;
     run_edit(doc, page, consent, |model, draft, _| {
         let index = (0..model.run.fonts.len())
             .find(|index| model.font_info(Some(*index)).id == font_id)
@@ -127,7 +121,7 @@ pub fn extend_font(
         if wanted.is_empty() {
             return Ok(outcome);
         }
-        let extension = extend::extend_font(draft, object, &font.name, &wanted, &donor)?.ok_or_else(|| {
+        let extension = extend::extend_font(draft, object, font, &wanted, &donor)?.ok_or_else(|| {
             EditError::UnsupportedFont(
                 "Only embedded TrueType fonts can gain glyphs, and the chosen font must have every character.".into(),
             )

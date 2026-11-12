@@ -403,8 +403,14 @@ impl PdfFont {
         }
     }
 
-    fn width_of(&self, code: &[u8]) -> f32 {
+    /// a code's width in thousandths of the font size.
+    pub fn width_of(&self, code: &[u8]) -> f32 {
         self.widths.get(code).copied().unwrap_or(self.default_width)
+    }
+
+    /// each character the font can really draw, and the code that draws it.
+    pub fn drawable_codes(&self) -> &BTreeMap<char, Vec<u8>> {
+        &self.drawable
     }
 
     /// splits a show operator's string into glyphs.

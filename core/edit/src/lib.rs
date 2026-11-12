@@ -39,6 +39,7 @@ use lopdf::Document;
 pub use add_text::{add_text, NewText, NewTextFont};
 pub use colors::Color;
 pub use error::EditError;
+pub use fonts::completion::{with_font_donors, FontDonors};
 pub use fonts::pdf_font::{FontFamily, FontKind};
 pub use fonts::standard::StandardFont;
 pub use geometry::{Point, Rect};

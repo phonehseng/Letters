@@ -73,7 +73,6 @@ pub fn add_text_matching(
             paragraph.anchor_glyph,
             &new_text.text,
             options,
-            None,
         )?;
         let font = model.run.glyphs[paragraph.anchor_glyph].font;
         let kerning: HashMap<(char, char), f32> = kerning::kerning_pairs(model, font);

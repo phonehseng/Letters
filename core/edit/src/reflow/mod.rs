@@ -300,7 +300,6 @@ fn prepare(
         paragraph.anchor_glyph,
         text,
         &text_options(options),
-        None,
     )?;
     let font = model.run.glyphs[paragraph.anchor_glyph].font;
     let kerning = kerning::kerning_pairs(model, font);

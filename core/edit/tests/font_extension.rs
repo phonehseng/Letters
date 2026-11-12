@@ -4,7 +4,9 @@
 
 mod support;
 
-use letters_edit::{page_objects, reflow_paragraph, ReflowOptions};
+use letters_edit::{page_objects, reflow_paragraph, with_font_donors, FontDonors, ReflowOptions};
+use letters_fonts::matching::donors::{DonorFile, DonorPool};
+use letters_fonts::model::Source;
 use support::subset;
 use support::{load, render, save, PageSetup, PdfBuilder};
 
@@ -102,6 +104,67 @@ fn a_simple_truetype_subset_gains_the_characters_it_lacks() {
         pixels.count(region, support::is_dark) > 5,
         "the added glyph has ink"
     );
+}
+
+#[test]
+fn the_extension_says_in_one_sentence_which_font_drew_the_new_letters() {
+    let Some(font) = arial() else {
+        println!("skipped: Arial isn't installed here");
+        return;
+    };
+    let mut doc = load(&simple_font_pdf(&font));
+    let block = page_objects(&doc, 0).unwrap().text_blocks[0].clone();
+    let text = "Hello quirky world";
+    let result = reflow_paragraph(&mut doc, 0, &block.id, text, &ReflowOptions::default()).unwrap();
+    let extension = &result.summary.fonts_extended[0];
+    println!("{}", extension.sentence);
+    assert_eq!(extension.match_method, "same font");
+    assert_eq!(extension.similarity, Some(100.0));
+    assert!(
+        extension.sentence.contains("from Arial on this computer"),
+        "{}",
+        extension.sentence
+    );
+}
+
+#[test]
+fn lent_donors_are_used_instead_of_looking_the_font_up_by_name() {
+    let (Some(font), Ok(tahoma)) = (arial(), std::fs::read("C:/Windows/Fonts/tahoma.ttf")) else {
+        println!("skipped: Arial or Tahoma isn't installed here");
+        return;
+    };
+    let tahoma = DonorFile::from_bytes(Source::System, "tahoma", tahoma, 0).unwrap();
+    let only_tahoma = FontDonors::new(
+        DonorPool {
+            donors: vec![tahoma],
+        },
+        None,
+    );
+    let text = "Hello quirky world";
+    let mut doc = load(&simple_font_pdf(&font));
+    let block = page_objects(&doc, 0).unwrap().text_blocks[0].clone();
+    let result = with_font_donors(&only_tahoma, || {
+        reflow_paragraph(&mut doc, 0, &block.id, text, &ReflowOptions::default())
+    })
+    .unwrap();
+    let extension = &result.summary.fonts_extended[0];
+    println!("{}", extension.sentence);
+    assert!(
+        extension.glyph_source.starts_with("Tahoma"),
+        "{}",
+        extension.glyph_source
+    );
+    assert_ne!(extension.match_method, "same font");
+
+    // nothing to lend glyphs: the standard-font fallback, said plainly
+    let mut doc = load(&simple_font_pdf(&font));
+    let none = FontDonors::new(DonorPool::default(), None);
+    let result = with_font_donors(&none, || {
+        reflow_paragraph(&mut doc, 0, &block.id, text, &ReflowOptions::default())
+    })
+    .unwrap();
+    assert!(result.summary.fonts_extended.is_empty());
+    assert!(!result.notices.is_empty(), "the fallback font is reported");
 }
 
 fn font_widths(doc: &lopdf::Document) -> Vec<f32> {

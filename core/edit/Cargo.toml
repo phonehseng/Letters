@@ -11,6 +11,8 @@ license.workspace = true
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # the recognition result's types (OcrPage, OcrWord); recognition itself is the caller's
 letters-ocr = { path = "../ocr" }
+# completing a subset font with the letters new text needs (the workspace's)
+letters-fonts = { path = "../fonts" }
 lopdf = "0.47"
 png = "0.18"
 serde = { version = "1", features = ["derive"] }

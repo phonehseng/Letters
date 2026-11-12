@@ -2595,6 +2595,7 @@ name = "letters-edit"
 version = "0.1.0"
 dependencies = [
  "image",
+ "letters-fonts",
  "letters-ocr",
  "letters-pdf",
  "lopdf",

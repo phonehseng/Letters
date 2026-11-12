@@ -136,13 +136,22 @@ glyphs really in the program; bare CFF only by what the page already uses).
 When a character is missing, round two first **extends the same font object**
 (`reflow_paragraph`, `edit_table_cell`, `add_text_matching`, `extend_font`):
 
-- The donor of the glyph outline sits behind a small `GlyphSource` trait
-  (`src/fonts/donor.rs`). Sources now: the same font installed on this computer
-  (by PostScript name; only if its licence allows embedding), and a TrueType
-  file the app passes to `extend_font` (a look-alike, scaled so its capitals are
-  as tall as the target's). `letters_fonts::complete` (font identification and
-  look-alike glyphs) does not exist yet; when it does, it becomes a third
-  source behind the same trait.
+- The new glyphs come from letters-fonts' completion
+  (`letters_fonts::complete::complete_font`, `src/fonts/completion.rs`): the
+  same font found on this computer, else a near font fitted to imitate the
+  document's font, else letters built from the font's own (accents), else
+  the closest font as it is. Generated glyphs are never asked for. The fonts
+  that may lend glyphs are the app's font library, lent for one edit with
+  `with_font_donors(&FontDonors, || edit)` (a thread-local, so other edits
+  are unaffected); without them only the same font installed here, found by
+  its PostScript name, is asked. `extend_font` uses the one file it is given.
+  A licence that forbids copying glyphs out of a font is respected there.
+- `FontExtension` says how: `glyphSource` ("Arial on this computer"),
+  `matchMethod` (letters-fonts' label of the least faithful way used: "same
+  font", "adjusted near font", "built from the font’s own glyphs",
+  "look-alike"), `similarity` (percent, the least alike glyph) and
+  `sentence`, one sentence for the person ("New letters: “€” and “Q” from
+  Tahoma on this computer, adjusted to match, 93.1% alike.").
 - Only embedded TrueType programs (FontFile2) can be extended: composite fonts
   with Identity-H/V codes, and simple TrueType fonts. The glyphs are appended
   under new glyph numbers; glyf, loca (written long), hmtx, maxp and hhea are
@@ -167,7 +176,8 @@ Measured on the corporate-letter test (justified paragraph in an embedded Arial
 subset, spot colour; a sentence needing 9 missing characters): with the
 installed Arial as donor, 0 of 2131 inked pixels of the added lines differ by
 more than a quarter of the range from the same page drawn with the full Arial;
-with Tahoma as a look-alike donor, 101 of 2151 (4.7%) do.
+with Tahoma as the only donor, fitted by letters-fonts, 97 of 2170 (4.5%) do
+(scaled to the cap height only, as before letters-fonts, it was 101 of 2151).
 
 ## Matching the typeface of a scan: what it can and can't do
 
@@ -228,7 +238,7 @@ these perfect ones; that wasn't measured here.
 | `path_read.rs` | paths as objects: shapes, paints, groups; image crop and resolution |
 | `text_edit/`, `text_write.rs`, `text_fonts.rs`, `add_text.rs` | round one's text edits |
 | `reflow/` | paragraph reflow, push-down, overflow choices, tables, Match Style |
-| `same_font.rs`, `fonts/extend.rs`, `fonts/append.rs`, `fonts/donor.rs` | keeping new text in the original font object |
+| `same_font.rs`, `fonts/extend.rs`, `fonts/append.rs`, `fonts/completion.rs`, `fonts/donor.rs` | keeping new text in the original font object, with glyphs from letters-fonts' completion |
 | `paths/` | moving, restyling, reshaping and restacking paths |
 | `images.rs`, `image_tools.rs`, `image_data.rs` | image edits and pixel data |
 | `page_boxes.rs` | margins, paper size, page boxes |
@@ -246,6 +256,7 @@ these perfect ones; that wasn't measured here.
 | png | reading and writing png pictures | MIT or Apache-2.0 |
 | image | decoding jpeg and png pixels for cropping and scans | MIT or Apache-2.0 |
 | letters-ocr (workspace) | the recognition result's types only | the workspace's |
+| letters-fonts (workspace) | completing subset fonts with the letters new text needs | the workspace's |
 | serde, thiserror | small helpers | MIT or Apache-2.0 |
 
 TrueType subsetting and glyph appending are written here. The standard font
@@ -258,7 +269,7 @@ glyph names from the pdf standard and the Adobe Glyph List.
 cargo test -p letters-edit
 ```
 
-117 tests: 35 unit tests and 82 integration tests in `tests/` (text, fonts,
+122 tests: 38 unit tests and 84 integration tests in `tests/` (text, fonts,
 images, structure from round one; paths, reflow, tables, corporate,
 font_extension, image_tools, page_boxes, scan, structure_upkeep, performance).
 The pdfs are built by hand. After each edit the tests save and reload the file,

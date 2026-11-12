@@ -20,10 +20,12 @@ use crate::draft::Draft;
 use crate::error::EditError;
 use crate::fonts::append::{self, CmapEntry};
 use crate::fonts::cmap;
-use crate::fonts::donor::{GlyphSource, Outline, Target};
+use crate::fonts::completion::{self, CompletedGlyphs, DocumentFont, FontDonors};
+use crate::fonts::donor::{Outline, Target};
 use crate::fonts::embed;
 use crate::fonts::encodings;
-use crate::fonts::pdf_font::EncodedChar;
+use crate::fonts::pdf_font::{EncodedChar, PdfFont};
+use crate::fonts::truetype::FontProgram;
 use crate::pdf_values::{name, real};
 use crate::summary::FontExtension;
 
@@ -93,14 +95,15 @@ fn font_parts(draft: &Draft, font_id: ObjectId) -> Option<FontParts> {
     })
 }
 
-/// adds glyphs for `characters` to the font, drawn by `source`. none when
-/// the font can't be extended or the source lacks a character.
+/// adds glyphs for `characters` to the font, made by letters-fonts'
+/// completion from `donors`. none when the font can't be extended or a
+/// character can't be drawn.
 pub(crate) fn extend_font(
     draft: &mut Draft,
     font_id: ObjectId,
-    font_name: &str,
+    font: &PdfFont,
     characters: &BTreeSet<char>,
-    source: &dyn GlyphSource,
+    donors: &FontDonors,
 ) -> Result<Option<Extension>, EditError> {
     let Some(parts) = font_parts(draft, font_id) else {
         return Ok(None);
@@ -110,15 +113,13 @@ pub(crate) fn extend_font(
     };
     let target = Target {
         units_per_em: face.units_per_em(),
-        cap_height: parts
-            .descriptor
-            .get(b"CapHeight")
-            .ok()
-            .and_then(|value| value.as_float().ok()),
+    };
+    let Some(glyphs) = completed_glyphs(draft, &parts, font, characters, donors) else {
+        return Ok(None);
     };
     let mut outlines: Vec<(char, Outline)> = Vec::new();
     for character in characters {
-        match source.outline(*character, target) {
+        match glyphs.outline(*character, target) {
             Some(outline) => outlines.push((*character, outline)),
             None => return Ok(None),
         }
@@ -131,14 +132,76 @@ pub(crate) fn extend_font(
             None => return Ok(None),
         },
     };
+    let note = glyphs.note();
     Ok(Some(Extension {
         codes,
         record: FontExtension {
-            font: font_name.to_owned(),
+            font: font.name.clone(),
             characters: characters.iter().collect(),
-            glyph_source: source.describe(),
+            glyph_source: note.source,
+            match_method: note.method,
+            similarity: note.similarity,
+            sentence: note.sentence,
         },
     }))
+}
+
+/// asks letters-fonts' completion for the characters, giving it the font
+/// program, which glyph draws each character the font has, and its widths.
+fn completed_glyphs(
+    draft: &Draft,
+    parts: &FontParts,
+    font: &PdfFont,
+    characters: &BTreeSet<char>,
+    donors: &FontDonors,
+) -> Option<CompletedGlyphs> {
+    let document = DocumentFont {
+        program: &parts.program,
+        glyphs: glyph_map(draft, parts, font),
+        widths: font
+            .drawable_codes()
+            .iter()
+            .map(|(c, code)| (*c, f64::from(font.width_of(code))))
+            .collect(),
+        name: &font.name,
+    };
+    completion::complete(&document, characters, donors)
+}
+
+/// which glyph of the program draws each character the font can draw:
+/// a composite font's codes are CIDs, reaching glyphs through /CIDToGIDMap
+/// (identity unless it is a stream); a simple font's one-byte codes reach
+/// them through the program's own cmaps, the way readers look them up.
+fn glyph_map(draft: &Draft, parts: &FontParts, font: &PdfFont) -> BTreeMap<char, u16> {
+    let program = FontProgram::parse(&parts.program, 0);
+    let cid_map = parts.descendant.as_ref().and_then(|(_, cid_font)| {
+        cid_font
+            .get(b"CIDToGIDMap")
+            .ok()
+            .and_then(|map| stream_bytes(draft, map))
+    });
+    let mut glyphs = BTreeMap::new();
+    for (character, code) in font.drawable_codes() {
+        let glyph = match (&parts.descendant, code.as_slice()) {
+            (Some(_), [high, low]) => {
+                let cid = u16::from_be_bytes([*high, *low]);
+                match &cid_map {
+                    Some(map) => crate::fonts::truetype::read_u16(map, usize::from(cid) * 2),
+                    None => Some(cid),
+                }
+            }
+            (None, [byte]) => program.as_ref().and_then(|program| {
+                program
+                    .glyph_for_char(*character)
+                    .or_else(|| program.glyph_for_code(*byte))
+            }),
+            _ => None,
+        };
+        if let Some(glyph) = glyph.filter(|glyph| *glyph != 0) {
+            glyphs.insert(*character, glyph);
+        }
+    }
+    glyphs
 }
 
 /// writes the extended program as a new font file and points the
