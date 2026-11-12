@@ -13,7 +13,7 @@ import { SvelteMap } from "svelte/reactivity";
 import type { DocumentState } from "../api";
 import type { Dispatcher } from "../commands";
 import type { ToolName } from "../tools";
-import { defaultLanguage, languageNames } from "./languages";
+import { defaultLanguage, languageNames, settingsLanguage } from "./languages";
 import { ocrApi, optionsFrom, type CleanupChoices, type EditableSummary, type OcrStatus, type OverlayPage, type ScanMode, type ScanOverview } from "./ocrApi";
 import { OCR_COMMANDS, type OcrCommand } from "./ocrCommands";
 import { IDLE, isBusy, jobOf, nextView, type JobEvent, type JobView } from "./ocrJob";
@@ -72,11 +72,10 @@ export class ScanSession {
 
   constructor(host: ScanHost) {
     this.#host = host;
-    ocrApi
-      .status()
-      .then((status) => {
+    Promise.all([ocrApi.status(), settingsLanguage()])
+      .then(([status, chosen]) => {
         this.status = status;
-        const first = defaultLanguage(status.languages, navigator.language || "en");
+        const first = defaultLanguage(status.languages, navigator.language || "en", chosen);
         if (first && this.languages.length === 0) this.languages = [first];
       })
       .catch(() => (this.status = { available: false, message: "Text recognition couldn’t be started.", languages: [], canDetectOrientation: false }));

@@ -47,7 +47,7 @@ export function defaultSettings(): AppSettings {
     version: CURRENT_VERSION,
     general: { defaultZoom: "fitWidth", openInNewWindows: false },
     files: { document: "docx", wordExportStyle: "exactMatch", picture: "png" },
-    scanning: { ocrLanguage: "eng" },
+    scanning: { ocrLanguage: "auto" },
     ai: { enabled: false, provider: null },
     aiServer: { executable: "", modelFile: "" },
     signing: { timestampServer: "" },
@@ -87,7 +87,7 @@ export function fromStored(raw: unknown): AppSettings {
       wordExportStyle: pick(files.wordExportStyle, ["exactMatch", "easyToEdit"], "exactMatch"),
       picture: pick(files.picture, ["png", "jpeg", "tiff"], "png"),
     },
-    scanning: { ocrLanguage: typeof scanning.ocrLanguage === "string" && scanning.ocrLanguage ? scanning.ocrLanguage : "eng" },
+    scanning: { ocrLanguage: typeof scanning.ocrLanguage === "string" && scanning.ocrLanguage ? scanning.ocrLanguage : "auto" },
     // a provider is only kept when the switch was really on or a provider was chosen; the switch starts off
     ai: { enabled: ai.enabled === true, provider: providerFrom(ai.provider) },
     aiServer: {
@@ -185,12 +185,14 @@ export const ZOOM_CHOICES = [
   { value: "150", label: "150%" },
 ] as const;
 
-/** a few common text recognition languages; the code is what the OCR engine reads. */
-export const OCR_LANGUAGES = [
-  { value: "eng", label: "English" },
-  { value: "fra", label: "French" },
-  { value: "deu", label: "German" },
-  { value: "spa", label: "Spanish" },
-  { value: "ita", label: "Italian" },
-  { value: "por", label: "Portuguese" },
-] as const;
+/**
+ * the text recognition languages Settings offers: "Same as This Computer",
+ * then the languages installed here (the code is what the OCR engine
+ * reads). a stored choice that is no longer installed stays listed, marked,
+ * so the menu still shows what is set; scanning then uses the computer's.
+ */
+export function ocrLanguageChoices(installed: { code: string; name: string }[], stored: string): { value: string; label: string }[] {
+  const choices = [{ value: "auto", label: "Same as This Computer" }, ...installed.map((language) => ({ value: language.code, label: language.name }))];
+  if (stored && !choices.some((choice) => choice.value === stored)) choices.push({ value: stored, label: `${stored} (not installed)` });
+  return choices;
+}

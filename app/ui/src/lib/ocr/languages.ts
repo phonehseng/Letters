@@ -31,10 +31,26 @@ const FROM_SYSTEM: Record<string, string> = {
   el: "ell",
 };
 
-/** the starting language: the computer's, when it is installed, else English, else the first. */
-export function defaultLanguage(installed: OcrLanguage[], systemLanguage: string): string | null {
-  const wanted = FROM_SYSTEM[systemLanguage.toLowerCase().split("-")[0]];
+/** Settings' "Same as this computer": the language is chosen from the computer's. */
+export const SAME_AS_COMPUTER = "auto";
+
+/** the language chosen in Settings (Scanning); "auto" when settings can't be read. */
+export async function settingsLanguage(): Promise<string> {
+  const { currentSettings } = await import("../settings/settingsApi");
+  return currentSettings()
+    .then((settings) => settings.scanning.ocrLanguage)
+    .catch(() => SAME_AS_COMPUTER);
+}
+
+/**
+ * the starting language: the one chosen in Settings (Scanning) when it is
+ * installed, else the computer's when it is installed, else English, else
+ * the first.
+ */
+export function defaultLanguage(installed: OcrLanguage[], systemLanguage: string, chosen = SAME_AS_COMPUTER): string | null {
   const codes = installed.map((language) => language.code);
+  if (chosen !== SAME_AS_COMPUTER && codes.includes(chosen)) return chosen;
+  const wanted = FROM_SYSTEM[systemLanguage.toLowerCase().split("-")[0]];
   if (wanted && codes.includes(wanted)) return wanted;
   if (codes.includes("eng")) return "eng";
   return codes[0] ?? null;
