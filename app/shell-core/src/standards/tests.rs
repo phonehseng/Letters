@@ -48,6 +48,21 @@ fn the_part_two_and_three_levels_convert_a_plain_document() {
 }
 
 #[test]
+fn a_signed_document_is_not_converted_because_its_signatures_would_break() {
+    let dir = temp_dir("standards-signed");
+    let source = dir.join("signed.pdf");
+    write_pdf(&source, 1);
+    // a signature dictionary's byte range is what marks a signed file
+    let mut bytes = fs::read(&source).unwrap();
+    bytes.extend_from_slice(b"\n% /ByteRange [0 10 20 30]\n");
+    fs::write(&source, bytes).unwrap();
+
+    let refused = convert_copy(&source, PdfaLevel::A2b, None, None);
+
+    assert_eq!(refused.err().as_deref(), Some(SIGNED_SOURCE));
+}
+
+#[test]
 fn a_file_that_is_not_a_pdf_is_refused_with_a_sentence() {
     let dir = temp_dir("standards-not-pdf");
     let source = dir.join("notes.pdf");

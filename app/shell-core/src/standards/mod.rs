@@ -24,6 +24,9 @@ use crate::export::renderer::draw_page;
 
 pub use font_source::LibraryFonts;
 
+/// why a signed document isn't converted, and what to do instead.
+pub const SIGNED_SOURCE: &str = "This document is digitally signed. A converted copy is a rewritten file, so its signatures would no longer check out, and PDF/A doesn’t allow that. Convert the document before it is signed, then sign the PDF/A copy.";
+
 /// a converted copy: what the conversion did, and the file's bytes.
 pub struct ConvertedCopy {
     pub report: ConversionReport,
@@ -40,6 +43,12 @@ pub fn convert_copy(
     fonts: Option<&dyn FontSource>,
     renderer: Option<&dyn PageRenderer>,
 ) -> Result<ConvertedCopy, String> {
+    // a converted copy is rewritten, so a signature in it no longer covers
+    // the file, which pdf/a forbids (iso 19005-2 6.4.3; veraPDF refused such
+    // a copy in the app while core/standards' checker passed it)
+    if crate::forms::signed::looks_signed(source) {
+        return Err(SIGNED_SOURCE.to_owned());
+    }
     let mut document = load(source)?;
     let helpers = ConversionHelpers { fonts, renderer };
     let report = convert_to_pdfa(

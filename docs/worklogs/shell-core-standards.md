@@ -24,3 +24,13 @@ pdf/a-1b conversion, and core/standards' own checker then refuses the copy
 under ISO 19005-1 6.1.4. Parts 2 and 3 are unaffected. That is in
 core/standards, outside this folder, so the tests here cover 2b, 2u and 3b
 and the gap is reported.
+
+## 2026-11-12: signed documents aren't converted
+
+Measured in the app: converting the signed expense claim to PDF/A-2b gave
+a copy core/standards' checker passed, but veraPDF failed it under ISO
+19005-2 6.4.3: the two signatures' byte ranges no longer covered the
+rewritten file. A signature can't survive a rewrite, so `convert_copy`
+now refuses a signed source with a sentence saying to convert first and
+then sign the PDF/A copy (signing appends, so the copy stays PDF/A). The
+checker not testing 6.4.3 is reported for core/standards.
