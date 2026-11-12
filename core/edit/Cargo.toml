@@ -1,0 +1,9 @@
+[package]
+name = "letters-edit"
+description = "edits page content directly: text in place and images"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"

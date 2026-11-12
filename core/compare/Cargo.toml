@@ -1,0 +1,9 @@
+[package]
+name = "letters-compare"
+description = "compares two versions of a document and reports what changed in text, formatting and layout"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"

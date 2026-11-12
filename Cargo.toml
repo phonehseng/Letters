@@ -9,6 +9,8 @@ members = [
     "core/ocr",
     "core/office",
     "core/a11y",
+    "core/compare",
+    "core/edit",
     "app/shell-core",
     "app/shell",
 ]
