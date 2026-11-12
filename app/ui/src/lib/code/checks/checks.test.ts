@@ -131,6 +131,18 @@ describe("markdown", () => {
     expect(problems.map((problem) => problem.message)).toEqual(["This code block is never closed. Add ``` on a line of its own where it ends."]);
   });
 
+  it("makes anchors for headings underlined with === or ---", () => {
+    expect(checkMarkdown("Title\n=====\n\nPart\n----\n\nSee [part](#part).\n")).toEqual([]);
+    expect(checkMarkdown("A heading that runs\nover two lines\n---\n\n[up](#a-heading-that-runs-over-two-lines)\n")).toEqual([]);
+    const misspelled = checkMarkdown("Part\n----\n\nSee [part](#parts).\n");
+    expect(misspelled.map((problem) => problem.message)).toEqual(["No heading in this file makes the anchor “#parts”."]);
+  });
+
+  it("reads --- after a blank line as a dividing line, not a heading", () => {
+    const problems = checkMarkdown("Intro\n\n---\n\n[back](#intro)\n");
+    expect(problems.map((problem) => problem.message)).toEqual(["No heading in this file makes the anchor “#intro”."]);
+  });
+
   it("makes anchors the way github does", () => {
     expect(headingAnchor("Getting Started, Fast!")).toBe("getting-started-fast");
   });
