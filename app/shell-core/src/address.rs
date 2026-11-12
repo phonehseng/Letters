@@ -19,7 +19,12 @@ pub enum Wanted {
 ///
 /// anything unexpected is refused here, so a strange address can never
 /// reach the file system.
+///
+/// anything after `?` is ignored. the ui adds `?r=<revision>` to tile
+/// addresses so the web view asks again after an edit; the tile itself
+/// is always drawn from the document as it is now.
 pub fn parse(path: &str) -> Option<Wanted> {
+    let path = path.split(['?', '#']).next().unwrap_or_default();
     let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
     match parts.as_slice() {
         ["thumbnail", name] if is_thumbnail_name(name) => Some(Wanted::Thumbnail(name.to_string())),
@@ -51,6 +56,17 @@ mod tests {
                 row: 2,
             }))
         );
+    }
+
+    #[test]
+    fn ignores_the_revision_the_ui_adds_after_an_edit() {
+        assert_eq!(parse("/3/0/1500/1/2?r=7"), parse("/3/0/1500/1/2"));
+        assert_eq!(parse("/3/0/1500/1/2?r=7#2"), parse("/3/0/1500/1/2"));
+        assert_eq!(
+            parse("/thumbnail/0123456789abcdef?v=12"),
+            Some(Wanted::Thumbnail("0123456789abcdef".into()))
+        );
+        assert_eq!(parse("/3/0/1500/1?r=2"), None);
     }
 
     #[test]
