@@ -10,6 +10,7 @@
   import type { PageSize } from "./layout";
   import Outline from "./Outline.svelte";
   import type { SidebarMode } from "./sidebar";
+  import type { PageSelection } from "./selection";
   import Thumbnails from "./Thumbnails.svelte";
   import { tools } from "./tools";
 
@@ -25,10 +26,28 @@
     outline: OutlineItem[] | null;
     onModeChange: (mode: SidebarMode) => void;
     onGoToPage: (index: number) => void;
+    /** choosing and rearranging pages in the thumbnails (see Thumbnails.svelte) */
+    pageHandling: {
+      selection: PageSelection;
+      onSelectionChange: (selection: PageSelection) => void;
+      onMovePages: (pages: number[], before: number) => void;
+      onContextMenu: (x: number, y: number) => void;
+      onInsertFiles: (paths: string[], atIndex: number) => void;
+    };
   }
 
-  let { mode, documentId, pages, currentRow, pixelRatio, revision, outline, onModeChange, onGoToPage }: Props =
-    $props();
+  let {
+    mode,
+    documentId,
+    pages,
+    currentRow,
+    pixelRatio,
+    revision,
+    outline,
+    onModeChange,
+    onGoToPage,
+    pageHandling,
+  }: Props = $props();
 
   const modes: SidebarMode[] = ["thumbnails", "outline"];
   let tabs: HTMLButtonElement[] = $state([]);
@@ -67,7 +86,7 @@
 
   <div id="sidebar-panel" class="panel" role="tabpanel" aria-labelledby={`sidebar-tab-${mode}`}>
     {#if mode === "thumbnails"}
-      <Thumbnails {documentId} {pages} {currentRow} {pixelRatio} {revision} {onGoToPage} />
+      <Thumbnails {documentId} {pages} {currentRow} {pixelRatio} {revision} {onGoToPage} {...pageHandling} />
     {:else}
       <Outline
         items={outline}

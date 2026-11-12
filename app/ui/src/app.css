@@ -66,11 +66,18 @@
   /* room the floating toolbar needs above the content */
   --toolbar-space: 4.25rem;
 
-  font: var(--body);
-  letter-spacing: var(--body-spacing);
   color: var(--label);
   background: var(--window);
   -webkit-font-smoothing: antialiased;
+}
+
+/* the body text goes on body, not on :root. setting it on :root would
+   make the root size 13px, and then every rem in the app (all sizes are
+   in rem) would be 13px instead of the person's 16px, shrinking the
+   whole type scale below its own minimum */
+body {
+  font: var(--body);
+  letter-spacing: var(--body-spacing);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -154,7 +161,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
   letter-spacing: inherit;
   color: inherit;
@@ -200,6 +208,10 @@ button {
   background: var(--control-active);
 }
 
+.button:disabled {
+  color: var(--label-tertiary);
+}
+
 /* the single most likely action in a view gets the accent as its background */
 .button.primary {
   background: var(--accent);
@@ -220,6 +232,55 @@ button {
   border-radius: var(--radius-small);
   background: var(--control);
   font: var(--body);
+}
+
+/* --- settings inside inspector tools --- */
+
+/* one setting: a small caption above its control */
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.caption {
+  padding: 0;
+  color: var(--label-secondary);
+  font: var(--subheadline);
+  font-weight: 600;
+  letter-spacing: var(--subheadline-spacing);
+}
+
+.hint {
+  margin: 0;
+  color: var(--label-secondary);
+  font: var(--subheadline);
+  line-height: 0.9375rem;
+  letter-spacing: var(--subheadline-spacing);
+}
+
+/* settings side by side, such as left, top, width and height */
+.setting-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.setting .field {
+  width: 100%;
+  min-width: 0;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.check input {
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 /* text that only screen readers should get */

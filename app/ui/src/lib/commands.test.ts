@@ -79,6 +79,32 @@ describe("commandForKey for document commands", () => {
   });
 });
 
+describe("commandForKey for page commands", () => {
+  const bare = (key: string, extra: Partial<KeyPress> = {}) => press(key, { ctrlKey: false, ...extra });
+
+  it("deletes the selected pages with Delete or Backspace, but never while typing", () => {
+    expect(commandForKey(bare("Delete"))).toBe("delete-pages");
+    expect(commandForKey(bare("Backspace"))).toBe("delete-pages");
+    expect(commandForKey(bare("Delete", { typing: true }))).toBeNull();
+    expect(commandForKey(bare("Delete", { shiftKey: true }))).toBeNull();
+  });
+
+  it("moves pages with alt and the arrows", () => {
+    expect(commandForKey(bare("ArrowUp", { altKey: true }))).toBe("move-pages-up");
+    expect(commandForKey(bare("ArrowDown", { altKey: true }))).toBe("move-pages-down");
+    expect(commandForKey(bare("ArrowDown"))).toBeNull();
+    expect(commandForKey(bare("ArrowDown", { altKey: true, typing: true }))).toBeNull();
+  });
+
+  it("opens the tools with ctrl + alt + i, read from the physical key", () => {
+    expect(commandForKey(press("ˆ", { altKey: true, code: "KeyI" }))).toBe("toggle-inspector");
+  });
+
+  it("leaves plain letters alone", () => {
+    expect(commandForKey(bare("d"))).toBeNull();
+  });
+});
+
 describe("isTextField", () => {
   it("knows which elements undo their own typing", () => {
     expect(isTextField({ tagName: "INPUT" } as Element)).toBe(true);

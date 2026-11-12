@@ -82,14 +82,6 @@ export function saveDocumentAs(id: number, path: string): Promise<DocumentState>
   return invoke("save_document_as", { id, path });
 }
 
-/**
- * turns pages (counted from 0) clockwise by `degrees`, a multiple of 90.
- * negative turns anticlockwise. only the working copy changes until Save.
- */
-export function rotatePages(id: number, pages: number[], degrees: number): Promise<DocumentState> {
-  return invoke("rotate_pages", { id, pages, degrees });
-}
-
 /** shows the system's save panel, starting at `suggestedPath`. returns the chosen path, if any. */
 export async function chooseSaveLocation(suggestedPath: string): Promise<string | null> {
   const chosen = await showSaveDialog({

@@ -37,6 +37,8 @@
     onToggleTwoPages: () => void;
     onToggleNightMode: () => void;
     onNewWindow: () => void;
+    inspectorOpen: boolean;
+    onTools: () => void;
     onExplain: () => void;
   }
 
@@ -62,6 +64,8 @@
     onToggleTwoPages,
     onToggleNightMode,
     onNewWindow,
+    inspectorOpen,
+    onTools,
     onExplain,
   }: Props = $props();
 
@@ -123,6 +127,8 @@
       {#if !hidden.has("newWindow")}
         <ToolButton name="newWindow" icon="newWindow" {hideLabel} onClick={onNewWindow} />
       {/if}
+      <!-- inspector buttons sit on the trailing edge, beside the panels they open -->
+      <ToolButton name="tools" icon="tools" {hideLabel} pressed={inspectorOpen} onClick={onTools} />
       <ToolButton name="explain" icon="sidePanel" {hideLabel} pressed={explainOpen} onClick={onExplain} />
     </div>
   </div>

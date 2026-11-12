@@ -14,6 +14,16 @@ export const COMMANDS = [
   "redo",
   "rotate-left",
   "rotate-right",
+  "move-pages-up",
+  "move-pages-down",
+  "delete-pages",
+  "insert-blank-page",
+  "insert-from-pdf",
+  "extract-pages",
+  "split",
+  "merge",
+  "crop",
+  "toggle-inspector",
   "zoom-in",
   "zoom-out",
   "fit-width",
@@ -53,7 +63,23 @@ const DIGIT_COMMANDS: Record<string, Command> = {
   Numpad2: "toggle-outline",
   Digit3: "toggle-two-pages",
   Numpad3: "toggle-two-pages",
+  // the same keys as Show Inspector in Pages and Keynote
+  KeyI: "toggle-inspector",
 };
+
+/**
+ * the few commands on keys without ctrl or command. they never apply in
+ * a text field, where these keys edit text.
+ */
+function plainKeyCommand(press: KeyPress): Command | null {
+  if (press.typing || press.ctrlKey || press.metaKey) return null;
+  const noOtherKeys = !press.altKey && !press.shiftKey;
+  if (noOtherKeys && (press.key === "Delete" || press.key === "Backspace")) return "delete-pages";
+  // alt (option on a mac) + up or down moves the selected pages
+  if (press.altKey && !press.shiftKey && press.key === "ArrowUp") return "move-pages-up";
+  if (press.altKey && !press.shiftKey && press.key === "ArrowDown") return "move-pages-down";
+  return null;
+}
 
 /**
  * the command a key press stands for, or null.
@@ -62,7 +88,7 @@ const DIGIT_COMMANDS: Record<string, Command> = {
  * by the character typed, so they follow the keyboard layout.
  */
 export function commandForKey(press: KeyPress): Command | null {
-  if (!(press.ctrlKey || press.metaKey)) return null;
+  if (!(press.ctrlKey || press.metaKey)) return plainKeyCommand(press);
   // on many layouts AltGr + 3 types ³. in a text field the character
   // wins; anywhere else ctrl + alt + 3 is still the shortcut
   if (press.altGraph && press.typing) return null;

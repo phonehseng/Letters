@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PAGE_GAP, visiblePages } from "./layout";
-import { THUMBNAIL_BOX, thumbnailKeyTarget, thumbnailLayout, thumbnailTiles, thumbnailZoom } from "./thumbnails";
+import { THUMBNAIL_BOX, thumbnailLayout, thumbnailTiles, thumbnailZoom } from "./thumbnails";
 
 const LETTER = { width: 612, height: 792 };
 const LABEL = 20;
@@ -53,18 +53,3 @@ describe("thumbnailTiles", () => {
   });
 });
 
-describe("thumbnailKeyTarget", () => {
-  it("steps past the whole current row", () => {
-    expect(thumbnailKeyTarget("ArrowDown", { first: 2, last: 3 }, 10)).toBe(4);
-    expect(thumbnailKeyTarget("ArrowUp", { first: 2, last: 3 }, 10)).toBe(1);
-  });
-
-  it("stops at the ends and knows Home and End", () => {
-    expect(thumbnailKeyTarget("ArrowDown", { first: 9, last: 9 }, 10)).toBe(9);
-    expect(thumbnailKeyTarget("ArrowUp", { first: 0, last: 1 }, 10)).toBe(0);
-    expect(thumbnailKeyTarget("Home", { first: 4, last: 5 }, 10)).toBe(0);
-    expect(thumbnailKeyTarget("End", { first: 4, last: 5 }, 10)).toBe(9);
-    expect(thumbnailKeyTarget("a", { first: 4, last: 5 }, 10)).toBeNull();
-    expect(thumbnailKeyTarget("End", { first: 0, last: 0 }, 0)).toBeNull();
-  });
-});

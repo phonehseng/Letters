@@ -9,27 +9,54 @@
   // strip, so the document reaches the top of the window (docs/DESIGN.md).
   // this file holds the viewer's state; the parts are their own components.
   //
-  // the document can change (rotate, undo, redo). every change comes back
-  // from the shell as a new DocumentState, which the window passes down
-  // again as `document`; page sizes, tiles, thumbnails, the outline and
-  // find all redraw from it, and the reader's place is kept.
+  // the document can change (page tools, undo, redo). every change comes
+  // back from the shell as a new DocumentState, which the window passes
+  // down again as `document`; page sizes, tiles, thumbnails, the outline
+  // and find all redraw from it, and the reader's place is kept.
+  //
+  // page tools act on the pages selected in the thumbnails, or on the
+  // page being read when none are. the Tools inspector, the Explain panel
+  // and the sidebar share the window by the rules in sidePanels.ts.
   import { tick, untrack } from "svelte";
   import {
     asCommandError,
+    chooseFile,
+    chooseSaveLocation,
     documentOutline,
+    newWindow,
     redo,
-    rotatePages,
     undo,
     type DocumentState,
     type OutlineItem,
     type SearchMatch,
   } from "./api";
   import { appCommands, type Command } from "./commands";
+  import ContextMenu, { type ContextItem } from "./ContextMenu.svelte";
+  import CropOverlay from "./CropOverlay.svelte";
+  import { startingCrop, type CropBox } from "./cropRect";
   import { isAvailable } from "./documentMenu";
-  import { documentChanges, placeAfterEdit, rotation } from "./documentState";
+  import { documentChanges, placeAfterEdit } from "./documentState";
   import { remInPixels } from "./dom";
   import FindBar from "./FindBar.svelte";
   import HelpPanel from "./HelpPanel.svelte";
+  import { explainGroups, tabById, tabWithTool, type ToolContext } from "./inspector";
+  import InspectorPanel from "./InspectorPanel.svelte";
+  import { positionsAfterMove, stepTarget } from "./movePages";
+  import {
+    deletePages,
+    extractPages,
+    fileNameOf,
+    insertBlankPages,
+    insertPagesFrom,
+    movePages,
+    pathBeside,
+    pdfPageCount,
+    rotatePages,
+    stemOf,
+  } from "./pageApi";
+  import { describePages, pagesAsTypedText } from "./pageRanges";
+  import { keepWithin, NO_SELECTION, targetPages, type PageSelection } from "./selection";
+  import { closePanel, fitPanels, inspectorFloats, openPanel, togglePanel, type SidePanel } from "./sidePanels";
   import {
     anchorAt,
     PAGE_GAP,
@@ -51,14 +78,7 @@
   import { highlightsOnPage, matchBounds, matchesByPage } from "./search";
   import SearchHighlights from "./SearchHighlights.svelte";
   import Sidebar from "./Sidebar.svelte";
-  import {
-    CLOSED_SIDEBAR,
-    onlyOnePanelFits,
-    toggleSidebar,
-    toggleSidebarMode,
-    type SidebarMode,
-    type SidebarState,
-  } from "./sidebar";
+  import { toggleSidebar, toggleSidebarMode, type SidebarMode, type SidebarState } from "./sidebar";
   import { hiddenParts } from "./toolbar";
   import type { ToolName } from "./tools";
   import ViewerToolbar from "./ViewerToolbar.svelte";
@@ -84,8 +104,23 @@
   let windowWidth = $state(window.innerWidth);
   let toolbarHeight = $state(0);
   let nightMode = $state(false);
-  let showExplain = $state(false);
-  let sidebar = $state<SidebarState>(CLOSED_SIDEBAR);
+  // the open side panels, oldest first (see sidePanels.ts)
+  let panels = $state<SidePanel[]>([]);
+  // the sidebar keeps its mode while closed
+  let sidebarMode = $state<SidebarMode>("thumbnails");
+  const sidebar = $derived<SidebarState>({ open: panels.includes("sidebar"), mode: sidebarMode });
+  const showExplain = $derived(panels.includes("explain"));
+  const showInspector = $derived(panels.includes("inspector"));
+  let inspectorTab = $state("pages");
+  // a tool a menu command asked the inspector to open
+  let requestedTool = $state<ToolContext["requested"]>(null);
+  let selection = $state<PageSelection>(NO_SELECTION);
+  // the crop rectangle on the page being read, while the Crop tool is open
+  let cropActive = $state(false);
+  let cropBox = $state<CropBox | null>(null);
+  // a short message under the toolbar, such as "Saved pages 1–3 as …"
+  let notice = $state<{ text: string; action?: { label: string; run: () => void } } | null>(null);
+  let contextMenuAt = $state<{ x: number; y: number } | null>(null);
   let outline = $state<OutlineItem[] | null>(null);
   let findOpen = $state(false);
   let findBar = $state<FindBar>();
@@ -107,6 +142,8 @@
   const currentRow = $derived(rowAround(layout.pages, currentIndex));
   const hidden = $derived(hiddenParts(viewportWidth, remPx));
   const matchesOnPages = $derived(matchesByPage(found.matches));
+  const target = $derived(targetPages(selection, Math.min(currentIndex, doc.pages.length - 1)));
+  const floatingInspector = $derived(inspectorFloats(windowWidth, remPx));
 
   // pages within half a screen of the visible area are kept ready
   const shownPages = $derived.by(() => {
@@ -114,10 +151,12 @@
     return range ? layout.pages.slice(range.first, range.last + 1) : [];
   });
 
-  // the explain panel describes what is on screen right now
-  const explained = $derived<ToolName[]>([
+  // the explain panel describes what is on screen right now, with the
+  // open inspector tab's tools first
+  const onScreen = $derived<ToolName[]>([
     "sidebar",
     "thumbnails",
+    ...(sidebar.open && sidebar.mode === "thumbnails" ? (["pageSelection", "movePages", "deletePages"] as const) : []),
     "outline",
     "recents",
     "documentMenu",
@@ -137,8 +176,10 @@
     "twoPages",
     "nightMode",
     "newWindow",
+    "tools",
     "explain",
   ]);
+  const explained = $derived(explainGroups(onScreen, showInspector ? tabById(inspectorTab) : null));
 
   /** where a page's left edge is in the scroll area */
   const pageLeft = (pageLeftFromCentre: number) => contentWidth / 2 + pageLeftFromCentre;
@@ -193,15 +234,26 @@
     scroller.scrollTop = scrollTopForPage(layout.pages, index, toolbarHeight);
   }
 
-  // on a small window the sidebar and the explain panel take turns
+  // panels that don't fit beside each other take turns (see sidePanels.ts)
   function setSidebar(next: SidebarState) {
-    if (next.open && onlyOnePanelFits(windowWidth, remPx)) showExplain = false;
-    sidebar = next;
+    sidebarMode = next.mode;
+    panels = next.open ? openPanel(panels, "sidebar", windowWidth, remPx) : closePanel(panels, "sidebar");
   }
 
   function toggleExplain() {
-    showExplain = !showExplain;
-    if (showExplain && onlyOnePanelFits(windowWidth, remPx)) sidebar = { ...sidebar, open: false };
+    panels = togglePanel(panels, "explain", windowWidth, remPx);
+  }
+
+  function toggleInspector() {
+    panels = togglePanel(panels, "inspector", windowWidth, remPx);
+  }
+
+  /** opens the inspector at the tab and section holding `tool`. */
+  function openTool(tool: ToolName) {
+    const tab = tabWithTool(tool);
+    if (tab) inspectorTab = tab.id;
+    panels = openPanel(panels, "inspector", windowWidth, remPx);
+    requestedTool = { tool, at: performance.now() };
   }
 
   function openFind() {
@@ -247,14 +299,16 @@
    * when the key was pressed, so pressing undo twice with one step left
    * undoes once and then quietly does nothing, as on a mac.
    */
-  function change(command: Command, action: () => Promise<DocumentState>) {
+  function change(command: Command | null, action: () => Promise<DocumentState>): Promise<boolean> {
     // changes run one after another, so their answers arrive in order
     return documentChanges(async () => {
-      if (!isAvailable(command, doc)) return;
+      if (command && !isAvailable(command, doc)) return false;
       try {
         await showState(await action());
+        return true;
       } catch (problem) {
         onError(asCommandError(problem).message);
+        return false;
       }
     });
   }
@@ -267,6 +321,7 @@
   async function showState(next: DocumentState) {
     const anchor = anchorAt(layout.pages, scrollTop + toolbarHeight);
     onDocumentChange(next);
+    selection = keepWithin(selection, next.pages.length);
     await tick();
     if (followsWidth) zoom = zoomToFitWidth(next.pages, viewportWidth, pageMode);
     await tick();
@@ -275,12 +330,136 @@
     }
   }
 
-  function rotateCurrentPage(direction: "left" | "right") {
+  // --- page actions shared by the keyboard, the menus and the thumbnails.
+  // the pages are chosen when the person asks, not when the change runs
+
+  function rotateTarget(direction: "left" | "right") {
     const command = direction === "left" ? "rotate-left" : "rotate-right";
-    // the page is chosen now, when the reader asked, not when it runs
-    const { pages, degrees } = rotation(direction, currentIndex);
-    change(command, () => rotatePages(doc.id, pages, degrees));
+    const pages = target.pages;
+    change(command, () => rotatePages(doc.id, pages, direction === "left" ? -1 : 1));
   }
+
+  /** deletes pages and forgets the selection once they are gone. */
+  async function deletePageList(pages: number[]) {
+    if (await change(null, () => deletePages(doc.id, pages))) selection = NO_SELECTION;
+  }
+
+  /** the delete key deletes selected pages only, never the page being read by surprise. */
+  function deleteSelection() {
+    if (selection.pages.length > 0) deletePageList(selection.pages);
+  }
+
+  /** moves pages as a block, keeps them selected, and follows them if they were being read. */
+  async function movePageBlock(pages: number[], before: number) {
+    const followed = pages.includes(currentIndex);
+    const landed = positionsAfterMove(doc.pages.length, pages, before);
+    if (!(await change(null, () => movePages(doc.id, pages, before)))) return;
+    selection = { pages: landed, anchor: landed[0], focus: landed[landed.length - 1] };
+    if (followed) goToPage(landed[0]);
+  }
+
+  function moveByStep(direction: "up" | "down") {
+    const pages = selection.pages.length > 0 ? selection.pages : [currentIndex];
+    const before = stepTarget(pages, direction, doc.pages.length);
+    if (before !== null) movePageBlock(pages, before);
+  }
+
+  /** where new pages go: after the last selected page, or after the page being read. */
+  const insertAfterTarget = () => Math.max(...target.pages) + 1;
+
+  function insertBlankAfter() {
+    const at = insertAfterTarget();
+    // the same size as the page before it, so it fits in
+    const size = doc.pages[at - 1] ?? { width: 612, height: 792 };
+    change(null, () => insertBlankPages(doc.id, { atIndex: at, widthPt: size.width, heightPt: size.height, count: 1 }));
+  }
+
+  async function insertFromPdf() {
+    const at = insertAfterTarget();
+    const path = await chooseFile();
+    if (path) insertFiles([path], at);
+  }
+
+  /** inserts whole pdfs one after another, each as its own undo step. */
+  async function insertFiles(paths: string[], atIndex: number) {
+    let at = atIndex;
+    for (const path of paths) {
+      let added: number;
+      try {
+        added = await pdfPageCount(path);
+      } catch (problem) {
+        onError(asCommandError(problem).message);
+        return;
+      }
+      const where = at;
+      if (!(await change(null, () => insertPagesFrom(doc.id, where, path, null)))) return;
+      at += added;
+    }
+    selection = NO_SELECTION;
+  }
+
+  async function extractTarget() {
+    const pages = target.pages;
+    const suggested = pathBeside(doc.path, `${stemOf(doc.path)} - ${pagesAsTypedText(pages)}.pdf`);
+    const savePath = await chooseSaveLocation(suggested);
+    if (!savePath) return;
+    try {
+      const written = await extractPages(doc.id, pages, savePath);
+      showNotice(`Saved ${describePages(pages, doc.pages.length)} as “${fileNameOf(written)}”.`, {
+        label: "Open",
+        run: () => newWindow(written),
+      });
+    } catch (problem) {
+      onError(asCommandError(problem).message);
+    }
+  }
+
+  function showNotice(text: string, action?: { label: string; run: () => void }) {
+    notice = { text, action };
+  }
+
+  /** the notice's button: the message goes away and its action runs. */
+  function runNoticeAction() {
+    const action = notice?.action;
+    notice = null;
+    action?.run();
+  }
+
+  /** the right-click menu of the thumbnails. */
+  const contextItems = $derived.by((): ContextItem[] => {
+    const everyPage = target.pages.length >= doc.pages.length;
+    const pages = target.pages;
+    return [
+      { label: "Rotate Left", run: () => rotateTarget("left") },
+      { label: "Rotate Right", run: () => rotateTarget("right") },
+      {
+        label: pages.length === 1 ? "Delete Page" : "Delete Pages",
+        disabled: everyPage,
+        title: everyPage ? "A PDF needs at least one page" : undefined,
+        separatorBefore: true,
+        run: () => deletePageList(pages),
+      },
+      { label: "Extract…", run: extractTarget },
+      { label: "Insert Blank Page After", separatorBefore: true, run: insertBlankAfter },
+      { label: "Insert from PDF…", run: insertFromPdf },
+    ];
+  });
+
+  // what every inspector tool can see and do (see inspector.ts)
+  const toolContext = $derived<ToolContext>({
+    document: doc,
+    currentPage: Math.min(currentIndex, doc.pages.length - 1),
+    target,
+    change: (action) => change(null, action),
+    notify: showNotice,
+    showError: onError,
+    requested: requestedTool,
+    crop: {
+      box: cropBox,
+      setBox: (box) => (cropBox = box),
+      setActive: (active) => (cropActive = active),
+    },
+  });
 
   function onWindowKeyDown(event: KeyboardEvent) {
     // escape closes find from anywhere in the viewer, not only its field
@@ -301,8 +480,18 @@
       ["toggle-night-mode", () => (nightMode = !nightMode)],
       ["undo", () => change("undo", () => undo(doc.id))],
       ["redo", () => change("redo", () => redo(doc.id))],
-      ["rotate-left", () => rotateCurrentPage("left")],
-      ["rotate-right", () => rotateCurrentPage("right")],
+      ["rotate-left", () => rotateTarget("left")],
+      ["rotate-right", () => rotateTarget("right")],
+      ["delete-pages", deleteSelection],
+      ["move-pages-up", () => moveByStep("up")],
+      ["move-pages-down", () => moveByStep("down")],
+      ["insert-blank-page", insertBlankAfter],
+      ["insert-from-pdf", insertFromPdf],
+      ["extract-pages", extractTarget],
+      ["split", () => openTool("splitDocument")],
+      ["merge", () => openTool("mergeDocuments")],
+      ["crop", () => openTool("cropPages")],
+      ["toggle-inspector", toggleInspector],
     ];
     const takeBack = handlers.map(([command, handler]) => appCommands.register(command, handler));
     return () => takeBack.forEach((unregister) => unregister());
@@ -320,6 +509,26 @@
         // a document whose outline cannot be read is treated as having none
         .catch(() => (outline = [])),
     );
+  });
+
+  // the crop rectangle starts fresh on each page it is shown on, and
+  // after every change (a crop changes the page's size)
+  $effect(() => {
+    const size = doc.pages[currentIndex];
+    if (!cropActive || !size) {
+      cropBox = null;
+      return;
+    }
+    untrack(() => (cropBox = startingCrop(size)));
+  });
+
+  // panels that no longer fit when the window shrinks close, oldest first
+  $effect(() => {
+    const width = windowWidth;
+    untrack(() => {
+      const fitted = fitPanels(panels, width, remPx);
+      if (fitted.length !== panels.length) panels = fitted;
+    });
   });
 
   // start with the page filling the window's width, the most readable
@@ -372,6 +581,13 @@
       {outline}
       onModeChange={(mode: SidebarMode) => setSidebar({ open: true, mode })}
       onGoToPage={goToPage}
+      pageHandling={{
+        selection,
+        onSelectionChange: (next) => (selection = next),
+        onMovePages: movePageBlock,
+        onContextMenu: (x, y) => (contextMenuAt = { x, y }),
+        onInsertFiles: insertFiles,
+      }}
     />
   {/if}
 
@@ -407,6 +623,16 @@
               height={page.height}
             />
           {/if}
+          {#if cropBox && page.index === currentIndex}
+            <CropOverlay
+              {page}
+              size={doc.pages[page.index]}
+              left={pageLeft(page.left)}
+              {zoom}
+              box={cropBox}
+              onChange={(box) => (cropBox = box)}
+            />
+          {/if}
         {/each}
       </div>
     </div>
@@ -433,8 +659,20 @@
       onToggleTwoPages={toggleTwoPages}
       onToggleNightMode={() => (nightMode = !nightMode)}
       {onNewWindow}
+      inspectorOpen={showInspector}
+      onTools={toggleInspector}
       onExplain={toggleExplain}
     />
+
+    {#if notice}
+      <div class="glass notice" role="status" style:top="{toolbarHeight + 8}px">
+        <span>{notice.text}</span>
+        {#if notice.action}
+          <button class="button" onclick={runNoticeAction}>{notice.action.label}</button>
+        {/if}
+        <button class="button" onclick={() => (notice = null)}>OK</button>
+      </div>
+    {/if}
 
     {#if findOpen}
       <FindBar
@@ -449,15 +687,62 @@
     {/if}
   </div>
 
+  {#if showInspector}
+    <InspectorPanel
+      tabId={inspectorTab}
+      context={toolContext}
+      floating={floatingInspector}
+      onTabChange={(id) => (inspectorTab = id)}
+      onClose={() => (panels = closePanel(panels, "inspector"))}
+    />
+  {/if}
+
   {#if showExplain}
-    <HelpPanel names={explained} onClose={() => (showExplain = false)} />
+    <HelpPanel groups={explained} onClose={() => (panels = closePanel(panels, "explain"))} />
   {/if}
 </div>
 
+{#if contextMenuAt}
+  <ContextMenu
+    x={contextMenuAt.x}
+    y={contextMenuAt.y}
+    label="Page commands"
+    items={contextItems}
+    onClose={() => (contextMenuAt = null)}
+  />
+{/if}
+
 <style>
   .viewer {
+    position: relative;
     display: flex;
     height: 100%;
+  }
+
+  /* a message under the toolbar, like the window's own messages */
+  .notice {
+    position: absolute;
+    left: 50%;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: min(34rem, calc(100% - 2rem));
+    padding: 0.625rem 0.625rem 0.625rem 1rem;
+    transform: translateX(-50%);
+    animation: arrive 0.2s var(--ease);
+  }
+
+  .notice span {
+    flex: 1 1 12rem;
+  }
+
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -0.5rem);
+    }
   }
 
   /* the document and the toolbar floating over it */

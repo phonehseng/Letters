@@ -5,15 +5,20 @@
   // it sits on the trailing side like an inspector, and is closed until
   // asked for, so the explanations never crowd the document.
   import Icon from "./Icon.svelte";
-  import { tools, type ToolHelp, type ToolName } from "./tools";
+  import { tools, type ToolHelp } from "./tools";
+
+  import type { ExplainGroup } from "./inspector";
 
   interface Props {
-    names: ToolName[];
+    /** the tools to explain, in groups: the open inspector tab first, then the screen */
+    groups: ExplainGroup[];
     onClose: () => void;
   }
 
-  let { names, onClose }: Props = $props();
-  const entries = $derived(names.map((name): ToolHelp => tools[name]));
+  let { groups, onClose }: Props = $props();
+  const shown = $derived(
+    groups.map((group) => ({ title: group.title, entries: group.names.map((name): ToolHelp => tools[name]) })),
+  );
 </script>
 
 <aside class="panel" aria-label="What each tool does">
@@ -23,21 +28,27 @@
       <Icon name="close" size={0.75} />
     </button>
   </header>
-  <dl>
-    {#each entries as tool (tool.label)}
-      <div class="entry">
-        <dt>
-          {tool.label.replace("…", "")}
-          {#if tool.shortcut}
-            <kbd>{tool.shortcut}</kbd>
+  {#each shown as group (group.title)}
+    <h3>{group.title}</h3>
+    <dl>
+      {#each group.entries as tool (tool.label)}
+        <div class="entry">
+          <dt>
+            {tool.label.replace("…", "")}
+            {#if tool.shortcut}
+              <kbd>{tool.shortcut}</kbd>
+            {/if}
+          </dt>
+          <dd class="summary">{tool.tooltip}.</dd>
+          {#if tool.meaning}
+            <dd>{tool.meaning}</dd>
           {/if}
-        </dt>
-        <dd class="summary">{tool.tooltip}.</dd>
-        <dd><span>When to use it</span>{tool.whenToUse}</dd>
-        <dd><span>What happens to the file</span>{tool.fileEffect}</dd>
-      </div>
-    {/each}
-  </dl>
+          <dd><span>When to use it</span>{tool.whenToUse}</dd>
+          <dd><span>What happens to the file</span>{tool.fileEffect}</dd>
+        </div>
+      {/each}
+    </dl>
+  {/each}
 </aside>
 
 <style>
@@ -52,6 +63,15 @@
     border-left: 0.5px solid var(--separator);
     background: var(--glass);
     backdrop-filter: var(--blur);
+  }
+
+  /* a quiet caption above each group, like a sidebar section heading */
+  h3 {
+    margin: 0.75rem 0 0;
+    color: var(--label-secondary);
+    font: var(--subheadline);
+    font-weight: 600;
+    letter-spacing: var(--subheadline-spacing);
   }
 
   header {

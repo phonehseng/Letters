@@ -18,20 +18,20 @@ export type ToolbarPart =
 
 /** each part hides when the document area is narrower than this, in rem. */
 export const NARROWING: readonly { part: ToolbarPart; belowRem: number }[] = [
-  { part: "labels", belowRem: 54 },
+  { part: "labels", belowRem: 58 },
   // without the percentage the zoom group stops being centred, so the
   // title gets the room instead
-  { part: "zoomLevel", belowRem: 44 },
+  { part: "zoomLevel", belowRem: 47 },
   // ctrl n
-  { part: "newWindow", belowRem: 36 },
+  { part: "newWindow", belowRem: 39 },
   // "page 3 of 40" becomes "3 of 40"
-  { part: "pageWord", belowRem: 36 },
+  { part: "pageWord", belowRem: 39 },
   // ctrl 0
-  { part: "fitWidth", belowRem: 32 },
+  { part: "fitWidth", belowRem: 35 },
   // ctrl + and ctrl −
-  { part: "zoomButtons", belowRem: 26 },
+  { part: "zoomButtons", belowRem: 29 },
   // ctrl f. only reached with a side panel open on a small window
-  { part: "find", belowRem: 20 },
+  { part: "find", belowRem: 23 },
 ];
 
 /**

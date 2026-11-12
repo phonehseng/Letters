@@ -118,7 +118,7 @@
   </div>
 
   {#if showExplain}
-    <HelpPanel names={["open", "newWindow", "pinFolder", "explain"]} onClose={() => (showExplain = false)} />
+    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "pinFolder", "explain"] }]} onClose={() => (showExplain = false)} />
   {/if}
 </div>
 

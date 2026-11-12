@@ -31,6 +31,11 @@
     search: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z M15.2 15.2 20 20",
     chevronUp: "M6.5 14.5 12 9l5.5 5.5",
     chevronDown: "M6.5 9.5 12 15l5.5-5.5",
+    chevronRight: "M9.5 6.5 15 12l-5.5 5.5",
+    // three sliders: the usual sign for settings and tools
+    tools: "M4.5 7h8.5 M17 7h2.5 M15 5v4 M4.5 12h2.5 M11 12h8.5 M9 10v4 M4.5 17h10 M18.5 17h1 M16.5 15v4",
+    arrowUp: "M12 18.5v-13 M6.5 11 12 5.5l5.5 5.5",
+    arrowDown: "M12 5.5v13 M6.5 13 12 18.5l5.5-5.5",
     check: "M5.5 12.5l4 4 9-9",
     close: "M6.5 6.5l11 11 M17.5 6.5l-11 11",
     plus: "M12 5.5v13 M5.5 12h13",

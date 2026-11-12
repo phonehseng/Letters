@@ -20,7 +20,12 @@ export interface ToolHelp {
   fileEffect: string;
   /** the tooltip when the tool can't be used right now, saying why */
   unavailable?: string;
+  /** one sentence explaining a word a first-year may not know ("crop") */
+  meaning?: string;
 }
+
+// tools that make new files leave the open document alone; say so exactly
+const NEW_FILE_ONLY = "This document and its file on disk don’t change.";
 
 const NOTHING_CHANGES = "Nothing. The file is not changed.";
 
@@ -196,9 +201,106 @@ export const tools = {
     whenToUse: "When a scanned page is on its side or upside down.",
     fileEffect: `Rotates the page in your working copy. ${ONLY_THE_WORKING_COPY}`,
   },
+  tools: {
+    label: "Tools",
+    tooltip: "Show the tools for changing pages",
+    shortcut: "Ctrl Alt I",
+    whenToUse: "To rotate, delete, add, crop, number or watermark pages, or to split and merge PDFs.",
+    fileEffect: "Nothing by itself. Each tool says what it will do before you use it.",
+  },
+  pageSelection: {
+    label: "Select Pages",
+    tooltip: "Click a page to select it. Ctrl-click adds a page; Shift-click selects a run",
+    shortcut: "Ctrl A",
+    whenToUse:
+      "Before using a page tool on more than one page. With nothing selected, tools work on the page you are reading.",
+    fileEffect: NOTHING_CHANGES,
+  },
+  movePages: {
+    label: "Move Pages",
+    tooltip: "Drag pages in the sidebar to put them in a new order",
+    shortcut: "Alt ↑ or Alt ↓",
+    whenToUse: "When pages are in the wrong order, such as a scan fed in backwards. Dragging works too.",
+    fileEffect: `Changes the order of pages in your working copy. ${ONLY_THE_WORKING_COPY}`,
+  },
+  rotatePages: {
+    label: "Rotate",
+    tooltip: "Turn pages a quarter or half turn",
+    whenToUse: "When scanned pages are on their side or upside down.",
+    fileEffect: `Rotates the pages in your working copy. ${ONLY_THE_WORKING_COPY}`,
+  },
+  deletePages: {
+    label: "Delete Pages",
+    tooltip: "Take pages out of this document",
+    shortcut: "Delete",
+    whenToUse: "To remove blank, repeated or unneeded pages.",
+    fileEffect: `Takes the pages out of your working copy. Undo brings them back. ${ONLY_THE_WORKING_COPY}`,
+    unavailable: "A PDF needs at least one page",
+  },
+  insertPages: {
+    label: "Insert",
+    tooltip: "Add a blank page or pages from another PDF",
+    whenToUse: "To add a page for notes, or to bring in pages from another document, such as a cover sheet.",
+    fileEffect: `Adds the pages to your working copy. The other PDF doesn’t change. ${ONLY_THE_WORKING_COPY}`,
+  },
+  extractPages: {
+    label: "Extract",
+    tooltip: "Save some pages as a new PDF",
+    whenToUse: "To hand in or share only some pages, such as one chapter of a reader.",
+    fileEffect: `Makes a new PDF with copies of the pages. ${NEW_FILE_ONLY}`,
+    meaning: "Extracting copies pages out into a new PDF of their own.",
+  },
+  splitDocument: {
+    label: "Split",
+    tooltip: "Cut this PDF into several smaller PDFs",
+    whenToUse: "When a file is too long or too big to upload, or to give each chapter its own file.",
+    fileEffect: `Makes new PDFs in the folder you choose. Existing files there are never replaced. ${NEW_FILE_ONLY}`,
+    meaning: "Splitting cuts one PDF into several smaller PDFs.",
+  },
+  mergeDocuments: {
+    label: "Merge",
+    tooltip: "Combine several PDFs into one",
+    whenToUse: "To hand in one file made of several, such as an essay and its appendix.",
+    fileEffect: "Makes one new PDF from the files, in the order listed. The files themselves don’t change.",
+    meaning: "Merging joins whole PDFs, one after another, into a single new PDF.",
+  },
+  cropPages: {
+    label: "Crop",
+    tooltip: "Hide the edges of pages",
+    whenToUse: "To trim a scanner’s dark border or wide margins.",
+    fileEffect: `Hides the area outside the rectangle in your working copy. The hidden part is still in the file and can be shown again. ${ONLY_THE_WORKING_COPY}`,
+    meaning:
+      "Cropping hides the outside of a page; it doesn’t remove it. To remove something for good, use Redact under Protect.",
+  },
+  pageNumbers: {
+    label: "Page Numbers",
+    tooltip: "Add a number to every page",
+    whenToUse: "When an assignment asks for numbered pages.",
+    fileEffect: `Draws the numbers onto the pages of your working copy. Remove takes them off again. ${ONLY_THE_WORKING_COPY}`,
+  },
+  headerFooter: {
+    label: "Header & Footer",
+    tooltip: "Add a line of text to the top or bottom of pages",
+    whenToUse: "To put your name, the course or the date on every page.",
+    fileEffect: `Draws the text onto the pages of your working copy. Remove takes it off again. ${ONLY_THE_WORKING_COPY}`,
+    meaning: "A header is a line of text at the top of every page; a footer is one at the bottom.",
+  },
+  watermark: {
+    label: "Watermark",
+    tooltip: "Add faint text or a picture across pages",
+    whenToUse: "To mark a document as a draft or confidential, or to add a logo.",
+    fileEffect: `Draws the watermark onto the pages of your working copy. Remove takes it off again. ${ONLY_THE_WORKING_COPY}`,
+    meaning: "A watermark is faint text or a picture across the middle of a page, such as “Draft”.",
+  },
+  removeStamps: {
+    label: "Remove",
+    tooltip: "Take off page numbers, headers, footers or watermarks that Letters added",
+    whenToUse: "To change your mind about something added with the tools above, even after saving.",
+    fileEffect: `Takes them off the pages of your working copy. Only what Letters added is removed. ${ONLY_THE_WORKING_COPY}`,
+  },
   explain: {
     label: "Explain",
-    tooltip: "Show what every button on this screen does",
+    tooltip: "Show what every button on this screen and in the open tools does",
     whenToUse: "Whenever a button is unclear, or to check whether it changes the file.",
     fileEffect: NOTHING_CHANGES,
   },

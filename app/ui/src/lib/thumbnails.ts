@@ -49,17 +49,3 @@ export function thumbnailTiles(
   };
 }
 
-/**
- * the page to go to after a key in the thumbnails list, or null.
- *
- * `row` is the current row of the document (two pages in two page mode),
- * so the down arrow moves past both pages of a pair instead of staying put.
- */
-export function thumbnailKeyTarget(key: string, row: { first: number; last: number }, pageCount: number): number | null {
-  if (pageCount === 0) return null;
-  if (key === "ArrowDown") return Math.min(row.last + 1, pageCount - 1);
-  if (key === "ArrowUp") return Math.max(row.first - 1, 0);
-  if (key === "Home") return 0;
-  if (key === "End") return pageCount - 1;
-  return null;
-}

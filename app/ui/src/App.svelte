@@ -18,6 +18,7 @@
   import { appCommands, commandForKey, isCommand, isTextField, keyPressOf, type Command } from "./lib/commands";
   import { isAvailable } from "./lib/documentMenu";
   import { documentChanges, mayLeave, windowTitle, type SaveChoice } from "./lib/documentState";
+  import { fileDropTarget, toCssPoint } from "./lib/fileDrop";
   import Home from "./lib/Home.svelte";
   import SaveChangesSheet from "./lib/SaveChangesSheet.svelte";
   import Viewer from "./lib/Viewer.svelte";
@@ -155,11 +156,13 @@
    */
   function onMenuCommand(command: Command) {
     if (saveQuestion) return;
-    const forTheField = (command === "undo" || command === "redo") && isTextField(document.activeElement);
-    if (forTheField) {
+    const typing = isTextField(document.activeElement);
+    if (typing && (command === "undo" || command === "redo")) {
       document.execCommand(command);
       return;
     }
+    // option + up and down move the cursor in a text field; pages stay put
+    if (typing && (command === "move-pages-up" || command === "move-pages-down")) return;
     appCommands.dispatch(command, "menu");
   }
 
@@ -209,12 +212,25 @@
     if (path) openPath(path);
   });
 
-  // files dropped anywhere on the window: the first opens here (or in a
-  // new window if a document is already open), the rest in new windows
+  // files dropped on the window: a part of the window (the thumbnails)
+  // may claim them first, to insert their pages where they land.
+  // otherwise the first opens here (or in a new window if a document is
+  // already open), the rest in new windows
   $effect(() => {
     const stopListening = getCurrentWebview().onDragDropEvent((event) => {
-      if (event.payload.type !== "drop") return;
-      const [first, ...others] = event.payload.paths;
+      const payload = event.payload;
+      const target = fileDropTarget();
+      if (payload.type === "leave") {
+        target?.leave();
+        return;
+      }
+      const point = toCssPoint(payload.position, window.devicePixelRatio);
+      if (payload.type === "over" || payload.type === "enter") {
+        if (point) target?.over(point.x, point.y);
+        return;
+      }
+      if (target?.drop(payload.paths, point)) return;
+      const [first, ...others] = payload.paths;
       if (first) openPath(first);
       others.forEach((path) => newWindow(path));
     });

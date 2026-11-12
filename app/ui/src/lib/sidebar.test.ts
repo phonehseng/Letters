@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLOSED_SIDEBAR, onlyOnePanelFits, toggleSidebar, toggleSidebarMode } from "./sidebar";
+import { CLOSED_SIDEBAR, toggleSidebar, toggleSidebarMode } from "./sidebar";
 
 describe("sidebar state", () => {
   it("starts closed on thumbnails", () => {
@@ -25,11 +25,3 @@ describe("sidebar state", () => {
   });
 });
 
-describe("onlyOnePanelFits", () => {
-  it("is true on narrow windows only", () => {
-    expect(onlyOnePanelFits(480, 16)).toBe(true);
-    expect(onlyOnePanelFits(1024, 16)).toBe(false);
-    // a larger system text size makes the same window count as narrower
-    expect(onlyOnePanelFits(900, 20)).toBe(true);
-  });
-});

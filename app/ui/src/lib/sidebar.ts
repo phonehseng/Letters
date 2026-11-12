@@ -27,12 +27,3 @@ export function toggleSidebarMode(state: SidebarState, mode: SidebarMode): Sideb
   return { open: true, mode };
 }
 
-/**
- * below this window width (in rem) the sidebar and the explain panel
- * take turns: with both open the document would be squeezed to a strip.
- */
-export const ONE_PANEL_BELOW_REM = 48;
-
-export function onlyOnePanelFits(windowWidthPx: number, remPx: number): boolean {
-  return windowWidthPx < ONE_PANEL_BELOW_REM * remPx;
-}
