@@ -6,7 +6,7 @@
 import { compilerCheck, type CheckLanguage, type CheckOutcome } from "./codeApi";
 import { parseCheckerOutput } from "./diagnostics";
 import type { LanguageId } from "./languages";
-import type { Problem } from "./problems";
+import { mergeProblems, type Problem } from "./problems";
 
 const COMPILER_LANGUAGES: Partial<Record<LanguageId, CheckLanguage>> = {
   c: "c",
@@ -48,6 +48,26 @@ export async function runCompilerCheck(language: LanguageId, text: string, path:
   const outcome = await compilerCheck(checkLanguage, text, path);
   if (outcome.cancelled) throw new Error("a newer check replaced this one");
   return resultFromOutcome(language, outcome);
+}
+
+/** true when a compiler is installed and ran its check to the end. */
+function compilerFinished(compiler: CompilerResult | null): boolean {
+  // a checker with a note is one that took too long and was stopped
+  return Boolean(compiler?.checker) && compiler?.note === null;
+}
+
+/**
+ * the problems to list for a file. once the language's own compiler has
+ * finished, its verdict is the whole list: the status line then says
+ * "Checked by Python 3.14", and the checks inside Letters (the bracket and
+ * indentation reader, the highlighter's marks) only stand in for a
+ * compiler, so where they disagree with it they are the ones that are
+ * wrong. before it answers, or when none is installed, the in-app
+ * problems are all there is.
+ */
+export function problemsToShow(inApp: Problem[], compiler: CompilerResult | null): Problem[] {
+  const standIns = compilerFinished(compiler) ? [] : inApp;
+  return mergeProblems(standIns, compiler?.problems ?? []);
 }
 
 /** the status bar's line about who checked the file. */

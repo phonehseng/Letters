@@ -5,9 +5,9 @@
 
 import { checkInApp } from "./checks";
 import type { PreparedBlock } from "./codeBlocks";
-import { checkerLine, runCompilerCheck } from "./compilerCheck";
+import { checkerLine, problemsToShow, runCompilerCheck } from "./compilerCheck";
 import { languageInfo, type LanguageId } from "./languages";
-import { mergeProblems, type Problem } from "./problems";
+import { sortProblems, type Problem } from "./problems";
 
 export interface BlockResult {
   problems: Problem[];
@@ -19,7 +19,8 @@ export async function checkBlock(block: PreparedBlock, language: LanguageId): Pr
   const inApp = await checkInApp(language, block.repaired);
   const compiler = await runCompilerCheck(language, block.repaired, null).catch(() => null);
   return {
-    problems: mergeProblems([...inApp, ...block.swaps], compiler?.problems ?? []),
+    // the swapped characters are listed whoever checked the code: no compiler mentions them
+    problems: sortProblems([...problemsToShow(inApp, compiler), ...block.swaps]),
     checkedBy: checkerLine(language, compiler),
   };
 }
