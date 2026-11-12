@@ -4,6 +4,7 @@
 pub mod address;
 pub mod analysis;
 pub mod calc;
+pub mod conditional;
 pub mod csv;
 pub mod dates;
 pub mod edit;

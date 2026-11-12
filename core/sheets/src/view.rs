@@ -1,11 +1,15 @@
 //! what the grid draws: for a visible range, every cell's shown text,
 //! colour, alignment and flags, computed straight from the sparse grid
-//! so scrolling a 200,000-row sheet only touches the rows on screen.
+//! so scrolling a 200,000-row sheet only touches the rows on screen,
+//! with what the sheet's conditional formats change on top.
+
+use std::collections::HashMap;
 
 use serde::Serialize;
 
 use crate::address::{CellRef, Range};
-use crate::model::{Cell, Value, Workbook};
+use crate::conditional::{looks_in, ConditionalLook};
+use crate::model::{Cell, Sheet, Value, Workbook};
 use crate::numfmt::{format_value, Locale};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -37,6 +41,10 @@ pub struct ViewCell {
     /// the merged range this cell starts
     #[serde(skip_serializing_if = "Option::is_none")]
     pub merge: Option<Range>,
+    /// what matching conditional format rules draw over the cell's own
+    /// look; left out when no rule changes anything
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conditional: Option<ConditionalLook>,
 }
 
 /// the text a cell shows with its number format
@@ -64,8 +72,57 @@ fn named_color(name: &str) -> Option<String> {
     Some(format!("#{rgb}"))
 }
 
-/// every non-empty cell inside `range`, plus the corners of merged ranges
+/// every non-empty cell inside `range` with its conditional formatting,
+/// plus the empty cells a rule marks (excel colours an empty cell that
+/// "is less than 50"), in row order
 pub fn cells_in(book: &Workbook, sheet: usize, range: Range, locale: &Locale) -> Vec<ViewCell> {
+    let mut cells = own_cells_in(book, sheet, range, locale);
+    let looks = looks_in(book, sheet, range);
+    if looks.is_empty() {
+        return cells;
+    }
+    let Some(target) = book.sheets.get(sheet) else {
+        return cells;
+    };
+    let mut looks: HashMap<CellRef, ConditionalLook> = looks.into_iter().collect();
+    for cell in &mut cells {
+        cell.conditional = looks.remove(&CellRef::new(cell.row, cell.col));
+    }
+    // what is left are empty cells
+    for (at, look) in looks {
+        let mut blank = flagged_cell(target, at);
+        blank.conditional = Some(look);
+        cells.push(blank);
+    }
+    cells.sort_by_key(|cell| (cell.row, cell.col));
+    cells
+}
+
+/// an empty cell with the flags it would have (a note, a link, a merge)
+fn flagged_cell(target: &Sheet, at: CellRef) -> ViewCell {
+    ViewCell {
+        row: at.row,
+        col: at.col,
+        text: String::new(),
+        style: 0,
+        align: "left",
+        color: None,
+        background: None,
+        is_formula: false,
+        not_recalculated: false,
+        has_note: target
+            .comments
+            .iter()
+            .any(|n| n.row == at.row && n.col == at.col),
+        has_link: target.hyperlinks.iter().any(|l| l.range.contains(at)),
+        merge: target.merged.iter().copied().find(|m| m.start == at),
+        conditional: None,
+    }
+}
+
+/// every non-empty cell inside `range` with its own look only, for what
+/// reads the values rather than draws them (copying, filter lists)
+pub fn own_cells_in(book: &Workbook, sheet: usize, range: Range, locale: &Locale) -> Vec<ViewCell> {
     let Some(target) = book.sheets.get(sheet) else {
         return Vec::new();
     };
@@ -104,6 +161,7 @@ pub fn cells_in(book: &Workbook, sheet: usize, range: Range, locale: &Locale) ->
             has_note: target.comments.iter().any(|n| n.row == row && n.col == col),
             has_link: target.hyperlinks.iter().any(|l| l.range.contains(at)),
             merge: target.merged.iter().copied().find(|m| m.start == at),
+            conditional: None,
         });
     }
     out
@@ -167,5 +225,46 @@ mod tests {
         assert_eq!(cells[0].color.as_deref(), Some("#FF0000"));
         assert_eq!(cells[0].align, "right");
         assert_eq!(edit_text(&book, 0, 0, 1), "'12");
+    }
+
+    #[test]
+    fn conditional_formats_ride_with_their_cells() {
+        let mut book = Workbook::new();
+        book.sheets[0]
+            .cells
+            .set(0, 0, Cell::value(Value::Number(80.0)));
+        book.sheets[0]
+            .cells
+            .set(1, 0, Cell::value(Value::Number(20.0)));
+        let red = book.styles.add_differential(Some("9C0006"), None, false);
+        book.sheets[0]
+            .conditional_formats
+            .push(crate::model::ConditionalFormat {
+                ranges: vec![Range::parse("A1:A3").unwrap()],
+                rules: vec![crate::model::ConditionalRule {
+                    kind: "cellIs".into(),
+                    operator: Some("lessThan".into()),
+                    formulas: vec!["50".into()],
+                    format: Some(red),
+                    priority: 1,
+                    ..Default::default()
+                }],
+            });
+        let view = Range::parse("A1:B5").unwrap();
+        let cells = cells_in(&book, 0, view, &Locale::default());
+        // A1 (80) has nothing, A2 (20) is red, and the empty A3 counts as 0
+        assert_eq!(cells.len(), 3);
+        assert_eq!(cells[0].conditional, None);
+        let red_text = cells[1].conditional.as_ref().unwrap();
+        assert_eq!(red_text.color.as_deref(), Some("#9C0006"));
+        assert_eq!((cells[2].row, cells[2].text.as_str()), (2, ""));
+        assert!(cells[2].conditional.is_some());
+        // what reads values (copying, filter lists) sees only real cells
+        assert_eq!(own_cells_in(&book, 0, view, &Locale::default()).len(), 2);
+        let json = serde_json::to_string(&cells[0]).unwrap();
+        assert!(
+            !json.contains("conditional"),
+            "nothing sent without a rule: {json}"
+        );
     }
 }

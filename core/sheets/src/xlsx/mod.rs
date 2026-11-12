@@ -11,7 +11,8 @@ mod read_sheet;
 mod read_sheet_parts;
 mod read_workbook;
 pub mod relationships;
-mod style_parts;
+// the conditional formats drawn on screen read colours the same way
+pub(crate) mod style_parts;
 mod styles;
 mod write_cells;
 mod write_extras;

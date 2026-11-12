@@ -5,7 +5,7 @@
 
 use letters_sheets::model::{DrawingObject, SheetView, Visibility};
 use letters_sheets::numfmt::Locale;
-use letters_sheets::view::{cells_in, ViewCell};
+use letters_sheets::view::{cells_in, own_cells_in, ViewCell};
 use letters_sheets::{CellRef, Range, Workbook};
 use serde::Serialize;
 
@@ -278,10 +278,12 @@ pub struct CopiedCells {
 }
 
 pub fn copy_cells(book: &Workbook, sheet: usize, range: Range) -> CopiedCells {
-    let shown: std::collections::HashMap<(u32, u32), String> = cells(book, sheet, range)
-        .into_iter()
-        .map(|cell| ((cell.row, cell.col), cell.text))
-        .collect();
+    // the values only: conditional formats add empty cells that are only drawn
+    let shown: std::collections::HashMap<(u32, u32), String> =
+        own_cells_in(book, sheet, range, &Locale::default())
+            .into_iter()
+            .map(|cell| ((cell.row, cell.col), cell.text))
+            .collect();
     let mut lines = Vec::with_capacity(range.rows() as usize);
     for row in range.start.row..=range.end.row {
         let fields: Vec<String> = (range.start.col..=range.end.col)
@@ -320,7 +322,8 @@ pub fn column_values(book: &Workbook, sheet: usize, range: Range, column: u32) -
         return Vec::new();
     }
     let block = Range::from_bounds(first, col, range.end.row, col);
-    let mut values: Vec<String> = cells(book, sheet, block)
+    // own cells only, so empty cells a conditional format marks still count as blank
+    let mut values: Vec<String> = own_cells_in(book, sheet, block, &Locale::default())
         .into_iter()
         .map(|cell| cell.text)
         .collect();

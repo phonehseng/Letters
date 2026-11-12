@@ -28,6 +28,7 @@ draws anything.
 | `src/formula` | the parser (excel, openformula, r1c1), the printer, reference rewriting |
 | `src/calc` | evaluator, engine (dependencies, order, spills, cycles), coercions, criteria, one file per function family in `functions/` |
 | `src/numfmt` | number format codes parsed and rendered, General, built-in ids, odf data styles |
+| `src/conditional` | conditional formats evaluated for the grid: rule tests, range statistics, colour scales and data bars, differential formats |
 | `src/edit` | editing operations with undo |
 | `src/csv.rs`, `src/export.rs`, `src/print.rs`, `src/view.rs`, `src/analysis.rs` | csv, html, print pages, viewport, selection statistics |
 | `src/help` | the newcomer features: catalogue, autocomplete, hints, explanations, error help, tips, shortcuts, presets, templates, compatibility |
@@ -75,7 +76,8 @@ serde camelCase. Rows and columns are zero based everywhere in the API.
 | `calc::Engine::new(&book)`, `engine.recalculate_all(&mut book)`, `engine.cells_changed(&mut book, &[(sheet,row,col)])` | incremental recalculation after edits |
 | `edit::apply(&mut book, &Operation) -> Applied { changed { cells, structure }, inverse }` | every edit; applying `inverse` undoes it |
 | `edit::find(&book, sheet, text, &FindOptions)` | find (wildcards, case, whole cell, values or formulas) |
-| `view::cells_in(&book, sheet, range, &Locale) -> [ViewCell]`, `view::edit_text`, `view::shown` | the grid's cells: text, alignment, colours, flags, merges |
+| `view::cells_in(&book, sheet, range, &Locale) -> [ViewCell]`, `view::edit_text`, `view::shown` | the grid's cells: text, alignment, colours, flags, merges, and what conditional formats draw (`conditional`, sent only when a rule changes something; empty cells a rule marks come too) |
+| `view::own_cells_in(...)`, `conditional::looks_in(&book, sheet, range)` | the cells without conditional formats (copying, filter lists); the conditional looks alone |
 | `analysis::StatsCache::new(&sheet).stats(&sheet, &ranges)`, `analysis::selection_stats` | status bar numbers and distribution |
 | `export::to_html(&book, sheet, range)`, `print::layout(&sheet)` | html table; pages for printing |
 | `numfmt::format_value(&value, code, &Locale, system)` | a value as a format shows it |
@@ -124,7 +126,7 @@ page doesn't name one of their keys (`UNCONFIRMED` in help/shortcuts.rs says why
 | styles: number format, font, fill, borders, alignment, protection | modelled; the file's own font/fill/border lists kept in place | modelled through automatic styles and data styles |
 | merged cells, column widths, row heights, hidden rows and columns | modelled | modelled |
 | frozen panes, zoom, tab colour, grid lines | modelled (other view attributes kept) | modelled (settings.xml) |
-| conditional formats | modelled (colour scales, data bars, icon sets as kept xml) | kept as xml from ods files; **not written when converting from xlsx** |
+| conditional formats | modelled (colour scales, data bars, icon sets as kept xml); **drawn** by `conditional::looks_in`: cellIs, expression, text, blanks, errors, top/bottom n and n%, above/below average and standard deviations, duplicate/unique, timePeriod (through its formula), 2 and 3 colour scales, data bars (2007 style, and 2010 style with axis, negative colour and solid fill from the sheet's `extLst`), with priority and stop if true; the differential format's font colour, bold, italic, underline, strike and fill are drawn. **not drawn**: icon sets, a rule's number format and borders, rules that exist only in `extLst` (x14) | kept as xml from ods files; **not written when converting from xlsx** |
 | data validations | modelled | list, whole, decimal, date, time, text length modelled |
 | hyperlinks, notes | modelled (notes' vml regenerated when they change) | modelled |
 | tables | modelled with structured references | **written as plain ranges** (letters still resolves the references) |

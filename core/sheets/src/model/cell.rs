@@ -346,7 +346,8 @@ impl CellGrid {
     }
 
     /// the rows that have at least one cell
-    pub fn row_numbers(&self) -> impl Iterator<Item = u32> + '_ {
+    /// (from either end, so the last row is found without a walk)
+    pub fn row_numbers(&self) -> impl DoubleEndedIterator<Item = u32> + '_ {
         self.rows.keys().copied()
     }
 
