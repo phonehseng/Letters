@@ -122,6 +122,8 @@
           <input type="search" placeholder="Search" bind:value={search} bind:this={searchField} />
         </label>
         <div class="glass group">
+          <!-- settings: the gear of Recents (lib/settings) -->
+          <ToolButton name="settings" icon="tools" onClick={() => appCommands.dispatch("open-settings", "pointer")} />
           <ToolButton
             name="explain"
             icon="sidePanel"
@@ -135,7 +137,7 @@
   </div>
 
   {#if showExplain}
-    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "compareTwoPdfs", "newFromImages", "pinFolder", "explain"] }]} onClose={() => (showExplain = false)} />
+    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "compareTwoPdfs", "newFromImages", "pinFolder", "settings", "explain"] }]} onClose={() => (showExplain = false)} />
   {/if}
 </div>
 

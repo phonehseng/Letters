@@ -13,6 +13,7 @@ import { COMPARE_COMMANDS } from "./compare/compareCommands";
 import { A11Y_COMMANDS } from "./a11y/a11yCommands";
 import { EDIT_COMMANDS, EDIT_KEYS } from "./edit/editCommands";
 import { NEW_FROM_IMAGES, OCR_COMMANDS, OCR_KEYS } from "./ocr/ocrCommands";
+import { CONVERSION_COMMANDS, conversionCommandForKey } from "./export/conversionCommands";
 
 export const COMMANDS = [
   "open",
@@ -69,6 +70,8 @@ export const COMMANDS = [
   // text recognition and new from images (ocr/ocrCommands.ts)
   ...OCR_COMMANDS,
   NEW_FROM_IMAGES,
+  // export, ai tools and settings (export/conversionCommands.ts)
+  ...CONVERSION_COMMANDS,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];
@@ -153,6 +156,9 @@ export function commandForKey(press: KeyPress): Command | null {
   const key = press.key.toLowerCase();
   const history = historyCommand(press, key);
   if (history !== undefined) return history;
+  // export, settings and find a topic (export/conversionCommands.ts)
+  const conversion = conversionCommandForKey(key, !!press.shiftKey);
+  if (conversion) return conversion;
   if (key === "s") return press.shiftKey ? "save-as" : "save";
   if (key === "l") return "rotate-left";
   if (key === "r") return "rotate-right";

@@ -37,12 +37,17 @@ mod content_menu;
 mod edit_commands;
 mod ocr_commands;
 mod ocr_images_commands;
+// conversion and export, the optional ai tools, the settings window, and
+// opening every registered kind of file (several at once included)
+mod ai_commands;
+mod associations;
 // every command the interface can call, one block per feature
 mod command_routes;
+mod conversion_menu;
+mod export_commands;
+mod settings_commands;
 
 use tauri::{Manager, RunEvent, WindowEvent};
-
-use letters_shell_core::startup::file_argument;
 
 use crate::state::AppState;
 
@@ -52,7 +57,7 @@ pub fn run() {
         // the new file to the running copy and exits straight away
         .plugin(tauri_plugin_single_instance::init(
             |app, arguments, _cwd| {
-                windows::open_window(app, file_argument(&arguments));
+                associations::open_files_from_arguments(app, &arguments);
             },
         ))
         .plugin(tauri_plugin_dialog::init())
@@ -71,7 +76,7 @@ pub fn run() {
             manage_feature_states(app);
             // a window for each file the app was started with
             let arguments: Vec<String> = std::env::args().collect();
-            windows::open_window(handle, file_argument(&arguments));
+            associations::open_files_from_arguments(handle, &arguments);
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -91,9 +96,22 @@ fn manage_feature_states(app: &tauri::App) {
     app.manage(fonts_commands::FontsState::start(handle));
     // compare: the comparisons open in each window
     app.manage(compare_commands::CompareState::start(handle));
+    // export, ai tools and settings
+    app.manage(export_commands::ExportState::default());
+    app.manage(ai_commands::AiState::default());
+    app.manage(settings_commands::SettingsState::start(handle));
 }
 
 fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
+    if let RunEvent::Exit = &event {
+        // ai tools: a model server Letters started stops with the app
+        handle.state::<ai_commands::AiState>().stop_server();
+    }
+    // a mac hands double clicked files over as an event, not arguments
+    #[cfg(target_os = "macos")]
+    if let RunEvent::Opened { urls } = &event {
+        associations::open_urls(handle, urls);
+    }
     if let RunEvent::WindowEvent {
         label,
         event: WindowEvent::Destroyed,

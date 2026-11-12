@@ -5,6 +5,7 @@
   // View, a new window, the Format inspector and Explain). formatting
   // beyond the style lives in the inspector, not in a ribbon.
   import ToolButton from "../ToolButton.svelte";
+  import { appCommands } from "../commands";
   import { tools, tooltipFor } from "../tools";
   import PullDown, { type PullDownItem } from "./PullDown.svelte";
   import TableGrid from "./TableGrid.svelte";
@@ -83,7 +84,8 @@
     { label: tools.wExportPdf.label, title: tools.wExportPdf.tooltip, separatorBefore: true, run: () => onCommand("export-pdf") },
     { label: tools.wSaveToDrive.label, title: tools.wSaveToDrive.tooltip, run: () => onCommand("save-to-drive") },
     { label: tools.wPrint.label, shortcut: "Ctrl P", title: tools.wPrint.tooltip, run: () => onCommand("print") },
-    { label: tools.wOpenPdfAsDocument.label, title: tools.wOpenPdfAsDocument.unavailable, disabled: true, run: () => {} },
+    // conversion: a pdf rebuilt as an editable document, in a new window (lib/export)
+    { label: tools.wOpenPdfAsDocument.label, title: tools.wOpenPdfAsDocument.tooltip, run: () => appCommands.dispatch("open-pdf-as-document", "pointer") },
     { label: tools.undo.label, shortcut: "Ctrl Z", disabled: !canUndo, separatorBefore: true, run: () => onCommand("undo") },
     { label: tools.redo.label, shortcut: "Ctrl Shift Z", disabled: !canRedo, run: () => onCommand("redo") },
   ]);

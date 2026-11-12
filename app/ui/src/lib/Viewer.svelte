@@ -111,6 +111,11 @@
   import { hiddenParts } from "./toolbar";
   import type { ToolName } from "./tools";
   import ViewerToolbar from "./ViewerToolbar.svelte";
+  // export, the ai tools panel and find a topic (lib/export, lib/ai)
+  import ExportSheet from "./export/ExportSheet.svelte";
+  import AiPanel from "./ai/AiPanel.svelte";
+  import type { AiTab, Rect as AiRect } from "./ai/aiPanel";
+  import { currentSettings, openSettingsWindow } from "./settings/settingsApi";
 
   interface Props {
     document: DocumentState;
@@ -154,6 +159,15 @@
   let findOpen = $state(false);
   let findBar = $state<FindBar>();
   let found = $state<{ matches: SearchMatch[]; current: number }>({ matches: [], current: -1 });
+  // export and ai tools: the Export sheet while it shows; the ai panel's
+  // tab and topic; whether the tools are on in Settings (read again when
+  // the window comes forward, since Settings is another window)
+  let exporting = $state(false);
+  let aiTab = $state<AiTab | undefined>(undefined);
+  let aiTopic = $state("");
+  let aiEnabled = $state(false);
+  let wordExportStyle = $state<"exactMatch" | "easyToEdit">("exactMatch");
+  const showAi = $derived(panels.includes("ai"));
   // true until the reader picks their own zoom. while it is true the
   // page keeps filling the width, even when the window is resized.
   let followsWidth = true;
@@ -327,6 +341,11 @@
     "documentMenu",
     "save",
     "saveAs",
+    // export and ai tools (lib/export, lib/ai)
+    "exportTo",
+    "openPdfAsDocument",
+    "findTopic",
+    ...(aiEnabled ? (["aiTools"] as const) : []),
     "undo",
     "redo",
     "rotateLeft",
@@ -463,6 +482,45 @@
   function toggleInspector() {
     panels = togglePanel(panels, "inspector", windowWidth, remPx);
   }
+
+  // --- ai tools and find a topic (lib/ai)
+
+  function toggleAi() {
+    // the button starts on the first tab, whatever Find a Topic left
+    aiTab = undefined;
+    aiTopic = "";
+    panels = togglePanel(panels, "ai", windowWidth, remPx);
+  }
+
+  /** opens the panel at a tab; Find a Topic works even with the tools off. */
+  function openAi(tab: AiTab, topic: string) {
+    aiTab = tab;
+    aiTopic = topic;
+    // the panel is made again so it starts on that tab with that topic
+    panels = closePanel(panels, "ai");
+    tick().then(() => (panels = openPanel(panels, "ai", windowWidth, remPx)));
+  }
+
+  /** a citation or a found passage: its page in view and the passage outlined. */
+  function showPassage(pageNumber: number, rect: AiRect) {
+    const page = pageNumber - 1;
+    found = { matches: [{ page, rects: [rect], snippet: "" }], current: 0 };
+    revealOnPage(page, rect);
+    announce(`Page ${pageNumber}.`);
+  }
+
+  async function readSettings() {
+    const settings = await currentSettings();
+    aiEnabled = settings.ai.enabled;
+    wordExportStyle = settings.files.wordExportStyle;
+    if (!aiEnabled && showAi && aiTab !== "findTopic") panels = closePanel(panels, "ai");
+  }
+
+  $effect(() => {
+    untrack(readSettings);
+    window.addEventListener("focus", readSettings);
+    return () => window.removeEventListener("focus", readSettings);
+  });
 
   /** opens the inspector at the tab and section holding `tool`. */
   function openTool(tool: ToolName) {
@@ -704,6 +762,10 @@
       ["zoom-out", () => setZoom(zoomOut(zoom))],
       ["fit-width", fitWidth],
       ["find", openFind],
+      // export and ai tools
+      ["export-to", () => (exporting = true)],
+      ["toggle-ai-tools", () => aiEnabled && toggleAi()],
+      ["find-topic", () => openAi("findTopic", "")],
       ["toggle-thumbnails", () => setSidebar(toggleSidebarMode(sidebar, "thumbnails"))],
       ["toggle-outline", () => setSidebar(toggleSidebarMode(sidebar, "outline"))],
       ["toggle-two-pages", toggleTwoPages],
@@ -1030,7 +1092,13 @@
       inspectorOpen={showInspector}
       onTools={toggleInspector}
       onExplain={toggleExplain}
+      aiTools={aiEnabled ? { open: showAi, onToggle: toggleAi } : null}
     />
+
+    <!-- export: Export To… (lib/export) -->
+    {#if exporting}
+      <ExportSheet document={doc} top={toolbarHeight} wordStyle={wordExportStyle} onClose={() => (exporting = false)} />
+    {/if}
 
     {#if notice}
       <div class="glass notice" role="status" style:top="{toolbarHeight + 8}px">
@@ -1062,6 +1130,7 @@
         revision={doc.revision}
         onChange={onFindChange}
         onClose={closeFind}
+        onFindTopic={(query) => openAi("findTopic", query)}
       />
     {/if}
   </main>
@@ -1078,6 +1147,20 @@
 
   {#if showExplain}
     <HelpPanel groups={explained} onClose={() => (panels = closePanel(panels, "explain"))} />
+  {/if}
+
+  <!-- ai tools, or only Find a Topic while they are off (lib/ai) -->
+  {#if showAi}
+    <AiPanel
+      documentId={doc.id}
+      pageCount={doc.pages.length}
+      enabled={aiEnabled}
+      bind:tab={aiTab}
+      initialTopic={aiTopic}
+      onShowPassage={showPassage}
+      onOpenSettings={() => openSettingsWindow()}
+      onClose={() => (panels = closePanel(panels, "ai"))}
+    />
   {/if}
 </div>
 

@@ -33,6 +33,14 @@ pub mod a11y;
 pub mod edit;
 // text recognition for scans and photos (the Scan tab), see ocr/mod.rs
 pub mod ocr;
+// conversion and export (the Export dialog), see export/mod.rs
+pub mod export;
+// the optional ai tools, off until turned on in Settings, see ai/mod.rs
+pub mod ai;
+// the Settings window's stored choices, see settings_store/mod.rs
+pub mod settings_store;
+// which screen each kind of file opens in, see associations/mod.rs
+pub mod associations;
 
 #[cfg(test)]
 mod annotation_tools_tests;

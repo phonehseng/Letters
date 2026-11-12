@@ -15,6 +15,9 @@ describe("documentMenuEntries", () => {
     expect(entries.map((entry) => (entry === SEPARATOR ? "—" : entry.command))).toEqual([
       "save",
       "save-as",
+      // export (export/ExportSheet.svelte)
+      "export-to",
+      "open-pdf-as-document",
       "—",
       "undo",
       "redo",

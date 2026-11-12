@@ -17,7 +17,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "app", "dmg"],
+    "publisher": "Letters",
+    "copyright": "Letters contributors",
+    "category": "Productivity",
+    "shortDescription": "A PDF editor for students",
+    "longDescription": "Read, mark up, fill in, convert and write documents, with every tool explained in plain English.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -27,7 +32,34 @@
     ],
     "resources": {
       "../../vendor/pdfium/": "pdfium/",
-      "../../vendor/tesseract/": "tesseract/"
+      "../../vendor/fonts/": "fonts/",
+      "../../vendor/tesseract/": "tesseract/",
+      "../../THIRD-PARTY-LICENSES.txt": "THIRD-PARTY-LICENSES.txt",
+      "icons/documents/": "document-icons/"
+    },
+    "fileAssociations": [
+      { "ext": ["pdf"], "name": "Letters.pdf", "description": "PDF Document", "role": "Editor", "mimeType": "application/pdf", "contentTypes": ["com.adobe.pdf"] },
+      { "ext": ["docx"], "name": "Letters.docx", "description": "Word Document", "role": "Editor", "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "contentTypes": ["org.openxmlformats.wordprocessingml.document"] },
+      { "ext": ["odt"], "name": "Letters.odt", "description": "OpenDocument Text", "role": "Editor", "mimeType": "application/vnd.oasis.opendocument.text", "contentTypes": ["org.oasis-open.opendocument.text"] },
+      { "ext": ["ods"], "name": "Letters.ods", "description": "OpenDocument Spreadsheet", "role": "Viewer", "mimeType": "application/vnd.oasis.opendocument.spreadsheet", "contentTypes": ["org.oasis-open.opendocument.spreadsheet"] },
+      { "ext": ["odp"], "name": "Letters.odp", "description": "OpenDocument Presentation", "role": "Viewer", "mimeType": "application/vnd.oasis.opendocument.presentation", "contentTypes": ["org.oasis-open.opendocument.presentation"] },
+      { "ext": ["rtf"], "name": "Letters.rtf", "description": "Rich Text Document", "role": "Viewer", "mimeType": "application/rtf", "contentTypes": ["public.rtf"] },
+      { "ext": ["png"], "name": "Letters.png", "description": "PNG Picture", "role": "Viewer", "mimeType": "image/png", "contentTypes": ["public.png"] },
+      { "ext": ["jpg", "jpeg"], "name": "Letters.jpg", "description": "JPEG Picture", "role": "Viewer", "mimeType": "image/jpeg", "contentTypes": ["public.jpeg"] },
+      { "ext": ["tif", "tiff"], "name": "Letters.tif", "description": "TIFF Picture", "role": "Viewer", "mimeType": "image/tiff", "contentTypes": ["public.tiff"] },
+      { "ext": ["bmp"], "name": "Letters.bmp", "description": "Bitmap Picture", "role": "Viewer", "mimeType": "image/bmp", "contentTypes": ["com.microsoft.bmp"] },
+      { "ext": ["gif"], "name": "Letters.gif", "description": "GIF Picture", "role": "Viewer", "mimeType": "image/gif", "contentTypes": ["com.compuserve.gif"] },
+      { "ext": ["webp"], "name": "Letters.webp", "description": "WebP Picture", "role": "Viewer", "mimeType": "image/webp", "contentTypes": ["org.webmproject.webp"] }
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "installer-hooks.nsh",
+        "displayLanguageSelector": false
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0"
     }
   }
 }

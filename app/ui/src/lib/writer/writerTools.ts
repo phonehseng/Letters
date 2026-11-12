@@ -42,10 +42,9 @@ export const writerTools = {
   },
   wOpenPdfAsDocument: {
     label: "Open PDF as Document…",
-    tooltip: "Coming with PDF conversion.",
-    whenToUse: "To edit the text of a PDF as a flowing document. This needs the PDF conversion engine, which is still being built.",
-    fileEffect: NOTHING,
-    unavailable: "Coming with PDF conversion.",
+    tooltip: "Open a PDF’s text as a document you can edit, in a new window",
+    whenToUse: "To edit the text of a PDF as a flowing document: headings, paragraphs, lists and tables are rebuilt so they flow as you type.",
+    fileEffect: "The PDF doesn’t change. The new document is unsaved; Save puts it beside the PDF as a Word document.",
   },
   wStyle: {
     label: "Style",

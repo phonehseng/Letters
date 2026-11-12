@@ -38,6 +38,12 @@ letters-edit = { path = "../../core/edit" }
 letters-ocr = { path = "../../core/ocr" }
 ttf-parser = "0.25"
 image = { version = "0.25", default-features = false }
+# conversion and export (see src/export) and the optional ai tools (see
+# src/ai). both this project's own crates
+letters-convert = { path = "../../core/convert" }
+letters-ai = { path = "../../core/ai" }
+# the "exact match" word converter (see src/export/exact.rs)
+letters-exact = { path = "../../core/exact" }
 
 [dev-dependencies]
 # the annotation engine, run through an edit session in the tests

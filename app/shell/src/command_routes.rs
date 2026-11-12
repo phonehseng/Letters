@@ -10,9 +10,9 @@ use tauri::ipc::Invoke;
 use tauri::Wry;
 
 use crate::{
-    a11y_commands, annotate_commands, commands, compare_commands, drive_commands, edit_commands,
-    fonts_commands, forms_commands, ocr_commands, ocr_images_commands, page_commands,
-    protect_commands, writer_commands,
+    a11y_commands, ai_commands, annotate_commands, associations, commands, compare_commands,
+    drive_commands, edit_commands, export_commands, fonts_commands, forms_commands, ocr_commands,
+    ocr_images_commands, page_commands, protect_commands, settings_commands, writer_commands,
 };
 
 /// one feature's commands: its handler, and the names it answers to.
@@ -63,6 +63,9 @@ fn features() -> Vec<Feature> {
         accessibility(),
         edit(),
         scan(),
+        export(),
+        ai_tools(),
+        settings(),
     ]
 }
 
@@ -308,8 +311,49 @@ fn scan() -> Feature {
     ]
 }
 
+/// conversion and export, and opening each registered kind of file.
+fn export() -> Feature {
+    feature![
+        export_commands::export_capabilities_list,
+        export_commands::export_document,
+        export_commands::export_cancel,
+        export_commands::convert_office_to_pdf,
+        export_commands::show_office_as_pdf,
+        export_commands::open_pdf_as_document_window,
+        export_commands::take_open_as_document,
+        export_commands::open_pdf_file_as_document,
+        associations::open_route,
+    ]
+}
 
+/// the optional ai tools, and find a topic (no ai).
+fn ai_tools() -> Feature {
+    feature![
+        ai_commands::ai_status,
+        ai_commands::ai_plan,
+        ai_commands::ai_run,
+        ai_commands::ai_stop,
+        ai_commands::ai_find_offline,
+        ai_commands::ai_test_connection,
+        ai_commands::ai_save_key,
+        ai_commands::ai_has_key,
+        ai_commands::ai_start_server,
+        ai_commands::ai_stop_server,
+        ai_commands::ai_server_running,
+    ]
+}
 
+/// the settings window.
+fn settings() -> Feature {
+    feature![
+        settings_commands::settings_get,
+        settings_commands::settings_set,
+        settings_commands::settings_clear_recovery,
+        settings_commands::settings_clear_recents,
+        settings_commands::open_settings_window,
+        settings_commands::open_default_apps_settings,
+    ]
+}
 
 
 

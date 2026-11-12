@@ -21,9 +21,11 @@
     revision: number;
     onChange: (matches: SearchMatch[], current: number) => void;
     onClose: () => void;
+    /** Find a Topic…, which finds passages by subject on this computer (lib/ai) */
+    onFindTopic?: (query: string) => void;
   }
 
-  let { documentId, currentPage, top, revision, onChange, onClose }: Props = $props();
+  let { documentId, currentPage, top, revision, onChange, onClose, onFindTopic }: Props = $props();
 
   let input = $state<HTMLInputElement>();
   let query = $state("");
@@ -118,6 +120,9 @@
   >
     <Icon name="chevronDown" size={1} />
   </button>
+  {#if onFindTopic}
+    <button class="step topic" title={tooltipFor("findTopic")} aria-label={tools.findTopic.label} onclick={() => onFindTopic(query)}>Topic…</button>
+  {/if}
   <button class="step" title="Close Find (Esc)" aria-label="Close Find" onclick={onClose}>
     <Icon name="close" size={0.75} />
   </button>
@@ -190,6 +195,16 @@
 
   .step:disabled {
     color: var(--label-tertiary);
+  }
+
+  /* find a topic: a word, not a symbol, so it reads as another way to find */
+  .step.topic {
+    width: auto;
+    padding: 0 0.5rem;
+    border-radius: 0.875rem;
+    color: var(--accent-label);
+    font: var(--subheadline);
+    white-space: nowrap;
   }
 
   /* a short slide down from the toolbar shows where the bar came from */

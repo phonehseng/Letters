@@ -161,6 +161,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let app_menu = SubmenuBuilder::new(app, "Letters")
         .about(None)
         .separator()
+        // Settings…, see conversion_menu.rs
+        .items(&as_items(&crate::conversion_menu::app_items(app)?))
+        .separator()
         .services()
         .separator()
         .hide()
@@ -177,6 +180,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .items(&as_items(&menu_items(app, &FILE_COMMANDS)?))
         // scan: New from Images…, see content_menu.rs
         .items(&as_items(&crate::content_menu::file_items(app)?))
+        // export: Export To… and Open PDF as Document…, see conversion_menu.rs
+        .items(&as_items(&crate::conversion_menu::file_items(app)?))
         .separator()
         // compare and accessibility (compare_commands.rs, a11y_commands.rs)
         .items(&as_items(&menu_items(app, &COMPARE_COMMANDS)?))
@@ -217,6 +222,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .items(&as_items(&menu_items(app, &ZOOM_COMMANDS)?))
         .separator()
         .items(&as_items(&menu_items(app, &PANEL_COMMANDS)?))
+        // find a topic and the ai tools panel, see conversion_menu.rs
+        .items(&as_items(&crate::conversion_menu::view_items(app)?))
         .build()?;
 
     // the writer's menus (word-processor mode), see writer_menu.rs
@@ -306,6 +313,7 @@ fn is_window_command(id: &str) -> bool {
         || crate::forms_menu::is_forms_command(id)
         || crate::protect_menu::is_protect_command(id)
         || crate::content_menu::is_content_command(id)
+        || crate::conversion_menu::is_conversion_command(id)
 }
 
 fn focused_window(app: &AppHandle) -> Option<WebviewWindow> {

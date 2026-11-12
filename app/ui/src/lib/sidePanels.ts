@@ -8,10 +8,11 @@
 // and floats over it instead, like a sheet, so the toolbar never has to
 // squeeze into a strip.
 
-export type SidePanel = "sidebar" | "inspector" | "explain";
+// "ai" is the AI Tools panel (and Find a Topic), on the trailing side too
+export type SidePanel = "sidebar" | "inspector" | "explain" | "ai";
 
 /** how wide each panel is, in rem (the components use the same numbers). */
-export const PANEL_WIDTH_REM: Record<SidePanel, number> = { sidebar: 12, inspector: 18, explain: 17.5 };
+export const PANEL_WIDTH_REM: Record<SidePanel, number> = { sidebar: 12, inspector: 18, explain: 17.5, ai: 19 };
 
 /** the document area never gets narrower than this because of panels, in rem. */
 export const DOCUMENT_MIN_REM = 26;

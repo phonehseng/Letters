@@ -37,6 +37,10 @@ letters-a11y = { path = "../../core/a11y" }
 # editing page text and pictures (edit_commands.rs) and text recognition (ocr_commands.rs)
 letters-edit = { path = "../../core/edit" }
 letters-ocr = { path = "../../core/ocr" }
+# conversion and export (export_commands.rs) and the optional ai tools (ai_commands.rs)
+letters-convert = { path = "../../core/convert" }
+letters-exact = { path = "../../core/exact" }
+letters-ai = { path = "../../core/ai" }
 letters-shell-core = { path = "../shell-core" }
 # the document type every edit closure receives (mit licence)
 lopdf = "0.47"

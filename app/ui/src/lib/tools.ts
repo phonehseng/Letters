@@ -17,6 +17,7 @@ import { compareTools } from "./compare/compareTools";
 import { a11yTools } from "./a11y/a11yTools";
 import { editTools } from "./edit/editTools";
 import { ocrTools } from "./ocr/ocrTools";
+import { conversionTools } from "./export/conversionTools";
 
 export interface ToolHelp {
   label: string;
@@ -432,6 +433,8 @@ export const tools = {
   ...editTools,
   // text recognition and new from images: listed in ocr/ocrTools.ts
   ...ocrTools,
+  // export, ai tools and settings: listed in export/conversionTools.ts
+  ...conversionTools,
 } satisfies Record<string, ToolHelp>;
 
 export type ToolName = keyof typeof tools;

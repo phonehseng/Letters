@@ -40,6 +40,8 @@
     inspectorOpen: boolean;
     onTools: () => void;
     onExplain: () => void;
+    /** ai tools: the button shows only while they are on in Settings (lib/ai) */
+    aiTools?: { open: boolean; onToggle: () => void } | null;
   }
 
   let {
@@ -67,6 +69,7 @@
     inspectorOpen,
     onTools,
     onExplain,
+    aiTools = null,
   }: Props = $props();
 
   const hideLabel = $derived(hidden.has("labels"));
@@ -129,6 +132,9 @@
       {/if}
       <!-- inspector buttons sit on the trailing edge, beside the panels they open -->
       <ToolButton name="tools" icon="tools" {hideLabel} pressed={inspectorOpen} onClick={onTools} />
+      {#if aiTools}
+        <ToolButton name="aiTools" icon="sidePanel" {hideLabel} pressed={aiTools.open} onClick={aiTools.onToggle} />
+      {/if}
       <ToolButton name="explain" icon="sidePanel" {hideLabel} pressed={explainOpen} onClick={onExplain} />
     </div>
   </div>

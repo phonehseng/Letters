@@ -37,6 +37,13 @@
   import { isPicturePath, picturePathsAmong } from "./lib/ocr/imagesToPdf";
   import NewFromImagesSheet from "./lib/ocr/NewFromImagesSheet.svelte";
   import { forgetNewDocument, newDocumentPath } from "./lib/ocr/newDocuments";
+  // conversion and export, settings: the Settings window, "Open PDF as
+  // Document…", spreadsheets and presentations shown as pdfs (lib/export, lib/settings)
+  import { openPdfAsDocumentWindow, openPdfFileAsDocument, showOfficeAsPdf, takeOpenAsDocument } from "./lib/export/exportApi";
+  import { isShownAsPdf, shownAsPdfSentence } from "./lib/export/openByKind";
+  import { openSettingsWindow, SETTINGS_WINDOW } from "./lib/settings/settingsApi";
+  import SettingsScreen from "./lib/settings/SettingsScreen.svelte";
+  import { chooseFile as choosePdf } from "./lib/api";
 
   let openedDocument = $state<DocumentState | null>(null);
   /** the Compare screen while it shows; the document (or Recents) waits underneath */
@@ -81,9 +88,16 @@
       return;
     }
     errorMessage = null;
+    // export: a window opened by "Open PDF as Document…" shows the pdf as a document
+    if (await takeOpenAsDocument(path)) {
+      await openAsDocument(path);
+      return;
+    }
     const route = routeForPath(path);
     if (route !== "viewer") {
-      if (route === "unsupported") errorMessage = unsupportedMessage(path);
+      // export: a spreadsheet or presentation is shown as a pdf office lays out
+      if (route === "unsupported" && isShownAsPdf(path)) await openAsPdf(path);
+      else if (route === "unsupported") errorMessage = unsupportedMessage(path);
       else await openInWriter(path);
       return;
     }
@@ -111,6 +125,34 @@
     if (!openedDocument || !(await mayLeaveDocument())) return;
     await closeDocument(openedDocument.id);
     openedDocument = null;
+  }
+
+  // --- conversion and export (lib/export)
+
+  /** a pdf rebuilt as an editable document, unsaved, in the writer. */
+  async function openAsDocument(path: string) {
+    try {
+      openedWriter = await openPdfFileAsDocument(path);
+    } catch (problem) {
+      errorMessage = asCommandError(problem).message;
+    }
+  }
+
+  /** a spreadsheet or presentation as a pdf Office or LibreOffice made. */
+  async function openAsPdf(path: string) {
+    try {
+      const made = await showOfficeAsPdf(path);
+      openedDocument = await openDocument(made.pdf);
+      errorMessage = shownAsPdfSentence(path, made.program);
+    } catch (problem) {
+      errorMessage = asCommandError(problem).message;
+    }
+  }
+
+  /** "Open PDF as Document…": the pdf on screen, or one chosen, in a new window. */
+  async function chooseAndOpenAsDocument() {
+    const path = openedDocument?.path ?? (await choosePdf());
+    if (path) await openPdfAsDocumentWindow(path);
   }
 
   /** a .docx or .odt: the writer shows it (it closes its own session when it goes). */
@@ -281,6 +323,12 @@
   // scan: New from Images… works from Recents and from a document
   $effect(() => appCommands.register("new-from-images", () => (newFromImages = [])));
 
+  // export and settings: Settings… and Open PDF as Document… work on every screen
+  $effect(() => {
+    const takeBack = [appCommands.register("open-settings", () => openSettingsWindow()), appCommands.register("open-pdf-as-document", chooseAndOpenAsDocument)];
+    return () => takeBack.forEach((unregister) => unregister());
+  });
+
   // the menu bar (macOS only) sends its commands as events
   $effect(() =>
     listenForMenuCommands((command) => {
@@ -305,6 +353,8 @@
   $effect(() => {
     // the writer names the window itself while it shows, and so does compare
     if (openedWriter || comparing) return;
+    // the Settings window is called Settings (lib/settings)
+    if (getCurrentWindow().label === SETTINGS_WINDOW) return;
     getCurrentWindow().setTitle(windowTitle(openedDocument));
   });
 
@@ -352,7 +402,10 @@
 <!-- compare: the screen underneath stays as it was (scroll, tools, marks) but out of sight and out of reach -->
 <!-- accessibility: while the save question is open the screen behind is inert too, so Tab can't leave the sheet -->
 <div class="screen" class:waiting={!!comparing} inert={!!comparing || !!saveQuestion}>
-  {#if openedDocument}
+  {#if getCurrentWindow().label === SETTINGS_WINDOW}
+    <!-- the Settings window (lib/settings) -->
+    <SettingsScreen />
+  {:else if openedDocument}
     {#key openedDocument.id}
       <Viewer
         document={openedDocument}

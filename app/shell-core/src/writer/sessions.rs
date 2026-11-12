@@ -35,6 +35,9 @@ pub struct OpenedWriter {
     pub media_ids: Vec<String>,
     /// a recovery copy left by a run that ended without saving
     pub recovery: Option<RecoveryInfo>,
+    /// the name of the rich text or old word file this was converted from;
+    /// saving writes `path` (a .docx beside it) and leaves that file alone
+    pub converted_from: Option<String>,
 }
 
 /// the file a document belongs to after a save.
@@ -102,6 +105,43 @@ impl WriterSessions {
             document = copy;
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let converted_from = (writer.path != path).then(|| file_name(path));
+        let opened = OpenedWriter {
+            id,
+            name: file_name(&writer.path),
+            path: writer.path.to_string_lossy().into_owned(),
+            kind: kind_name(writer.kind),
+            model: ui_model(&document),
+            media_ids: document.media.iter().map(|item| item.id.clone()).collect(),
+            recovery: if recovered {
+                None
+            } else {
+                self.recovery.find(&writer.path)
+            },
+            converted_from,
+        };
+        let entry = OpenWriter {
+            document: writer,
+            window: window.to_string(),
+        };
+        self.map().insert(id, Arc::new(Mutex::new(entry)));
+        Ok(opened)
+    }
+
+    // --- conversion and export: "Open PDF as Document…" (see src/export)
+
+    /// opens a document made in memory, such as a pdf rebuilt as an easy
+    /// to edit document. `path` is where Save will write it (a .docx name
+    /// that isn't taken); `converted_from` names the file it came from.
+    pub fn open_converted(
+        &self,
+        window: &str,
+        path: &Path,
+        document: letters_office::model::Document,
+        converted_from: &str,
+    ) -> Result<OpenedWriter, String> {
+        let writer = WriterDocument::from_document(path, FileKind::Docx, &document);
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let opened = OpenedWriter {
             id,
             name: file_name(path),
@@ -109,7 +149,8 @@ impl WriterSessions {
             kind: kind_name(writer.kind),
             model: ui_model(&document),
             media_ids: document.media.iter().map(|item| item.id.clone()).collect(),
-            recovery: if recovered { None } else { self.recovery.find(path) },
+            recovery: None,
+            converted_from: Some(converted_from.to_string()),
         };
         let entry = OpenWriter {
             document: writer,
