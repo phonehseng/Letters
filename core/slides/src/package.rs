@@ -96,13 +96,18 @@ fn read_entry<R: Read>(entry: zip::read::ZipFile<'_, R>) -> Result<Part, SlidesE
 pub fn write_zip(parts: &[Part], stored: &[&str]) -> Result<Vec<u8>, SlidesError> {
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
     // a fixed date keeps output identical from run to run, which keeps
-    // tests and diffs honest
+    // tests and diffs honest.
+    // a fixed system (dos, as word writes) keeps it identical from one
+    // computer to the next: left alone the zip crate records the system
+    // it runs on in every entry
     let deflated = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
-        .last_modified_time(zip::DateTime::default());
+        .last_modified_time(zip::DateTime::default())
+        .system(zip::System::Dos);
     let plain = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Stored)
-        .last_modified_time(zip::DateTime::default());
+        .last_modified_time(zip::DateTime::default())
+        .system(zip::System::Dos);
     let failed = |error: &dyn std::fmt::Display| SlidesError::WriteFailed(error.to_string());
     for part in parts {
         let options = if stored.contains(&part.name.as_str()) {

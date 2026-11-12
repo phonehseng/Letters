@@ -1,0 +1,28 @@
+# the exact converter must write the same docx bytes for the same pdf on
+# every system. this runs its locked layout test on windows, macos and
+# linux against the one hash file in core/exact/tests/corpus.
+name: exact match bytes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  locked-layout:
+    strategy:
+      # a failure on one system shouldn't hide the result on the others
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # the version the hashes were recorded with, so a newer compiler
+      # can't be the reason a hash changes
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.1
+      - uses: Swatinem/rust-cache@v2
+      - name: locked layout is byte for byte the same
+        run: cargo test -p letters-exact --test locked

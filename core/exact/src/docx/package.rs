@@ -48,8 +48,7 @@ impl Package {
     /// the zip bytes of the package.
     pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
         let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
-        let options =
-            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let options = fixed_entry_options();
         let family = self
             .fonts
             .first()
@@ -140,6 +139,21 @@ impl Package {
         }
         relationships(&rels.concat())
     }
+}
+
+/// zip settings that are the same on every computer.
+///
+/// left alone, the zip crate records the computer's own system in each
+/// entry ("made by" dos on windows, unix elsewhere), so the same pdf gave
+/// different docx bytes on windows and linux while every part inside was
+/// identical. dos and the 1980 date are what word itself writes, and what
+/// the locked layout hashes were recorded with. the file permissions are
+/// left at the crate's default, which is a constant on every system.
+fn fixed_entry_options() -> SimpleFileOptions {
+    SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .system(zip::System::Dos)
+        .last_modified_time(zip::DateTime::default())
 }
 
 fn relationships(inner: &str) -> String {
