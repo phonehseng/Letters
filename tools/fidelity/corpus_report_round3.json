@@ -1,0 +1,1019 @@
+{
+  "results": [
+    {
+      "name": "syllabus",
+      "class": "syllabus",
+      "producer": "Microsoft Word (ExportAsFixedFormat) from hand-written OOXML",
+      "features": [
+        "headings",
+        "bullet list",
+        "numbered list",
+        "table with rules",
+        "justified text",
+        "2 fonts"
+      ],
+      "glyphs": {
+        "glyphs": 2567,
+        "max": 0.13552000000009912,
+        "mean": 0.037429062275024474,
+        "p99": 0.12543999999993274,
+        "within_0.025": 0.40514218932606155,
+        "within_0.06": 0.8071679002726918,
+        "within_0.125": 0.9890923256719907,
+        "dx_max": 0.13552000000009912,
+        "dy_max": 0.0
+      },
+      "fonts": {
+        "faces": 5,
+        "rebuilt_from_pdf": 5,
+        "substituted_by_converter": [],
+        "substituted_by_word": [],
+        "details": [
+          {
+            "pdf_font": "___WRD_EMBED_SUB_45",
+            "subsets": 2,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 0f1c8190",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_52",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 32f23966",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_49",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr f4d7c088",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "ArialMT",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 7bb29550",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 8,
+            "permission": "editable embedding",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_47",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr f27c95e2",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          }
+        ]
+      },
+      "pictures": {
+        "pictures": 0,
+        "unmatched": 0,
+        "max_corner_error_pt": null,
+        "jpeg_kept": 0
+      },
+      "vectors": {
+        "shapes": 167,
+        "rasterised_items": 0,
+        "raster_pictures": 0
+      },
+      "text": {
+        "rotated_lines": 0,
+        "hidden_lines": 0,
+        "scripts": {
+          "right_to_left": 0,
+          "complex_script": 0
+        },
+        "glyphs_without_char": 0,
+        "horizontally_scaled_glyphs": 0,
+        "rotated_probe": {
+          "rotated_probe": "none needed"
+        }
+      },
+      "ssim_min": 0.9790026357522279,
+      "pages": {
+        "source": 2,
+        "word": 2
+      },
+      "bytes": {
+        "pdf": 185950,
+        "docx": 66678
+      },
+      "seconds": {
+        "convert": 9.723020999983419,
+        "calibration_probe": 6.164902100048494,
+        "word_export": 0.9821973000071011,
+        "word_total": 7.581198200001381
+      },
+      "calibration": {
+        "probed_lines": 83,
+        "cached_lines": 0,
+        "disagreements": {
+          "x": 0,
+          "y": 0,
+          "compared": 261,
+          "unmatched": 9
+        },
+        "probe_seconds": 6.164902100048494,
+        "word_build": "16.0.20527.20150"
+      },
+      "pass": {
+        "positions": false,
+        "fonts": true,
+        "overall": false
+      },
+      "heatmap": "corpus_report_assets/syllabus_page1.png",
+      "editability": {
+        "find_phrase": true,
+        "find_sentence": true,
+        "paragraphs": 86,
+        "reading_order_similarity": 1.0
+      }
+    },
+    {
+      "name": "research_paper",
+      "class": "research paper",
+      "producer": "Microsoft Word (ExportAsFixedFormat) from hand-written OOXML",
+      "features": [
+        "two columns",
+        "justified text",
+        "kerning on",
+        "footnotes",
+        "superscripts",
+        "equation with math symbols",
+        "3 fonts"
+      ],
+      "glyphs": {
+        "glyphs": 5747,
+        "max": 0.17079999999987194,
+        "mean": 0.041618745014266385,
+        "p99": 0.10903999999998235,
+        "within_0.025": 0.331477292500435,
+        "within_0.06": 0.7334261353749782,
+        "within_0.125": 0.9972159387506525,
+        "dx_max": 0.17079999999987194,
+        "dy_max": 0.0
+      },
+      "fonts": {
+        "faces": 6,
+        "rebuilt_from_pdf": 6,
+        "substituted_by_converter": [],
+        "substituted_by_word": [],
+        "details": [
+          {
+            "pdf_font": "___WRD_EMBED_SUB_45",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr bda9cafc",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_52",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 8079cc05",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "Lato",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 8debdad6",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_47",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 1235aeea",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_49",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 2561eee7",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "Noto Sans Math",
+            "subsets": 2,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 2d7c5e3a",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          }
+        ]
+      },
+      "pictures": {
+        "pictures": 0,
+        "unmatched": 0,
+        "max_corner_error_pt": null,
+        "jpeg_kept": 0
+      },
+      "vectors": {
+        "shapes": 1,
+        "rasterised_items": 0,
+        "raster_pictures": 0
+      },
+      "text": {
+        "rotated_lines": 0,
+        "hidden_lines": 0,
+        "scripts": {
+          "right_to_left": 0,
+          "complex_script": 0
+        },
+        "glyphs_without_char": 0,
+        "horizontally_scaled_glyphs": 0,
+        "rotated_probe": {
+          "rotated_probe": "none needed"
+        }
+      },
+      "ssim_min": 0.9675920140317479,
+      "pages": {
+        "source": 2,
+        "word": 2
+      },
+      "bytes": {
+        "pdf": 302621,
+        "docx": 89881
+      },
+      "seconds": {
+        "convert": 9.68884070002241,
+        "calibration_probe": 5.77482550003333,
+        "word_export": 1.2951284000300802,
+        "word_total": 9.972238899965305
+      },
+      "calibration": {
+        "probed_lines": 144,
+        "cached_lines": 0,
+        "disagreements": {
+          "x": 0,
+          "y": 0,
+          "compared": 68
+        },
+        "probe_seconds": 5.77482550003333,
+        "word_build": "16.0.20527.20150"
+      },
+      "pass": {
+        "positions": false,
+        "fonts": true,
+        "overall": false
+      },
+      "heatmap": "corpus_report_assets/research_paper_page1.png",
+      "editability": {
+        "find_phrase": true,
+        "find_sentence": true,
+        "paragraphs": 147,
+        "reading_order_similarity": 1.0
+      }
+    },
+    {
+      "name": "lab_report",
+      "class": "lab report",
+      "producer": "Microsoft Word (ExportAsFixedFormat) from hand-written OOXML",
+      "features": [
+        "jpeg photo",
+        "png plot",
+        "bar chart drawn with shapes",
+        "captions",
+        "table with rules"
+      ],
+      "glyphs": {
+        "glyphs": 1628,
+        "max": 0.154239999999902,
+        "mean": 0.03949657218855119,
+        "p99": 0.12590919999995834,
+        "within_0.025": 0.3759213759213759,
+        "within_0.06": 0.7856265356265356,
+        "within_0.125": 0.9877149877149877,
+        "dx_max": 0.154239999999902,
+        "dy_max": 0.0
+      },
+      "fonts": {
+        "faces": 5,
+        "rebuilt_from_pdf": 5,
+        "substituted_by_converter": [],
+        "substituted_by_word": [],
+        "details": [
+          {
+            "pdf_font": "___WRD_EMBED_SUB_45",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 1acffe8b",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_52",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 4abedfdd",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_49",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 0b78b309",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_54",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 10d04ef5",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "___WRD_EMBED_SUB_47",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 35db09a6",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          }
+        ]
+      },
+      "pictures": {
+        "pictures": 2,
+        "unmatched": 0,
+        "max_corner_error_pt": 0.009999999999990905,
+        "jpeg_kept": 1
+      },
+      "vectors": {
+        "shapes": 84,
+        "rasterised_items": 0,
+        "raster_pictures": 0
+      },
+      "text": {
+        "rotated_lines": 0,
+        "hidden_lines": 0,
+        "scripts": {
+          "right_to_left": 0,
+          "complex_script": 0
+        },
+        "glyphs_without_char": 0,
+        "horizontally_scaled_glyphs": 0,
+        "rotated_probe": {
+          "rotated_probe": "none needed"
+        }
+      },
+      "ssim_min": 0.9900312704821834,
+      "pages": {
+        "source": 3,
+        "word": 3
+      },
+      "bytes": {
+        "pdf": 307683,
+        "docx": 75917
+      },
+      "seconds": {
+        "convert": 9.016886199999135,
+        "calibration_probe": 5.753992999903858,
+        "word_export": 0.8327480999869294,
+        "word_total": 8.93216810002923
+      },
+      "calibration": {
+        "probed_lines": 40,
+        "cached_lines": 8,
+        "disagreements": {
+          "x": 0,
+          "y": 0,
+          "compared": 109
+        },
+        "probe_seconds": 5.753992999903858,
+        "word_build": "16.0.20527.20150"
+      },
+      "pass": {
+        "positions": false,
+        "fonts": true,
+        "overall": false
+      },
+      "heatmap": "corpus_report_assets/lab_report_page2.png",
+      "editability": {
+        "find_phrase": true,
+        "find_sentence": true,
+        "paragraphs": 53,
+        "reading_order_similarity": 1.0
+      }
+    },
+    {
+      "name": "slides",
+      "class": "slides",
+      "producer": "reportlab 4 (slide layout), Lato subset-embedded",
+      "features": [
+        "landscape 720x405",
+        "large text",
+        "coloured backgrounds",
+        "white text",
+        "circle bullets (curves)",
+        "rounded rectangle",
+        "jpeg picture",
+        "rotated text"
+      ],
+      "glyphs": {
+        "glyphs": 389,
+        "max": 0.2099582636613782,
+        "mean": 0.06304547377526358,
+        "p99": 0.20724140512938785,
+        "within_0.025": 0.13624678663239073,
+        "within_0.06": 0.596401028277635,
+        "within_0.125": 0.9048843187660668,
+        "dx_max": 0.12671999999992067,
+        "dy_max": 0.20972000000001856
+      },
+      "fonts": {
+        "faces": 2,
+        "rebuilt_from_pdf": 2,
+        "substituted_by_converter": [],
+        "substituted_by_word": [],
+        "details": [
+          {
+            "pdf_font": "Lato-Bold",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 8952378b",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "Lato-Regular",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr d72491f7",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          }
+        ]
+      },
+      "pictures": {
+        "pictures": 1,
+        "unmatched": 0,
+        "max_corner_error_pt": 0.0,
+        "jpeg_kept": 1
+      },
+      "vectors": {
+        "shapes": 9,
+        "rasterised_items": 10,
+        "raster_pictures": 3
+      },
+      "text": {
+        "rotated_lines": 3,
+        "hidden_lines": 0,
+        "scripts": {
+          "right_to_left": 0,
+          "complex_script": 0
+        },
+        "glyphs_without_char": 0,
+        "horizontally_scaled_glyphs": 0,
+        "rotated_probe": {
+          "rotated_lines": 3,
+          "rotated_measured": 3,
+          "corrections_pt": [
+            [
+              -0.08,
+              19.76
+            ],
+            [
+              -0.08,
+              19.76
+            ],
+            [
+              -0.08,
+              19.76
+            ]
+          ]
+        }
+      },
+      "ssim_min": 0.9860326544178867,
+      "pages": {
+        "source": 3,
+        "word": 3
+      },
+      "bytes": {
+        "pdf": 43291,
+        "docx": 28893
+      },
+      "seconds": {
+        "convert": 18.559670100046787,
+        "calibration_probe": 5.964763899974059,
+        "word_export": 1.3454186999588273,
+        "word_total": 8.261766600015108
+      },
+      "calibration": {
+        "probed_lines": 15,
+        "cached_lines": 0,
+        "disagreements": {
+          "x": 0,
+          "y": 0,
+          "compared": 54
+        },
+        "probe_seconds": 5.964763899974059,
+        "word_build": "16.0.20527.20150"
+      },
+      "pass": {
+        "positions": false,
+        "fonts": true,
+        "overall": false
+      },
+      "heatmap": "corpus_report_assets/slides_page2.png",
+      "editability": {
+        "find_phrase": true,
+        "find_sentence": false,
+        "paragraphs": 20,
+        "reading_order_similarity": 0.8818897637795275
+      }
+    },
+    {
+      "name": "form",
+      "class": "form",
+      "producer": "reportlab 4, standard 14 fonts (Helvetica, Times) not embedded",
+      "features": [
+        "non-embedded standard fonts",
+        "boxes and rules",
+        "small text 6.5 pt",
+        "checkboxes",
+        "dashed rule",
+        "invisible ocr text"
+      ],
+      "glyphs": {
+        "glyphs": 517,
+        "max": 0.15599724228307693,
+        "mean": 0.05497723908044172,
+        "p99": 0.15267893904121008,
+        "within_0.025": 0.172147001934236,
+        "within_0.06": 0.5725338491295938,
+        "within_0.125": 0.965183752417795,
+        "dx_max": 0.15413999999975658,
+        "dy_max": 0.06999999999999318
+      },
+      "fonts": {
+        "faces": 4,
+        "rebuilt_from_pdf": 0,
+        "substituted_by_converter": [
+          "Helvetica-Bold",
+          "Times-Roman",
+          "Helvetica",
+          "Times-Italic"
+        ],
+        "substituted_by_word": [],
+        "details": [
+          {
+            "pdf_font": "Helvetica-Bold",
+            "subsets": 1,
+            "program": null,
+            "pdf_problems": [],
+            "family": "Ltr f0e71f8d",
+            "embedded_in_pdf": false,
+            "substitute": "Helvetica-Bold -> Arimo-Bold.ttf (metric-compatible stand-in)",
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "Times-Roman",
+            "subsets": 1,
+            "program": null,
+            "pdf_problems": [],
+            "family": "Ltr afe718fb",
+            "embedded_in_pdf": false,
+            "substitute": "Times-Roman -> Tinos-Regular.ttf (metric-compatible stand-in)",
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "Helvetica",
+            "subsets": 1,
+            "program": null,
+            "pdf_problems": [],
+            "family": "Ltr 6c296dd1",
+            "embedded_in_pdf": false,
+            "substitute": "Helvetica -> Arimo-Regular.ttf (metric-compatible stand-in)",
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "Times-Italic",
+            "subsets": 1,
+            "program": null,
+            "pdf_problems": [],
+            "family": "Ltr c548bdfc",
+            "embedded_in_pdf": false,
+            "substitute": "Times-Italic -> Tinos-Regular.ttf (metric-compatible stand-in, style not available (upright or regular used))",
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          }
+        ]
+      },
+      "pictures": {
+        "pictures": 0,
+        "unmatched": 0,
+        "max_corner_error_pt": null,
+        "jpeg_kept": 0
+      },
+      "vectors": {
+        "shapes": 21,
+        "rasterised_items": 1,
+        "raster_pictures": 1
+      },
+      "text": {
+        "rotated_lines": 0,
+        "hidden_lines": 1,
+        "scripts": {
+          "right_to_left": 0,
+          "complex_script": 0
+        },
+        "glyphs_without_char": 0,
+        "horizontally_scaled_glyphs": 0,
+        "rotated_probe": {
+          "rotated_probe": "none needed"
+        }
+      },
+      "ssim_min": 0.9899753160298732,
+      "pages": {
+        "source": 1,
+        "word": 1
+      },
+      "bytes": {
+        "pdf": 2741,
+        "docx": 28998
+      },
+      "seconds": {
+        "convert": 9.028028100030497,
+        "calibration_probe": 5.13039150001714,
+        "word_export": 0.730209399946034,
+        "word_total": 7.344101900001988
+      },
+      "calibration": {
+        "probed_lines": 29,
+        "cached_lines": 0,
+        "disagreements": {
+          "x": 0,
+          "y": 0,
+          "compared": 56
+        },
+        "probe_seconds": 5.13039150001714,
+        "word_build": "16.0.20527.20150"
+      },
+      "pass": {
+        "positions": false,
+        "fonts": false,
+        "overall": false
+      },
+      "heatmap": "corpus_report_assets/form_page1.png",
+      "editability": {
+        "find_phrase": true,
+        "find_sentence": true,
+        "paragraphs": 30,
+        "reading_order_similarity": 1.0
+      }
+    },
+    {
+      "name": "journal",
+      "class": "journal page",
+      "producer": "reportlab 4, five fonts subset-embedded (Tinos, Lato, Crimson Text, Arimo, Cousine)",
+      "features": [
+        "three columns",
+        "a font per role",
+        "odd sizes 21.5/10.3/9.3/7.9/7.5 pt",
+        "coloured title",
+        "jpeg figure",
+        "code listing in a box",
+        "more than 256 glyphs of one font (several subsets)"
+      ],
+      "glyphs": {
+        "glyphs": 5109,
+        "max": 0.22229154752261512,
+        "mean": 0.054107441073354426,
+        "p99": 0.11577143321225723,
+        "within_0.025": 0.13251125464865923,
+        "within_0.06": 0.5570561753767861,
+        "within_0.125": 0.992562145233901,
+        "dx_max": 0.22138999999999953,
+        "dy_max": 0.0799999999999983
+      },
+      "fonts": {
+        "faces": 6,
+        "rebuilt_from_pdf": 6,
+        "substituted_by_converter": [],
+        "substituted_by_word": [],
+        "details": [
+          {
+            "pdf_font": "Tinos-Bold",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 066e8899",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "Lato-Italic",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 778bed7c",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "CrimsonText-Italic",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 637968f4",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "CrimsonText-Regular",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 44b747be",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "Arimo-Regular",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 19e7c5ff",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          },
+          {
+            "pdf_font": "Cousine-Regular",
+            "subsets": 1,
+            "program": "truetype",
+            "pdf_problems": [],
+            "family": "Ltr 3d6ab27a",
+            "embedded_in_pdf": true,
+            "substitute": null,
+            "fs_type": 0,
+            "permission": "installable",
+            "cubic_source": false,
+            "outline_error_em": 0.0,
+            "private_use_glyphs": 0,
+            "problems": []
+          }
+        ]
+      },
+      "pictures": {
+        "pictures": 1,
+        "unmatched": 0,
+        "max_corner_error_pt": 0.066599999999994,
+        "jpeg_kept": 1
+      },
+      "vectors": {
+        "shapes": 2,
+        "rasterised_items": 0,
+        "raster_pictures": 0
+      },
+      "text": {
+        "rotated_lines": 0,
+        "hidden_lines": 0,
+        "scripts": {
+          "right_to_left": 0,
+          "complex_script": 0
+        },
+        "glyphs_without_char": 0,
+        "horizontally_scaled_glyphs": 0,
+        "rotated_probe": {
+          "rotated_probe": "none needed"
+        }
+      },
+      "ssim_min": 0.9069309764798904,
+      "pages": {
+        "source": 1,
+        "word": 1
+      },
+      "bytes": {
+        "pdf": 113596,
+        "docx": 70903
+      },
+      "seconds": {
+        "convert": 10.376400400011335,
+        "calibration_probe": 6.812529999995604,
+        "word_export": 1.1549892000039108,
+        "word_total": 9.365681499999482
+      },
+      "calibration": {
+        "probed_lines": 150,
+        "cached_lines": 0,
+        "disagreements": {
+          "x": 0,
+          "y": 18,
+          "compared": 360
+        },
+        "probe_seconds": 6.812529999995604,
+        "word_build": "16.0.20527.20150"
+      },
+      "pass": {
+        "positions": false,
+        "fonts": true,
+        "overall": false
+      },
+      "heatmap": "corpus_report_assets/journal_page1.png",
+      "editability": {
+        "find_phrase": true,
+        "find_sentence": true,
+        "paragraphs": 151,
+        "reading_order_similarity": 1.0
+      }
+    }
+  ],
+  "cache_check": {
+    "compared": 4212,
+    "x": 0,
+    "y": 36,
+    "documents": 6,
+    "seconds": 52.316336199990474
+  }
+}

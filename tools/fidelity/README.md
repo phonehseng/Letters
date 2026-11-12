@@ -545,3 +545,272 @@ Word limits that look fundamental:
   merging was only seen on Word's own split subsets.
 - **Cache portability:** whether the cache holds across Word builds or machines.
 - **Screen vs PDF:** whether Word's screen layout matches its PDF (E4).
+
+Round 4 below closes most of these.
+
+## round 4: Word's PDF writer modelled exactly (2026-11-11, same machine and Word build)
+
+`RECIPE.md` is the algorithm as it now stands, written to be ported without the Python.
+Full tables are in `corpus_report.md` and `corpus_report.json`; round 3's report is kept as
+`corpus_report_round3.json` for the before and after.
+
+### how to run (new in round 4)
+
+```powershell
+$py = "C:\Letters\tools\fidelity\.venv\Scripts\python.exe"
+& $py e10_writer_probe.py x y --dense [--page a4|wide]       # writer probes (11-20k frames, about 20 s each)
+& $py e10_writer_probe.py --analyse e10_x_dense e10_y_dense  # check word_writer_model on every saved probe
+& $py e11_run_split.py        # which run property splits text objects
+& $py e12_exported_plan.py    # plan on the print lattice, 9-36 pt
+& $py e15_spacing_rule.py     # how w:spacing becomes pixels
+& $py e16_spacing_phase.py    # long random spacings vs the balanced planner
+& $py e13_standin_shapes.py   # ofl vs windows stand-in shapes
+& $py e14_standin_ssim.py     # the form class with both stand-in sets
+& $py make_corpus_extra.py    # 7 more corpus documents (edge headless + pikepdf), corpus\extra
+& $py corpus_run.py --extra   # all 13 classes (about 25 min with the cache check)
+& $py -m prototype.plan_check out\prototype\NAME     # planned vs produced layout pixels
+& $py -m prototype.floor corpus\NAME.pdf             # the lattice floor of a source
+& $py -m prototype.source_pixels corpus\NAME.pdf     # layout pixels recovered from a word-made pdf
+& $py -m unittest test_writer_model test_prototype test_units   # 53 tests, no word needed
+```
+
+New modules:
+
+- `word_writer_model.py` (pure, unit tested): the twips rule, step tables, print format,
+  baseline rule, encode and decode.
+- `word_pdf_raw.py`: the raw Tm/Tf/TJ operands as printed.
+- `prototype/verify_pass.py`, `prototype/floor.py`, `prototype/source_pixels.py`,
+  `prototype/decompose.py`.
+
+### 1. Word's PDF export, modelled (e10)
+
+Three probe documents, using a grid font so that pen offsets inside a line are known
+exactly:
+
+- frame x swept over every twip;
+- frame y swept over every twip;
+- lines at 9 to 36 pt.
+
+They ran on letter, A4 and a 1008 x 612 pt page: 85,571 frames in all.
+
+- **Frame twips to pixel**: `floor((5t+1)/12)`, minus one when 5t+1 is a multiple of 12 and
+  t mod 60 is 19 or 55. It held for all 85,571 frames, x and y.
+- **Pixel to printed number**:
+  - Tm is printed in 1/3000 in units: `5p + k(p)`, where k counts the writer's "step
+    pixels" up to p.
+  - Steps are roughly page size / 4.73 apart, but not exactly, and not a function of the
+    axis length alone (x 5100 px and y 5100 px differ). So they are measured per page size.
+  - The value is printed with 5 significant digits and at most 3 decimals.
+  - The media box is the page size rounded to whole pixels.
+  - The model reproduces every printed Tm in all 85,571 probes. That needed one fix: the
+    fifth step lands on `5(p+1)`, so it reads one pixel late if k < 5 is assumed.
+- **Inside a text object** Word does not print the lattice:
+  - It writes Tc and TJ in 1/1000 em against integer /Widths, correcting only past about
+    3/1000 em.
+  - Where drawn size = stored size (9, 36 pt), the rule "adjust when the error passes
+    3/1000 em, by the rounded error" reproduces 99.5% and 99.6% of the TJ numbers.
+  - Where they differ (10.5 drawn 10.56, 20 drawn 20.04) it reproduces only 45% and 81%;
+    this part is not modelled.
+  - This in-object rounding is the round 3 "writer residue" (up to 0.497 px). It also
+    explains why 20 and 36 pt text looked off: the layout pixels themselves were right
+    (e12).
+- **Fix: every glyph in its own text object.** Word splits text objects wherever
+  neighbouring runs differ in any property (e11: language, East Asian language, bidi
+  language, noProof, colour, spacing, character style). The converter alternates
+  `w:lang w:eastAsia` en-US / en-GB, which does nothing to Latin text.
+- **e12 result**: random fractional targets planned on the lattice. 1,992 of 1,992 glyphs
+  at 9, 10.5, 11, 12, 14, 20 and 36 pt printed exactly the planned number, with max error
+  0.060 pt.
+
+**(a) Recovering Word's layout pixels from a Word-made source** (`prototype/source_pixels.py`):
+
+- Every glyph that starts a text object decodes exactly: 492 of 492 across syllabus,
+  research paper and lab report.
+- The 11,372 glyphs inside text objects carry the in-object rounding. Their distance to the
+  nearest pixel is spread evenly (mean 0.25 px, max 0.50 px), so rounding cannot recover
+  their pixel.
+- This turned out not to be needed: the measurement compares printed positions, so the
+  plan aims at the source's printed position, not its layout pixel.
+
+**(b) Planning on the exported position**:
+
+- Each glyph gets the layout pixel whose *printed* x is nearest its source x.
+- The frame twips come from the closed rule instead of a probe.
+- The baseline twips are the ones whose printed y is nearest.
+
+On the three Word-made classes the result is exactly the lattice floor (table below).
+
+### 2. The whole-pixel misses (e15, e16, journal)
+
+The rule round 2 fitted, "floor of the cumulative spacing", is wrong.
+
+- e15 (562 pens) found the real rule: **each glyph's `w:spacing` becomes whole pixels on its
+  own**, `twips * 5/12` rounded half away from zero. A floor of the sum fitted only 66 of 121
+  single values.
+- e16 (1,980 steps of random spacings) found a second effect: Word also keeps the exact sum
+  and moves a glyph by a pixel when the two drift about a pixel apart (47 of 1,980 steps).
+  The exact trigger could not be fitted.
+- The planner now picks, among the 2 or 3 twip values that give the wanted pixels, the one
+  that keeps the exact sum within 5/24 px. That gave 0 of 1,980 steps off the rule
+  (`grid_model.spacing_for_pixel_steps`).
+- The round 3 plan had made each glyph's spacing the difference of cumulative values,
+  which is how its 76 journal glyphs ended up a pixel away.
+- One glyph is still not explained: the journal's italic "W" in "C. Writer". Word laid it
+  out 1 px wider than its grid advance and moved it back 23 glyphs later.
+- `prototype/verify_pass.py` handles this case. It exports once, decodes every glyph's
+  layout pixel, re-plans each line from its first wrong glyph, and keeps the best plan per
+  line, in at most 2 more exports. On the journal: 24 glyphs off, then 17, then 0, and the
+  line keeps its best pass. That run is the one in the table. Every other class: 0 glyphs
+  off plan after the first export.
+
+### 3. Large text (20 pt and up)
+
+Not a layout effect. With every glyph in its own text object, 20 pt and 36 pt lines print
+exactly as planned (e12). The 0.79 px of round 3 is the in-object TJ threshold: 3/1000 em is
+0.5 px at 20 pt and 0.9 px at 36 pt. The slides' 20 and 36 pt lines now sit on the floor.
+
+### 4. Rotated text
+
+- With `wrap="none"`, Word moved a rotated box's line whenever its content width changed:
+  the 19.8 pt round 3 saw, and a new shift after every re-plan. With `wrap="square"` (box
+  20 pt wider than the line) the start no longer depends on the content.
+- The box itself moves in steps of about 0.36 pt (3 px). Successive corrections gave
+  -0.184, +0.176, -0.184 and +0.104 pt along the line.
+- So the converter:
+  - moves the box up to 4 times;
+  - measures where Word starts the line;
+  - plans the glyphs against that start, as frames are planned.
+- Slides: rotated glyphs within 0.064 pt along the line (was 0.21).
+- This is a systematic measuring pass, not a prediction. It costs 5 exports per document
+  with rotated text and is not cached. The rotated print lattice (a 0.12 pt lattice along
+  the line, its step table unknown) is not modelled.
+
+### 5. The lattice floor per class
+
+`prototype/floor.py` takes each source glyph's distance to the nearest printable position
+(x and y). No plan through Word can beat it. The achieved numbers equal the floor on every
+class to within 0.001 pt (max) and 0.0004 pt (mean), apart from the slides' rotated line.
+So the remaining error is Word's lattice, not the converter. Numbers are in the table below
+and in `corpus_report.md`.
+
+### 6. y calibration: what else y depends on
+
+Round 3's y cache disagreed on 0.9% of values because **printed y depends on the page
+height**: the writer's step table for that page size. Round 3's probe pages were not the
+document's page size (and their height varied with the document). x had the same flaw
+hidden: probe width was `max(612, max x + 60)`.
+
+The cache now stores only page-size-independent facts:
+
+- step tables keyed by axis and page pixels;
+- baseline offset tables keyed by exact line height, 60 entries indexed by y twips mod 60.
+
+The baseline rule turned out to be closed form (960 of 960 measured frames):
+
+- For line twips mod 60 of 0 or 20: `top pixel + round(0.8 * line px)`.
+- For mod 60 = 40: `bottom pixel - round(0.2 * line px)`.
+
+Re-measuring every cached fact the 13 documents use gave 21 compared, 0 disagreements.
+
+### 7. Non-embedded standard fonts (form)
+
+- **fsType.** Windows ships Arial, Arial Bold, Times New Roman (regular, bold, italic) and
+  Courier New. All have fsType 0x0008 (editable embedding), so a document may embed them.
+  They are Monotype fonts licensed with Windows: never ship them; use them only if present
+  on the user's machine. They are still not Helvetica or Times, so the "same fonts"
+  criterion fails either way.
+- **Glyph shape, open stand-ins vs Windows fonts** (e13). Printable ASCII, freetype at
+  200 px/em, ink masks aligned on the pen origin:
+
+  | pdf font | open stand-in | windows font | IoU mean / min | pixels differing |
+  |---|---|---|---|---|
+  | Helvetica | Arimo | Arial | 0.773 / 0.281 ('*') | 22.7% |
+  | Helvetica-Bold | Arimo Bold | Arial Bold | 0.804 / 0.083 ('_') | 19.6% |
+  | Times-Roman | Tinos | Times New Roman | 0.679 / 0.000 ('_') | 32.1% |
+  | Times-Bold | Tinos Bold | Times New Roman Bold | 0.724 / 0.000 ('_') | 27.6% |
+  | Courier | Cousine | Courier New | 0.301 / 0.000 ('(') | 69.9% |
+
+- **Against what a viewer shows** (e14). Text-line SSIM against pdfium's rendering of the
+  source, 28 lines, form class:
+  - open stand-ins: mean 0.795, min 0.485;
+  - Windows fonts: mean 0.868, min 0.623 (and real italics);
+  - positions identical: max 0.085, mean 0.0447 pt.
+
+  pdfium probably renders the missing standard fonts with Windows' own fonts here, which
+  would favour the Windows set; that was not checked.
+
+### 8. New corpus classes (`make_corpus_extra.py`, `corpus\extra\`)
+
+No producer on this machine writes bare CFF or Type 1, so those pages are hand-built with
+pikepdf, operator by operator.
+
+Microsoft Edge 157 headless (Skia/PDF) prints the rest. It runs with a private profile in
+`out\edge_profile`; the user's browser is not touched.
+
+- Skia writes TrueType web fonts as Type0 CIDFontType2 Identity-H, and CFF web fonts as
+  Type 3.
+- It places every glyph with its own Tj and a fractional Td.
+
+Fonts (all OFL): Crimson Text, Lato, Source Serif 4. Modified fonts are renamed: the Type 1
+conversion is "Letters One Serif", the fsType 2 copy of Lato is "Letters Locked Sans".
+
+Paths that broke the first time they ran, now fixed:
+
+- Type 1 programs failed to rebuild: only CFF was converted to quadratic.
+- Type 3 had no rebuild at all. It is now rebuilt from the glyph procedures' filled paths.
+- A browser ToUnicode mapped a glyph to U+0000, and Word refused the DOCX.
+- Ligature glyphs on private-use code points U+E000.. were drawn by Word in Calibri. They
+  now use U+F0000.. (`w:sym` and a symbol cmap were tried; the latter broke the whole font).
+
+### results, round 3 -> round 4 (from `corpus_report.md`)
+
+Target: max 0.125 pt, mean under 0.05 pt, same embedded fonts. All numbers are combined x/y
+distances in pt.
+
+| class | producer | round 3 max / mean | round 4 max / mean | lattice floor max / mean | positions | fonts | overall |
+|---|---|---|---|---|---|---|---|
+| syllabus | Word | 0.136 / 0.0374 | 0.074 / 0.0278 | 0.074 / 0.0278 | pass | pass | **pass** |
+| research paper | Word | 0.171 / 0.0416 | 0.063 / 0.0312 | 0.063 / 0.0312 | pass | pass | **pass** |
+| lab report | Word | 0.154 / 0.0395 | 0.063 / 0.0285 | 0.063 / 0.0285 | pass | pass | **pass** |
+| slides | reportlab | 0.210 / 0.0630 | 0.102 / 0.0494 | 0.083 / 0.0447 (rotated excluded) | pass | pass | **pass** |
+| form | reportlab, std 14 | 0.156 / 0.0550 | 0.085 / 0.0447 | 0.085 / 0.0447 | pass | FAIL (stand-ins) | FAIL |
+| journal page | reportlab | 0.222 / 0.0541 | 0.086 / 0.0496 | 0.086 / 0.0496 | pass | pass | **pass** |
+| cid subset > 256 glyphs | Edge (Skia) | new | 0.078 / 0.0427 | 0.078 / 0.0427 | pass | pass | **pass** |
+| Type 3 font | Edge (Skia) | new | 0.078 / 0.0416 | 0.078 / 0.0416 | pass | pass | **pass** |
+| mixed styles (5 sizes, colour, sup/sub, small caps) | Edge (Skia) | new | 0.077 / 0.0403 | 0.077 / 0.0403 | pass | pass | **pass** |
+| justified TJ kerning | pikepdf | new | 0.084 / 0.0479 | 0.084 / 0.0479 | pass | pass | **pass** |
+| CFF font (FontFile3) | pikepdf | new | 0.085 / 0.0485 | 0.085 / 0.0485 | pass | pass | **pass** |
+| Type 1 font (FontFile) | pikepdf | new | 0.085 / 0.0490 | 0.085 / 0.0490 | pass | pass | **pass** |
+| restricted fsType | pikepdf | new | 0.085 / 0.0471 | 0.085 / 0.0471 | pass | FAIL (fsType 2) | FAIL |
+
+- 11 of 13 classes pass; all 13 pass on positions.
+- Every non-rotated class sits on its lattice floor. The slides' extra 0.019 pt max comes
+  from the rotated line.
+- Cache check: 21 cached facts measured again, 0 disagreements.
+- Conversion with a warm cache takes 6.4 to 9.4 s per document, mostly the checking export.
+  The journal took 28.4 s (two re-plan exports) and the slides 49.6 s (rotated measuring
+  exports).
+
+### what still blocks
+
+- **form**: positions pass. Its fonts are not embedded in the source, so the "same fonts"
+  criterion fails by definition, with either stand-in set.
+- **restricted_font**: positions pass. fsType 2 forbids embedding, so a stand-in is used
+  and the user must be told.
+- Any class whose lattice floor mean is at or above 0.05 pt cannot pass, whatever the
+  converter does. That happens to a two-axis off-lattice source whose baselines fall badly
+  against the lattice. The journal page sits at 0.0497 (floor) / 0.0496 (achieved). This is
+  Word's 1/600 in layout grid and its 1/3000 in print lattice, measured as above.
+
+### round 4: not verified
+
+- Other Word builds, machines, and default printers.
+- Page sizes beyond the four measured (letter, A4, 1008 x 612, 720 x 405). New sizes are
+  measured automatically by a probe export.
+- The exact trigger of Word's spacing re-sync (e16), and why the journal's italic W was
+  laid out 1 px wide.
+- TJ numbers inside one text object where drawn size differs from stored size.
+- A model of the rotated print lattice; rotated angles other than 90 degrees.
+- Whether fsType 4 fonts make Word open the DOCX read-only.
+- Right-to-left and complex scripts: still only unit tested.
+- Whether pdfium uses Windows fonts for the form's missing fonts (e14).

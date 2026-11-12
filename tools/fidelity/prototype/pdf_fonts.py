@@ -41,6 +41,8 @@ class PdfFont:
     ascent: float
     descent: float
     problems: list[str] = field(default_factory=list)
+    type3_procs: dict[int, bytes] = field(default_factory=dict)  # type 3 only: code -> glyph procedure
+    font_matrix: tuple[float, ...] = (0.001, 0.0, 0.0, 0.001, 0.0, 0.0)
 
     @property
     def embedded(self) -> bool:
@@ -221,16 +223,33 @@ def read_font(font_dict) -> PdfFont:
 
     descriptor = font_dict.get("/FontDescriptor")
     program, kind = _font_program(descriptor)
+    type3_procs, font_matrix = {}, (0.001, 0.0, 0.0, 0.001, 0.0, 0.0)
     if subtype == "Type3":
-        problems.append("type3 font: glyphs are drawn by procedures and cannot be rebuilt")
+        # the glyph procedures are the font program: kept as bytes, rebuilt as outlines later
+        names = _simple_encoding(font_dict)
+        procs = font_dict.get("/CharProcs")
+        for code, glyph_name in names.items():
+            if procs is not None and "/" + glyph_name in procs:
+                type3_procs[code] = procs["/" + glyph_name].read_bytes()
+        font_matrix = tuple(float(v) for v in font_dict.get("/FontMatrix", font_matrix))
+        program, kind = b"", "type3"
+        if "/Resources" in font_dict and "/XObject" in font_dict.Resources:
+            problems.append("type3 glyphs use images or forms, which are not rebuilt")
     flags = int(descriptor.get("/Flags", 0)) if descriptor is not None else 0
     default_width = float(descriptor.get("/MissingWidth", 0)) if descriptor is not None else 0.0
     widths = _simple_widths(font_dict)
+    if subtype == "Type3":
+        # type 3 widths are in glyph space; everything downstream works in 1/1000 em
+        widths = {code: w * font_matrix[0] * 1000 for code, w in widths.items()}
+        if "/BaseFont" not in font_dict:
+            # browsers leave type 3 fonts unnamed; the descriptor's family keeps one face's subsets together
+            family = str(descriptor.get("/FontFamily", "")) if descriptor is not None else ""
+            base = (family.replace(" ", "") or "Type3") + f"-type3-{key[0] if isinstance(key[0], int) else 0}"
     if not widths and program is None and base in STANDARD_14:
         widths = standard_14_widths(base)
     return PdfFont(
         key, base, tag, subtype, 1, widths, default_width, to_unicode, _simple_encoding(font_dict),
-        program, kind, None, bool(flags & SYMBOLIC_FLAG), *_vertical(descriptor), problems,
+        program, kind, None, bool(flags & SYMBOLIC_FLAG), *_vertical(descriptor), problems, type3_procs, font_matrix,
     )  # fmt: skip
 
 

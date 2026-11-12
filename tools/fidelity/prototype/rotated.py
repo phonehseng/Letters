@@ -32,6 +32,7 @@ class RotatedLine:
     baseline_pt: float
     text: str
     correction: tuple[float, float] = (0.0, 0.0)
+    offset_pt: float = 0.0  # where word starts the line along its baseline, relative to the source start
 
     def drawing(self, shape_id: int) -> str:
         x, y = self.origin_top_down
@@ -41,8 +42,15 @@ class RotatedLine:
         )  # fmt: skip
 
 
-def measure_offsets(rotated: list[RotatedLine], page_sizes: list[tuple[float, float]], fonts, work_dir: str) -> dict:
-    """export only the rotated boxes, then set each line's correction from what word did."""
+def measure_offsets(rotated: list[RotatedLine], page_sizes: list[tuple[float, float]], fonts, work_dir: str,
+                    name: str = "rotated_probe", apply: bool = True) -> dict:  # fmt: skip
+    """export only the rotated boxes and compare each line's first pen with where it should be.
+
+    apply=True moves each box by the difference (a translation, so the first
+    pass gets the box to within the pixel word snaps it to). apply=False only
+    reports the remaining difference along the baseline, which the converter
+    then plans the glyphs against, the way frames are planned against the
+    line start word produces."""
     if not rotated:
         return {"rotated_probe": "none needed"}
     os.makedirs(work_dir, exist_ok=True)
@@ -56,21 +64,29 @@ def measure_offsets(rotated: list[RotatedLine], page_sizes: list[tuple[float, fl
             else:
                 package.body.append(docx_out.section_break_paragraph(width, height))
     package.final_section = docx_out.section_properties(*page_sizes[-1])
-    docx = package.save(os.path.join(work_dir, "rotated_probe.docx"))
-    pdf = os.path.join(work_dir, "rotated_probe.word.pdf")
+    docx = package.save(os.path.join(work_dir, f"{name}.docx"))
+    pdf = os.path.join(work_dir, f"{name}.word.pdf")
     export_docx_to_pdf(docx, pdf)
     pages = read_document(pdf)
     measured = group_lines([g for page in pages for g in page.glyphs])
     matched = 0
+    along_offsets = []
     for line in rotated:
         height = page_sizes[line.page][1]
         target_x, target_y = line.origin_top_down
         candidates = [m for m in measured if m.page == line.page and abs(m.angle - line.angle) < 0.5
                       and "".join(g.text for g in m.glyphs).replace(" ", "") == line.text.replace(" ", "")]  # fmt: skip
         if not candidates:
+            along_offsets.append(None)
             continue
         best = min(candidates, key=lambda m: math.hypot(m.x - target_x, (height - m.y) - target_y))
-        line.correction = (target_x - best.x, target_y - (height - best.y))
+        dx, dy = target_x - best.x, target_y - (height - best.y)
+        if apply:
+            line.correction = (line.correction[0] + dx, line.correction[1] + dy)
+        # page y grows upwards; dy above is top-down, so the pdf-space offset is (-dx, +dy)
+        angle = math.radians(line.angle)
+        along_offsets.append(-dx * math.cos(angle) + dy * math.sin(angle))
         matched += 1
     return {"rotated_lines": len(rotated), "rotated_measured": matched,
-            "corrections_pt": [tuple(round(v, 3) for v in line.correction) for line in rotated]}  # fmt: skip
+            "corrections_pt": [tuple(round(v, 3) for v in line.correction) for line in rotated],
+            "along_offsets_pt": along_offsets}  # fmt: skip

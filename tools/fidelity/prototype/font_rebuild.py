@@ -27,7 +27,7 @@ from fontTools.ttLib import TTFont
 
 from prototype.pdf_fonts import PdfFont
 
-PRIVATE_USE_START = 0xE000
+PRIVATE_USE_START = 0xF0000  # supplementary private use area a: word drew U+E000.. in calibri (round 4)
 # cubic to quadratic conversion tolerance, in font units at 1000 units per em
 CUBIC_TOLERANCE_UNITS = 1.0
 FS_TYPE_RESTRICTED = 0x0002
@@ -77,6 +77,9 @@ class GlyphSource:
             self._load_cff(font.program)
         elif kind == "type1":
             self._load_type1(font.program)
+        elif kind == "type3":
+            self.cubic = True  # filled paths use cubic curves, like cff
+            self._glyph_set = {f"t3_{code}": data for code, data in font.type3_procs.items()}
         else:
             raise ValueError(f"no usable program for {font.base_name}")
 
@@ -123,6 +126,9 @@ class GlyphSource:
 
     def glyph_name(self, code: int) -> str | None:
         font = self.font
+        if font.program_kind == "type3":
+            name = f"t3_{code}"
+            return name if name in self._glyph_set else None
         if font.is_cid:
             cid = code
             if self._cff_top is not None and hasattr(self._cff_top, "ROS"):
@@ -157,9 +163,104 @@ class GlyphSource:
         return None
 
     def record(self, glyph_name: str) -> RecordingPen:
+        if self.font.program_kind == "type3":
+            return type3_glyph_recording(self._glyph_set[glyph_name], self.font.font_matrix, self.font.problems)
         pen = DecomposingRecordingPen(self._glyph_set) if not self.cubic or self._cff_top is None else RecordingPen()
         self._glyph_set[glyph_name].draw(pen)
         return pen
+
+    @property
+    def needs_cubic_conversion(self) -> bool:
+        # cff, type 1 and type 3 outlines are cubic; round 3 converted only cff, so type 1 programs
+        # failed to rebuild and fell back to a stand-in the first time the corpus ran one (round 4)
+        return self.cubic
+
+
+def type3_glyph_recording(procedure: bytes, font_matrix: tuple[float, ...], problems: list[str]) -> RecordingPen:
+    """the filled paths of a type 3 glyph procedure, in 1/1000 em with y up.
+
+    the procedure's coordinates go through cm and the font matrix (browsers flip
+    y with a negative d); strokes, images and text inside a glyph are not
+    outlines and are reported instead."""
+    import pikepdf
+
+    scratch = pikepdf.new()
+    stream = pikepdf.Stream(scratch, procedure)
+    a, b, c, d, e, f = font_matrix
+    matrix = (a * 1000, b * 1000, c * 1000, d * 1000, e * 1000, f * 1000)
+    stack, ctm = [], (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    pen = RecordingPen()
+    path: list = []
+
+    def to_em(x: float, y: float) -> tuple[float, float]:
+        x, y = ctm[0] * x + ctm[2] * y + ctm[4], ctm[1] * x + ctm[3] * y + ctm[5]
+        return matrix[0] * x + matrix[2] * y + matrix[4], matrix[1] * x + matrix[3] * y + matrix[5]
+
+    for operands, operator in pikepdf.parse_content_stream(stream):
+        op = str(operator)
+        values = [float(v) for v in operands if not isinstance(v, (pikepdf.Name, pikepdf.Array, pikepdf.String))]
+        if op == "q":
+            stack.append(ctm)
+        elif op == "Q" and stack:
+            ctm = stack.pop()
+        elif op == "cm":
+            m = values
+            ctm = (m[0] * ctm[0] + m[1] * ctm[2], m[0] * ctm[1] + m[1] * ctm[3], m[2] * ctm[0] + m[3] * ctm[2],
+                   m[2] * ctm[1] + m[3] * ctm[3], m[4] * ctm[0] + m[5] * ctm[2] + ctm[4],
+                   m[4] * ctm[1] + m[5] * ctm[3] + ctm[5])  # fmt: skip
+        elif op in ("m", "l", "c", "v", "y", "h", "re"):
+            path.append((op, values))
+        elif op in ("f", "F", "f*", "B", "B*", "b", "b*"):
+            _replay_path(path, to_em, pen)
+            path = []
+        elif op in ("S", "s", "n"):
+            if op != "n" and path:
+                problems.append("type3 glyph strokes a path; strokes are not rebuilt")
+            path = []
+        elif op in ("Do", "BI", "BT"):
+            problems.append(f"type3 glyph uses {op}; only filled paths are rebuilt")
+    return pen
+
+
+def _replay_path(path: list, to_em, pen: RecordingPen) -> None:
+    current = start = None
+    open_contour = False
+    for op, values in path:
+        if op == "re":
+            x, y, w, h = values
+            if open_contour:
+                pen.closePath()
+            corners = [to_em(x, y), to_em(x + w, y), to_em(x + w, y + h), to_em(x, y + h)]
+            pen.moveTo(corners[0])
+            for corner in corners[1:]:
+                pen.lineTo(corner)
+            pen.closePath()
+            open_contour = False
+            current = start = (x, y)
+        elif op == "m":
+            if open_contour:
+                pen.closePath()
+            current = start = (values[0], values[1])
+            pen.moveTo(to_em(*current))
+            open_contour = True
+        elif op == "l":
+            current = (values[0], values[1])
+            pen.lineTo(to_em(*current))
+        elif op in ("c", "v", "y"):
+            if op == "c":
+                points = [(values[0], values[1]), (values[2], values[3]), (values[4], values[5])]
+            elif op == "v":
+                points = [current, (values[0], values[1]), (values[2], values[3])]
+            else:
+                points = [(values[0], values[1]), (values[2], values[3]), (values[2], values[3])]
+            current = points[-1]
+            pen.curveTo(*[to_em(*p) for p in points])
+        elif op == "h" and open_contour:
+            pen.closePath()
+            open_contour = False
+            current = start
+    if open_contour:
+        pen.closePath()
 
 
 # ---------------------------------------------------------------- rebuilding a face
@@ -229,14 +330,15 @@ def rebuild_face(fonts: list[PdfFont], used_codes: dict[tuple, set[int]], family
             else:
                 glyph = _ascii_glyph_name(len(glyph_order))
                 glyph_order.append(glyph)
-                outlines[glyph] = _truetype_glyph(recording, source.cubic and source._cff_top is not None, scale)
+                outlines[glyph] = _truetype_glyph(recording, source.needs_cubic_conversion, scale)
                 advances[glyph] = round(font.width(code) * units_per_em / 1000)
                 by_outline[signature] = glyph
             existing = [cp for cp, g in cmap.items() if g == glyph]
             if existing:
                 char_for[(font.key, code)] = chr(existing[0])
                 continue
-            if len(text) == 1 and ord(text) not in cmap and not 0xD800 <= ord(text) <= 0xDFFF:
+            # control characters (a browser mapped a glyph to U+0000) cannot go into docx xml
+            if len(text) == 1 and ord(text) not in cmap and not 0xD800 <= ord(text) <= 0xDFFF and ord(text) >= 0x20:
                 point = ord(text)
             else:
                 # no text, a ligature or a second glyph for the same char: a private code point keeps the glyph
@@ -245,8 +347,8 @@ def rebuild_face(fonts: list[PdfFont], used_codes: dict[tuple, set[int]], family
             cmap[point] = glyph
             char_for[(font.key, code)] = chr(point)
 
-    _write_font(out_path, family, units_per_em, glyph_order, outlines, advances, cmap, fonts[0])
     fs_type = first.fs_type
+    _write_font(out_path, family, units_per_em, glyph_order, outlines, advances, cmap, fonts[0], fs_type or 0)
     return RebuiltFace(
         face_key(fonts[0]), family, out_path, char_for, units_per_em, fs_type, embedding_permission(fs_type),
         any(s.cubic for s in sources.values()), error_bound, next_private - PRIVATE_USE_START, None, problems,
@@ -295,7 +397,10 @@ class _ScalingPen:
         raise ValueError("components must be decomposed before scaling")
 
 
-def _write_font(path, family, units_per_em, glyph_order, outlines, advances, cmap, pdf_font: PdfFont) -> None:
+def _write_font(
+    path, family, units_per_em, glyph_order, outlines, advances, cmap, pdf_font: PdfFont, fs_type: int = 0
+) -> None:
+    """write the rebuilt face; fs_type carries the source font's embedding permission over unchanged."""
     builder = FontBuilder(units_per_em, isTTF=True)
     builder.setupGlyphOrder(glyph_order)
     builder.setupCharacterMap(cmap)
@@ -315,7 +420,7 @@ def _write_font(path, family, units_per_em, glyph_order, outlines, advances, cma
     builder.setupNameTable({"familyName": family, "styleName": "Regular", "uniqueFontIdentifier": f"{postscript};letters",
                             "fullName": f"{family} Regular", "psName": f"{postscript}-Regular"})  # fmt: skip
     builder.setupOS2(sTypoAscender=ascent, sTypoDescender=descent, usWinAscent=ascent, usWinDescent=-descent,
-                     fsType=0, achVendID="LTRS")  # fmt: skip
+                     fsType=fs_type, achVendID="LTRS")  # fmt: skip
     builder.setupPost()
     os2 = builder.font["OS/2"]
     os2.fsSelection = 0x40  # regular
@@ -342,10 +447,26 @@ SUBSTITUTES = {
 }  # fmt: skip
 
 
+# the fonts windows ships under the names the pdf standard 14 imply (all fsType 8,
+# editable embedding, on this machine: e13). they are not open fonts, so they are
+# only an experiment option (LETTERS_STANDINS=windows) and never shipped
+WINDOWS_STANDINS = {
+    "Helvetica": "arial.ttf", "Helvetica-Bold": "arialbd.ttf", "Helvetica-Oblique": "ariali.ttf",
+    "Helvetica-BoldOblique": "arialbi.ttf", "Arial": "arial.ttf", "ArialMT": "arial.ttf", "Arial-BoldMT": "arialbd.ttf",
+    "Times-Roman": "times.ttf", "Times-Bold": "timesbd.ttf", "Times-Italic": "timesi.ttf",
+    "Times-BoldItalic": "timesbi.ttf", "TimesNewRomanPSMT": "times.ttf",
+    "Courier": "cour.ttf", "Courier-Bold": "courbd.ttf", "Courier-Oblique": "couri.ttf", "Courier-BoldOblique": "courbi.ttf",
+}  # fmt: skip
+
+
 def substitute_file(base_name: str, serif_hint: bool) -> tuple[str, str]:
-    """an open, embeddable stand-in and a note saying how close it is."""
+    """an embeddable stand-in and a note saying how close it is (open fonts unless LETTERS_STANDINS=windows)."""
     from corpus_builder import fonts as open_fonts
 
+    if os.environ.get("LETTERS_STANDINS") == "windows" and base_name in WINDOWS_STANDINS:
+        path = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", WINDOWS_STANDINS[base_name])
+        if os.path.exists(path):
+            return path, "windows font with the pdf's metrics (fsType read from the file, not shippable)"
     role, style = SUBSTITUTES.get(base_name, ("times" if serif_hint else "arial", "regular"))
     note = "metric-compatible stand-in" if base_name in SUBSTITUTES else "generic stand-in, metrics differ"
     if base_name.endswith(("Oblique", "Italic")) or (base_name.startswith("Courier") and base_name != "Courier"):
@@ -387,7 +508,8 @@ def rebuild_substitute(
             advances[glyph] = round(font.width(code) * units_per_em / 1000)
             cmap[ord(text)] = glyph
             char_for[(font.key, code)] = text
-    _write_font(out_path, family, units_per_em, glyph_order, outlines, advances, cmap, fonts[0])
-    face = RebuiltFace(face_key(fonts[0]), family, out_path, char_for, units_per_em, 0, embedding_permission(0),
+    fs_type = stand_in["OS/2"].fsType if "OS/2" in stand_in else 0
+    _write_font(out_path, family, units_per_em, glyph_order, outlines, advances, cmap, fonts[0], fs_type)
+    face = RebuiltFace(face_key(fonts[0]), family, out_path, char_for, units_per_em, fs_type, embedding_permission(fs_type),
                        False, 0.0, 0, f"{fonts[0].base_name} -> {os.path.basename(path)} ({note})", problems)  # fmt: skip
     return face

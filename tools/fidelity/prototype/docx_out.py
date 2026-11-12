@@ -49,9 +49,16 @@ class CharRun:
     hidden: bool
 
 
+# neighbouring runs that differ in any property become separate text objects in
+# word's pdf (e11), and only a glyph that starts a text object is printed exactly
+# where word_writer_model says. the east asian language is the one property that
+# changes nothing for latin text, so it alternates from glyph to glyph.
+SPLIT_LANGUAGES = ("en-US", "en-GB")
+
+
 def runs_xml(runs: list[CharRun]) -> str:
     parts = []
-    for run in runs:
+    for index, run in enumerate(runs):
         props = [
             f'<w:rFonts w:ascii="{run.family}" w:hAnsi="{run.family}" w:cs="{run.family}" w:eastAsia="{run.family}"/>'
         ]
@@ -62,7 +69,8 @@ def runs_xml(runs: list[CharRun]) -> str:
         if run.spacing_twips:
             props.append(f'<w:spacing w:val="{run.spacing_twips}"/>')
         props.append(
-            f'<w:sz w:val="{run.half_points}"/><w:szCs w:val="{run.half_points}"/><w14:ligatures w14:val="none"/>'
+            f'<w:sz w:val="{run.half_points}"/><w:szCs w:val="{run.half_points}"/>'
+            f'<w:lang w:eastAsia="{SPLIT_LANGUAGES[index % 2]}"/><w14:ligatures w14:val="none"/>'
         )
         parts.append(f'<w:r><w:rPr>{"".join(props)}</w:rPr><w:t xml:space="preserve">{escape(run.char)}</w:t></w:r>')
     return "".join(parts)
@@ -204,7 +212,10 @@ def rotated_text_drawing(
     left, top = centre_x - width_pt / 2, centre_y - height / 2
     paragraph = f"<w:p><w:pPr>{line_paragraph_props(line_twips)}</w:pPr>{runs_xml(runs)}</w:p>"
     sp_pr = f'{_xfrm(width_pt, height, clockwise)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln>'
-    body = '<wps:bodyPr rot="0" vert="horz" wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t" upright="0"><a:noAutofit/></wps:bodyPr>'
+    # wrap="square": with wrap="none" word moved the line's start whenever its content got
+    # wider or narrower (round 4, slides), so a re-planned line never settled; the box is
+    # 20 pt wider than the line, so square wrapping never breaks it
+    body = '<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t" upright="0"><a:noAutofit/></wps:bodyPr>'
     text = f"<wps:txbx><w:txbxContent>{paragraph}</w:txbxContent></wps:txbx>"
     return _wps(shape_id, left, top, width_pt, height, sp_pr, body, text, behind=False)
 

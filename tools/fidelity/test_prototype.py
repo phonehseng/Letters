@@ -111,18 +111,24 @@ class VectorClassificationTest(unittest.TestCase):
 
 
 class CalibrationTest(unittest.TestCase):
-    def test_close_requests_go_to_different_probe_pages(self):
-        requests = [calibration.Request(0, 399.55, 213.9, 260), calibration.Request(0, 401.11, 213.0, 260),
-                    calibration.Request(0, 72, 100, 260)]  # fmt: skip
-        groups = calibration._probe_groups(requests)
-        for group in groups:
-            for a in group:
-                for b in group:
-                    if a is not b:
-                        self.assertTrue(
-                            abs(a.x_pt - b.x_pt) >= 12 or abs(a.baseline_from_top_pt - b.baseline_from_top_pt) >= 4
-                        )
-        self.assertEqual(sum(len(g) for g in groups), 3)
+    def _cache(self) -> calibration.ModelCache:
+        cache = calibration.ModelCache.__new__(calibration.ModelCache)
+        cache.steps = {"x:5100": [506, 1586, 2665, 3743, 4823], "y:6600": [654, 2049, 3444, 4839, 6234]}
+        cache.baseline = {"240": [80] * 60}  # a 12 pt exact line, measured constant (e10)
+        return cache
+
+    def test_place_prints_nearest_lattice_point(self):
+        cache = self._cache()
+        placement = calibration.place(cache, 72.03, 100.0, 240, 612.0, 792.0)
+        # 72.024 is the exported x of pixel 600; nothing on the lattice is closer to 72.03
+        self.assertAlmostEqual(placement.x_pt, 72.024, places=6)
+        self.assertEqual(placement.x_pixel, 600)
+        self.assertEqual(calibration.wm.twips_pixel(placement.x_twips), 600)
+        self.assertLessEqual(abs(placement.baseline_from_top_pt - 100.0), 0.072)
+
+    def test_baseline_pixel_follows_the_offset_table(self):
+        cache = self._cache()
+        self.assertEqual(calibration.baseline_pixel(cache, 240, 1440), 600 + 80)
 
 
 class DocxOutTest(unittest.TestCase):

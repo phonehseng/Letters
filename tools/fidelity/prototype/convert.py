@@ -1,13 +1,17 @@
-"""pdf -> "exact match" docx, the round 2 recipe applied to any text pdf.
+"""pdf -> "exact match" docx, planned against word's measured layout and pdf writer (RECIPE.md).
 
-usage:  .venv\\Scripts\\python.exe -m prototype.convert input.pdf output.docx [--work DIR] [--verify-cache]
+usage:  .venv\\Scripts\\python.exe -m prototype.convert input.pdf output.docx [--work DIR] [--verify-cache] [--no-check]
 
 pipeline: read the content stream (pdf_content) -> rebuild every font face
 (font_rebuild) -> grid font per face and size (font_prep.make_grid_font) ->
-group glyphs into lines (lines) -> calibrate frame twips (calibration, cached
-per word build) -> per-character spacing by the floor model (grid_model) ->
-pictures and shapes (vectors) -> docx (docx_out). a json report says what was
-embedded, substituted, rasterised or skipped, and why.
+group glyphs into lines (lines) -> make sure the model facts for the page
+sizes and line heights are measured (calibration, cached per word build) ->
+place each line's frame and plan every glyph on word's print lattice
+(word_writer_model), spacing per glyph (grid_model.spacing_for_pixel_steps) ->
+rotated lines in text boxes placed by measuring exports (rotated) -> pictures
+and shapes (vectors) -> docx (docx_out) -> one checking export that re-plans
+the few lines word moved (verify_pass). a json report says what was embedded,
+substituted, rasterised or skipped, and why.
 """
 
 from __future__ import annotations
@@ -18,16 +22,20 @@ import math
 import os
 import time
 from collections import defaultdict
+from dataclasses import dataclass, replace
 
 import win32api
 
 import docx_writer as dw
 import font_prep
 import grid_model as gm
-from prototype import calibration, docx_out, font_rebuild, lines, rotated, vectors
+import word_writer_model as wm
+from prototype import calibration, docx_out, font_rebuild, lines, rotated, vectors, verify_pass
 from prototype.pdf_content import Glyph, read_document
 
 WORD_EXE = r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE"
+ROTATED_PASSES = 4  # measuring exports for rotated boxes: the first move plus up to three refinements
+ROTATED_START_TOLERANCE_PT = 0.06  # half a pixel: below that, planning against the start is enough
 SIZE_KEY_DIGITS = 2
 
 
@@ -125,8 +133,15 @@ class AdvanceTable:
         return units // gm.UNITS_PER_PIXEL
 
 
-def build_runs(line: lines.Line, plan: FontPlan, advances: AdvanceTable, start_along_pt: float, report: dict):
-    """char runs with spacing so each glyph lands on the pixel nearest its pdf position."""
+def build_runs(line: lines.Line, plan: FontPlan, advances: AdvanceTable, start_along_pt: float, report: dict,
+               x_table: wm.StepTable | None = None, start_pixel: int | None = None,
+               word_y: float | None = None):  # fmt: skip
+    """char runs with spacing so each glyph lands where its pdf position is.
+
+    with x_table (horizontal lines) every glyph is planned on the layout pixel
+    whose exported x is nearest its source x (word_writer_model), counted from
+    the line start pixel. without it (rotated lines) targets are the nearest
+    pixel along the baseline from the line start."""
     angle = math.radians(line.angle)
     items = []  # (char, family, path, stored, color, hidden, target along the baseline)
     text_glyphs = [g for g in line.glyphs if g.text != " "] or line.glyphs
@@ -156,18 +171,44 @@ def build_runs(line: lines.Line, plan: FontPlan, advances: AdvanceTable, start_a
     if not items:
         return []
     offset = start_along_pt  # where word really starts the line, relative to the pdf's line start
-    targets = [round(gm.pt_to_pixels(item[6] - offset)) for item in items]
+    if x_table is not None and start_pixel is not None:
+        # horizontal: along == x - line.x, so the source x is line.x + along
+        targets = [wm.nearest_exported_pixel(line.x + item[6], x_table) - start_pixel for item in items]
+    else:
+        targets = [round(gm.pt_to_pixels(item[6] - offset)) for item in items]
     targets[0] = 0  # the first glyph is the line start word produced
     pixel_advances = [advances.pixels(item[2], item[0]) for item in items]
-    spacing = gm.spacing_for_pixel_targets(pixel_advances, targets)
+    # each glyph's spacing becomes whole pixels on its own (e15), so steps are planned one by one
+    spacing = gm.spacing_for_pixel_steps(pixel_advances, targets)
     report.setdefault("line_plans", []).append({
         "page": line.page, "x": line.x, "y": line.y, "offset_pt": offset, "text": "".join(i[0] for i in items),
         "targets_px": targets, "advances_px": pixel_advances, "spacing_twips": spacing,
+        "start_pixel": start_pixel, "word_y": word_y, "rotated": x_table is None,
+        "grid_fonts": [os.path.basename(item[2]) for item in items],
     })  # fmt: skip
     return [
         docx_out.CharRun(item[0], item[1], round(item[3] * 2), docx_out.hex_color(item[4]), twips, item[5])
         for item, twips in zip(items, spacing, strict=True)
     ]
+
+
+@dataclass
+class Frame:
+    """one line's frame; its runs' spacing can be replaced when the checking pass re-plans the line."""
+
+    plan_index: int | None
+    runs: list[docx_out.CharRun]
+    x_twips: int
+    y_twips: int
+    width_twips: int
+    line_twips: int
+
+    def xml(self, spacing_overrides: dict[int, list[int]]) -> str:
+        runs = self.runs
+        if self.plan_index in spacing_overrides:
+            runs = [replace(run, spacing_twips=twips)
+                    for run, twips in zip(self.runs, spacing_overrides[self.plan_index], strict=True)]  # fmt: skip
+        return docx_out.frame_paragraph(runs, self.x_twips, self.y_twips, self.width_twips, self.line_twips)
 
 
 def _image_drawing(package: docx_out.Package, image, page_height: float) -> str:
@@ -196,7 +237,9 @@ def _shape_drawing(package: docx_out.Package, shape, page_height: float) -> str:
                                  docx_out.hex_color(shape.color), shape.line_width)  # fmt: skip
 
 
-def convert(pdf_path: str, docx_path: str, work_dir: str, verify_cache: bool = False) -> dict:
+def convert(
+    pdf_path: str, docx_path: str, work_dir: str, verify_cache: bool = False, check_passes: bool = True
+) -> dict:
     started = time.perf_counter()
     os.makedirs(work_dir, exist_ok=True)
     tag = os.path.splitext(os.path.basename(pdf_path))[0]
@@ -213,23 +256,18 @@ def convert(pdf_path: str, docx_path: str, work_dir: str, verify_cache: bool = F
     page_lines = lines.group_lines(all_glyphs)
     report["lines"] = len(page_lines)
 
-    requests = {}
-    for line in page_lines:
-        if abs(line.angle) > lines.ANGLE_TOLERANCE_DEG:
-            continue
-        height = pages[line.page].height
-        line_twips = line_twips_for(line.max_size)
-        key = calibration.placement_key(line.page, line.x, height - line.y, line_twips)
-        requests[key] = calibration.Request(line.page, line.x, height - line.y, line_twips)
-    cache = calibration.CalibrationCache(word_build())
-    calibrated = calibration.calibrate(list(requests.values()), cache, os.path.join(work_dir, "calibration"),
-                                       f"{tag}_calibration", verify=verify_cache) if requests else {"placements": {}}  # fmt: skip
-    report["calibration"] = {k: v for k, v in calibrated.items() if k != "placements"}
+    cache = calibration.ModelCache(word_build())
+    horizontal = [line for line in page_lines if abs(line.angle) <= lines.ANGLE_TOLERANCE_DEG]
+    report["calibration"] = calibration.ensure_measured(
+        cache, {(page.width, page.height) for page in pages}, {line_twips_for(line.max_size) for line in horizontal},
+        os.path.join(work_dir, "calibration"), verify=verify_cache,
+    )  # fmt: skip
     report["calibration"]["word_build"] = word_build()
 
     package = docx_out.Package()
     advances = AdvanceTable()
     rotated_lines: list[rotated.RotatedLine] = []
+    rotated_sources: list[lines.Line] = []
     page_parts = []
     for page in pages:
         drawings = []
@@ -268,34 +306,76 @@ def convert(pdf_path: str, docx_path: str, work_dir: str, verify_cache: bool = F
                 rotated_lines.append(rotated.RotatedLine(
                     line.page, runs, (line.x, page.height - line.y), line.angle, line.width() + 20, line_twips,
                     calibration.BASELINE_SHARE * line_twips / dw.TWIPS_PER_PT, "".join(r.char for r in runs)))  # fmt: skip
+                rotated_sources.append(line)
                 continue
-            placement = calibrated["placements"][
-                calibration.placement_key(line.page, line.x, page.height - line.y, line_twips)
-            ]
-            runs = build_runs(line, plan, advances, placement.x_pt - line.x, report)
+            placement = calibration.place(cache, line.x, page.height - line.y, line_twips, page.width, page.height)
+            x_table = cache.table("x", wm.page_pixels(page.width))
+            runs = build_runs(line, plan, advances, placement.x_pt - line.x, report, x_table, placement.x_pixel,
+                              page.height - placement.baseline_from_top_pt)  # fmt: skip
             width = min(line.width() + 40, max(page.width - placement.x_pt, line.width() + 4))
-            frames.append(docx_out.frame_paragraph(runs, placement.x_twips, placement.y_twips,
-                                                   round(width * dw.TWIPS_PER_PT), line_twips))  # fmt: skip
+            frames.append(Frame(len(report["line_plans"]) - 1 if runs else None, runs, placement.x_twips,
+                                placement.y_twips, round(width * dw.TWIPS_PER_PT), line_twips))  # fmt: skip
         page_parts.append((page, drawings, frames))
     for family, path, _ in plan.grid_fonts.values():
         with open(path, "rb") as handle:
             package.fonts.append(dw.EmbeddedFont(family, handle.read()))
-    report["rotated"] = rotated.measure_offsets(
-        rotated_lines, [(p.width, p.height) for p in pages], package.fonts, os.path.join(work_dir, "rotated")
-    )
-    for page, drawings, frames in page_parts:
+    page_sizes = [(p.width, p.height) for p in pages]
+    rotated_dir = os.path.join(work_dir, "rotated")
+    report["rotated"] = rotated.measure_offsets(rotated_lines, page_sizes, package.fonts, rotated_dir)
+    if rotated_lines:
+        # second pass: the box now sits within a pixel of its place; measure where word starts each
+        # line along its baseline and plan the glyphs against that start, as frames are planned
+        scratch = {"glyphs_without_char": 0, "horizontally_scaled_glyphs": 0}
+        history = [report["rotated"]["along_offsets_pt"]]
+        for number in range(1, ROTATED_PASSES):
+            # the box moves in steps word snaps to, so a few translations may be needed
+            if all(a is None or abs(a) <= ROTATED_START_TOLERANCE_PT for a in history[-1]):
+                break
+            check = rotated.measure_offsets(rotated_lines, page_sizes, package.fonts, rotated_dir,
+                                            f"rotated_move_{number}")  # fmt: skip
+            history.append(check["along_offsets_pt"])
+        # the last measurement is where word starts each line now: plan the glyphs against it
+        final = rotated.measure_offsets(rotated_lines, page_sizes, package.fonts, rotated_dir, "rotated_check",
+                                        apply=False)  # fmt: skip
+        history.append(final["along_offsets_pt"])
+        for line, source, offset in zip(rotated_lines, rotated_sources, final["along_offsets_pt"], strict=True):
+            if offset is not None:
+                line.offset_pt = offset
+                line.runs = build_runs(source, plan, advances, offset, scratch)
+        report["rotated"]["along_offsets_pt"] = history
+        report["rotated"]["corrections_pt"] = [tuple(round(v, 3) for v in line.correction) for line in rotated_lines]
+    for page, drawings, _ in page_parts:
         drawings += [line.drawing(package.shape_id()) for line in rotated_lines if line.page == page.index]
-        package.body.append(docx_out.anchor_paragraph("".join(drawings)))
-        package.body.extend(frames)
-        if page.index + 1 < len(pages):
-            following = pages[page.index + 1]
-            if (following.width, following.height) == (page.width, page.height):
-                package.body.append(dw.page_break_paragraph_xml())
-            else:
-                package.body.append(docx_out.section_break_paragraph(page.width, page.height))
-    last = pages[-1]
-    package.final_section = docx_out.section_properties(last.width, last.height)
-    package.save(docx_path)
+
+    def build(spacing_overrides: dict[int, list[int]]) -> str:
+        """the whole document, with some lines' spacing replaced (the checking pass re-plans them)."""
+        package.body = []
+        for page, drawings, frames in page_parts:
+            package.body.append(docx_out.anchor_paragraph("".join(drawings)))
+            for frame in frames:
+                package.body.append(frame.xml(spacing_overrides))
+            if page.index + 1 < len(pages):
+                following = pages[page.index + 1]
+                if (following.width, following.height) == (page.width, page.height):
+                    package.body.append(dw.page_break_paragraph_xml())
+                else:
+                    package.body.append(docx_out.section_break_paragraph(page.width, page.height))
+        last = pages[-1]
+        package.final_section = docx_out.section_properties(last.width, last.height)
+        return package.save(docx_path)
+
+    if check_passes:
+        horizontal_plans = [p for p in report["line_plans"] if not p["rotated"]]
+        tables = {page.index: cache.table("x", wm.page_pixels(page.width)) for page in pages}
+        indexes = [i for i, p in enumerate(report["line_plans"]) if not p["rotated"]]
+
+        def build_horizontal(overrides: dict[int, list[int]]) -> str:
+            return build({indexes[i]: spacing for i, spacing in overrides.items()})
+
+        report["check_pass"] = verify_pass.correct(build_horizontal, horizontal_plans, tables,
+                                                   os.path.join(work_dir, "check"))  # fmt: skip
+    else:
+        build({})
     report["grid_fonts"] = len(plan.grid_fonts)
     report["docx_bytes"] = os.path.getsize(docx_path)
     report["pdf_bytes"] = os.path.getsize(pdf_path)
@@ -309,9 +389,12 @@ def main() -> None:
     parser.add_argument("docx")
     parser.add_argument("--work", default=None)
     parser.add_argument("--verify-cache", action="store_true")
+    parser.add_argument(
+        "--no-check", action="store_true", help="skip the checking export that re-plans lines word moved"
+    )
     args = parser.parse_args()
     work = args.work or os.path.join(os.path.dirname(os.path.abspath(args.docx)), "work")
-    report = convert(args.pdf, args.docx, work, args.verify_cache)
+    report = convert(args.pdf, args.docx, work, args.verify_cache, not args.no_check)
     with open(os.path.splitext(args.docx)[0] + ".convert.json", "w", encoding="utf-8") as handle:
         json.dump(report, handle, indent=2, default=str)
     print(json.dumps({k: v for k, v in report.items() if k != "fonts"}, indent=1, default=str)[:2000])
