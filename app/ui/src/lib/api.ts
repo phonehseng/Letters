@@ -119,6 +119,16 @@ export function newWindow(path?: string): Promise<void> {
   return invoke("new_window", { path: path ?? null });
 }
 
+/** tells the shell which file this window shows (null: the home screen), so the file opens here again. */
+export function windowShows(path: string | null): Promise<void> {
+  return invoke("window_shows", { path });
+}
+
+/** true when another window already shows `path` and has come forward; this window then stays as it is. */
+export function focusWindowShowing(path: string): Promise<boolean> {
+  return invoke("focus_window_showing", { path });
+}
+
 export function recentFiles(): Promise<RecentFile[]> {
   return invoke("recent_files");
 }

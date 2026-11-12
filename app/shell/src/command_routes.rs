@@ -202,6 +202,9 @@ fn windows_and_recents() -> Feature {
     feature![
         commands::take_startup_file,
         commands::new_window,
+        // one window per file (see windows.rs)
+        commands::window_shows,
+        commands::focus_window_showing,
         commands::recent_files,
         commands::forget_recent_file,
         commands::engine_stats,

@@ -33,6 +33,8 @@ pub struct AppState {
     documents_by_window: Mutex<HashMap<String, Vec<DocumentId>>>,
     /// a file a new window should open as soon as its ui is ready
     startup_files: Mutex<HashMap<String, PathBuf>>,
+    /// which file each window shows, so a file opens in one window only
+    pub window_files: Mutex<letters_shell_core::window_files::WindowFiles>,
     pub recents: Mutex<RecentFiles>,
     pub pinned_folders: Mutex<PinnedFolders>,
     /// the author name on comments, and any later settings
@@ -55,6 +57,7 @@ impl AppState {
             documents: OpenDocuments::new(cache_dir.join("working copies")),
             documents_by_window: Mutex::new(HashMap::new()),
             startup_files: Mutex::new(HashMap::new()),
+            window_files: Mutex::default(),
             recents: Mutex::new(RecentFiles::load(data_dir.join("recent-files.json"))),
             pinned_folders: Mutex::new(PinnedFolders::load(data_dir.join("pinned-folders.json"))),
             settings: Mutex::new(Settings::load(data_dir.join("settings.json"))),

@@ -166,6 +166,8 @@ fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
 /// by the window's close sheet.
 fn close_window_parts(handle: &tauri::AppHandle, label: &str) {
     handle.state::<AppState>().close_documents_of_window(label);
+    // a closed window no longer holds its file (see windows.rs)
+    handle.state::<AppState>().window_files.lock().unwrap().forget(label);
     writer_commands::close_window(handle, label);
     // compare: the window's comparisons close with it
     compare_commands::close_window(handle, label);

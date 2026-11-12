@@ -164,6 +164,21 @@ pub fn new_window(app: AppHandle, path: Option<String>) {
     windows::open_window(&app, path.map(PathBuf::from));
 }
 
+/// the ui says which file its window now shows (none on the home screen),
+/// so a later open of that file comes back to this window.
+#[tauri::command(async)]
+pub fn window_shows(window: Window, state: State<AppState>, path: Option<String>) {
+    let mut files = state.window_files.lock().unwrap();
+    files.show(window.label(), path.as_deref().map(Path::new));
+}
+
+/// before opening a file here: true when another window already shows it
+/// and has been brought forward, so this window stays as it is.
+#[tauri::command(async)]
+pub fn focus_window_showing(app: AppHandle, window: Window, path: String) -> bool {
+    windows::focus_window_showing(&app, Path::new(&path), Some(window.label()))
+}
+
 /// recent files that still exist on disk, newest first.
 #[tauri::command(async)]
 pub fn recent_files(state: State<AppState>) -> Vec<RecentFile> {
