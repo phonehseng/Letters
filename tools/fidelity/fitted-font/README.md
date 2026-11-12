@@ -2,7 +2,7 @@
 
 Can a converted DOCX reach 1/40 pt (0.025 pt) in Word if each document gets its own font,
 whose glyphs are pre-composed so the ink lands where the source PDF puts it? Yes: on the
-13-document corpus every glyph landed within 0.0066 pt (see `WORKLOG.md` for the results
+13-document corpus every glyph landed within 0.0066 pt (see `docs/worklogs/fidelity-fitted-font.md` for the results
 and decisions; `report_tables.py` regenerates the corpus tables into `out	ables.md`).
 
 The idea in one paragraph: every run of text in a line (or every word) becomes one composite
@@ -25,7 +25,7 @@ C:\Letters\tools\fidelity\.venv\Scripts\python.exe -m pip install uharfbuzz
 The round 4 modules (`tools/fidelity`, `tools/fidelity/prototype`) are imported through
 `fidelity_path.py`. The open fonts and the 13-document corpus were built in the fidelity
 worktree; they are read from `C:\Letters-fidelity\tools\fidelity\fonts` and copied into
-`out\corpus` (see `WORKLOG.md`). PyMuPDF was not used: it is AGPL. pdfium (pypdfium2),
+`out\corpus` (see `docs/worklogs/fidelity-fitted-font.md`). PyMuPDF was not used: it is AGPL. pdfium (pypdfium2),
 pikepdf and the prototype's own content-stream interpreter do all the reading.
 
 Run everything from this folder with `..\.venv\Scripts\python.exe <script>`. Output goes

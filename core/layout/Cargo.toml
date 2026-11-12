@@ -4,6 +4,7 @@ description = "lays out office documents into pages on its own, measured against
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 # every dependency is MIT or Apache-2.0 licensed (or both). hyphenation is
 # deliberately left out: the pattern files bundled by the usual crates carry

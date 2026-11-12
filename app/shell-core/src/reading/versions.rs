@@ -71,7 +71,8 @@ impl VersionStore {
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
             .unwrap_or_default();
         versions.retain(|v| Path::new(&v.file).is_file());
-        versions.sort_by(|a, b| b.saved.cmp(&a.saved));
+        // newest first
+        versions.sort_by_key(|v| std::cmp::Reverse(v.saved));
         versions
     }
 

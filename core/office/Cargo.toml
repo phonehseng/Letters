@@ -4,6 +4,7 @@ description = "reads and writes word processor documents (docx and odt) through 
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 # png encoding of pasted bitmaps; the same pure-rust backend zip uses

@@ -4,6 +4,7 @@ description = "adds highlights, notes, text boxes, shapes and freehand ink to pa
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 lopdf = "0.47"

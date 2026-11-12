@@ -4,6 +4,7 @@ description = "indexes every document the user chooses and searches them all at 
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 thiserror = "2"

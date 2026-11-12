@@ -55,6 +55,10 @@ pub(crate) struct ClauseMatches {
     pub(crate) phrases: Vec<Vec<String>>,
 }
 
+/// a passage that passed the second round: its unit number and score, the
+/// passage as stored, its words, and which of them matched the query.
+type CheckedPassage = (u32, f32, StoredPassage, Vec<Token>, Vec<usize>);
+
 impl Index {
     pub fn search(&self, request: &SearchRequest) -> Result<SearchResults, SearchError> {
         let started = Instant::now();
@@ -323,7 +327,7 @@ impl<'a> Searcher<'a> {
         limit: usize,
         clauses: &[ClauseMatches],
         excluded_phrases: &[Vec<String>],
-    ) -> Result<Vec<(u32, f32, StoredPassage, Vec<Token>, Vec<usize>)>, SearchError> {
+    ) -> Result<Vec<CheckedPassage>, SearchError> {
         let mut reader = PassageReader::open(self.index.passages_file())?;
         let mut checked = Vec::new();
         for (unit, score) in candidates.into_iter().take(limit) {
@@ -366,10 +370,7 @@ impl<'a> Searcher<'a> {
         })
     }
 
-    fn group(
-        &self,
-        checked: Vec<(u32, f32, StoredPassage, Vec<Token>, Vec<usize>)>,
-    ) -> SearchResults {
+    fn group(&self, checked: Vec<CheckedPassage>) -> SearchResults {
         let mut by_doc: HashMap<u32, Vec<PassageHit>> = HashMap::new();
         for (unit, score, passage, tokens, matched) in checked {
             let doc = self.index.units[unit as usize].doc;

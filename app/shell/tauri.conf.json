@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": { "script": "npm run dev", "cwd": "../ui" },
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": { "script": "npm run build", "cwd": "../ui" },
+    "beforeBuildCommand": { "script": "node ../../tools/licenses/make-third-party-licenses.mjs && npm run build", "cwd": "../ui" },
     "frontendDist": "../ui/build"
   },
   "app": {

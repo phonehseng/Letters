@@ -2,7 +2,7 @@
 
 Open word processor documents, saving, recovery, and everything the editor
 asks of the office engine (core/office) and its Word bridge. Why each piece
-changed is in WORKLOG.md.
+changed is in docs/worklogs/shell-core-writer.md.
 
 | File | What it is for |
 |---|---|

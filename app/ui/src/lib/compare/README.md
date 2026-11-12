@@ -21,4 +21,3 @@ app/shell-core/src/compare and app/shell/src/compare_commands.rs.
 | `overlay.ts`, `progress.ts`, `setup.ts`, `report.ts` | the slider and Flash; progress; choosing versions; the report's words |
 | `compareCommands.ts`, `compareKeys.ts`, `compareTools.ts` | command names, the screen's own dispatcher, the words of each control |
 | `compare.test.ts` | tests of the pure modules |
-| `WORKLOG.md` | what changed and why |

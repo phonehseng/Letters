@@ -4,6 +4,7 @@ description = "compares two versions of a document and reports what changed in t
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 # every dependency is MIT or Apache-2.0 (or both). see README.md for the list.
 [dependencies]

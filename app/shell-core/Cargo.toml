@@ -4,6 +4,7 @@ description = "the parts of the desktop shell that need no window, kept apart so
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 letters-pdf = { path = "../../core/pdf" }

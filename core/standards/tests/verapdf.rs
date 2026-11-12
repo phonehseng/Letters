@@ -93,11 +93,14 @@ fn soft_masked_picture() -> lopdf::Document {
     doc
 }
 
+/// makes one of the test documents.
+type MakeDocument = fn() -> lopdf::Document;
+
 #[test]
 #[ignore = "needs veraPDF, a development-only tool"]
 fn verapdf_accepts_our_conversions_at_every_level() {
     let mut failures = Vec::new();
-    let documents: Vec<(&str, fn() -> lopdf::Document)> = vec![
+    let documents: Vec<(&str, MakeDocument)> = vec![
         ("boxes", boxes),
         ("embedded-font", helvetica_text),
         ("soft-mask", soft_masked_picture),

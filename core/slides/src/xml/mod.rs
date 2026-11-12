@@ -1,5 +1,5 @@
 //! a small xml reader and writer made for office files, copied from
-//! letters-office (see WORKLOG: kept here so this crate builds while
+//! letters-office (see docs/worklogs/core-slides.md: kept here so this crate builds while
 //! that one changes; both should move into a shared crate) with the
 //! presentation namespaces added.
 //!
