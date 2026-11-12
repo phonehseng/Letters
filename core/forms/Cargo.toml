@@ -4,6 +4,7 @@ description = "finds, adds, fills and flattens form fields, and signs documents 
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 # every dependency is MIT or Apache-2.0 (or both). see README.md for the list.
 [dependencies]

@@ -4,6 +4,7 @@ description = "reads, renders and writes presentations (pptx and odp) through on
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 # every dependency is MIT or Apache-2.0 licensed (or both). the xml
 # reader, the zip helpers and the font lookup are this repository's own

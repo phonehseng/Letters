@@ -4,6 +4,7 @@ description = "reorders, rotates, inserts, deletes, extracts, merges, splits and
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 lopdf = "0.47"

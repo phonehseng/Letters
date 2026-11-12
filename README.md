@@ -142,7 +142,16 @@ docs             design notes
 tools            scripts: fetching pdfium, the icon source
 ```
 
+## License
+
+Letters is licensed under either the Apache License 2.0 (`LICENSE-APACHE`)
+or the MIT license (`LICENSE-MIT`), at your option. See `LICENSE`.
+
 ## Libraries and their licenses
+
+Every library the packaged app is made from is listed, with its license
+text, in `THIRD-PARTY-LICENSES.txt`, which `tauri build` writes afresh each
+time. The main ones:
 
 | Library | Used for | License |
 |---|---|---|

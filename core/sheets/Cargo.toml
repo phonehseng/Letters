@@ -4,6 +4,7 @@ description = "reads, calculates and writes spreadsheets (xlsx and ods) through 
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 # today() and now() need the local clock and time zone, which std does not give

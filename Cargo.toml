@@ -28,6 +28,8 @@ members = [
 version = "0.1.0"
 edition = "2021"
 publish = false
+# see LICENSE: either license, at the user's option
+license = "MIT OR Apache-2.0"
 
 # dependencies are optimised even in debug builds: png compression and
 # similar inner loops are far too slow otherwise, and they rarely need debugging

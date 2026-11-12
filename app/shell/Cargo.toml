@@ -4,6 +4,7 @@ description = "the desktop shell: windows, file opening and the bridge between t
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [lib]
 # the shell has no unit tests of its own: everything testable lives in

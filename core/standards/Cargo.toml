@@ -4,6 +4,7 @@ description = "checks and converts pdfs to archival standards such as pdf/a, and
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 # every dependency is mit or apache-2.0 (or both). see README.md.
 [dependencies]

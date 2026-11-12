@@ -4,6 +4,7 @@ description = "finds, searches, previews and installs fonts: system, custom, bun
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 thiserror = "2"
