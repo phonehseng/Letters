@@ -10,8 +10,11 @@
 // the segmented control, Explain and the menu commands pick it up from here.
 
 import type { Component } from "svelte";
+import type { AnnotateSession } from "./annotate/annotateSession.svelte";
 import type { DocumentState } from "./api";
 import type { CropBox } from "./cropRect";
+import type { FillSignSession } from "./forms/fillSignSession.svelte";
+import type { ProtectSession } from "./protect/protectSession.svelte";
 import { tools, type ToolName } from "./tools";
 
 /** what every tool in the inspector can see and do. */
@@ -39,6 +42,12 @@ export interface ToolContext {
     /** the crop tool shows the rectangle on the page while it is open */
     setActive: (active: boolean) => void;
   };
+  /** the Annotate tools' shared state: the page tool, selections, styles (see annotateSession.svelte.ts) */
+  annotate: AnnotateSession;
+  /** the Fill & Sign tools' shared state: the form, the field being filled, signatures (see forms/fillSignSession.svelte.ts) */
+  fillSign?: FillSignSession;
+  /** the Protect tools' shared state: marks for redaction, the review, passwords (see protect/protectSession.svelte.ts) */
+  protect?: ProtectSession;
 }
 
 export interface InspectorTabProps {
@@ -73,6 +82,65 @@ export const INSPECTOR_TABS: InspectorTab[] = [
       "removeStamps",
     ],
     load: () => import("./inspector/PagesTab.svelte"),
+  },
+  {
+    id: "annotate",
+    label: "Annotate",
+    tooltip: "Highlight text, add notes, text boxes, shapes, drawings and pictures",
+    tools: [
+      "editAnnotation",
+      "highlightText",
+      "underlineText",
+      "strikeText",
+      "addNote",
+      "addTextBox",
+      "drawShapes",
+      "drawInk",
+      "addPicture",
+      "comments",
+      "flattenComments",
+      "authorName",
+    ],
+    load: () => import("./inspector/AnnotateTab.svelte"),
+  },
+  // forms and signatures (see forms/fillSignSession.svelte.ts)
+  {
+    id: "fillSign",
+    label: "Fill & Sign",
+    tooltip: "Fill in forms, find and add fields, and sign with a picture or a certificate",
+    tools: [
+      "fillForm",
+      "showFields",
+      "nextEmptyField",
+      "findFields",
+      "addField",
+      "editFields",
+      "flattenForm",
+      "signWithPicture",
+      "signWithCertificate",
+      "selfSignedCertificate",
+      "signatures",
+    ],
+    load: () => import("./inspector/FillSignTab.svelte"),
+  },
+  // redaction, hidden information and passwords (see protect/protectSession.svelte.ts)
+  {
+    id: "protect",
+    label: "Protect",
+    tooltip: "Redact text and pictures, remove hidden information, and add a password",
+    tools: [
+      "redactMarkText",
+      "redactMarkArea",
+      "redactFind",
+      "redactReview",
+      "redactApply",
+      "removeHiddenInfo",
+      "unlockForEditing",
+      "openPassword",
+      "restrictPermissions",
+      "removePassword",
+    ],
+    load: () => import("./inspector/ProtectTab.svelte"),
   },
 ];
 

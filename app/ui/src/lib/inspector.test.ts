@@ -22,6 +22,21 @@ describe("the inspector registry", () => {
     expect(tabWithTool("cropPages")?.id).toBe("pages");
     expect(tabWithTool("zoomIn")).toBeNull();
   });
+
+  it("has an Annotate tab after Pages with every annotation tool", () => {
+    expect(INSPECTOR_TABS.map((tab) => tab.label).slice(0, 2)).toEqual(["Pages", "Annotate"]);
+    for (const tool of ["highlightText", "addNote", "addTextBox", "drawInk", "flattenComments"] as const) {
+      expect(tabWithTool(tool)?.id).toBe("annotate");
+    }
+  });
+
+  // forms and signatures
+  it("has a Fill & Sign tab after Annotate with every form and signing tool", () => {
+    expect(INSPECTOR_TABS[2].label).toBe("Fill & Sign");
+    for (const tool of ["fillForm", "findFields", "addField", "editFields", "flattenForm", "signWithPicture", "signWithCertificate", "signatures"] as const) {
+      expect(tabWithTool(tool)?.id).toBe("fillSign");
+    }
+  });
 });
 
 describe("explainGroups", () => {

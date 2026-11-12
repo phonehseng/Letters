@@ -8,7 +8,7 @@
   //
   // only one section is open at a time (the tab decides), so there is
   // only ever one prominent button in the inspector.
-  import type { Snippet } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import Icon from "../Icon.svelte";
   import { tools, type ToolHelp, type ToolName } from "../tools";
 
@@ -16,35 +16,48 @@
     tool: ToolName;
     open: boolean;
     onToggle: () => void;
-    actionLabel: string;
+    /** the one button; leave out for a section that only shows things (the comments list) */
+    actionLabel?: string;
     /** the "what will happen" sentence */
-    effect: string;
+    effect?: string;
     /** false while the settings are incomplete; the effect line says what is missing */
     ready?: boolean;
-    onAction: () => Promise<unknown> | void;
+    /** the click that pressed the button: `detail` is 0 when it came from the keyboard */
+    onAction?: (event: MouseEvent) => Promise<unknown> | void;
+    /** the button shows as pressed while its page tool is in use */
+    pressed?: boolean;
     children?: Snippet;
     /** a quieter second button, such as "Show Whole Page" */
     secondary?: Snippet;
   }
 
-  let { tool, open, onToggle, actionLabel, effect, ready = true, onAction, children, secondary }: Props = $props();
+  // the effect sentence is called effectLine here, because `effect` would clash with svelte's $effect
+  let { tool, open, onToggle, actionLabel, effect: effectLine = "", ready = true, onAction, pressed, children, secondary }: Props =
+    $props();
 
   const help: ToolHelp = $derived(tools[tool]);
   let busy = $state(false);
   const bodyId = $derived(`tool-${tool}`);
+  let element = $state<HTMLElement>();
 
-  async function run() {
+  // an opened section scrolls itself into view, so one far down the list
+  // (Comments, say) shows what it opened instead of opening out of sight
+  $effect(() => {
+    if (open) tick().then(() => element?.scrollIntoView({ block: "nearest" }));
+  });
+
+  async function run(event: MouseEvent) {
     if (busy || !ready) return;
     busy = true;
     try {
-      await onAction();
+      await onAction?.(event);
     } finally {
       busy = false;
     }
   }
 </script>
 
-<section class="tool" class:open data-tool={tool}>
+<section class="tool" class:open data-tool={tool} bind:this={element}>
   <h3>
     <button class="header" aria-expanded={open} aria-controls={bodyId} title={help.tooltip} onclick={onToggle}>
       <span class="chevron"><Icon name={open ? "chevronDown" : "chevronRight"} size={0.75} /></span>
@@ -62,13 +75,23 @@
         <p class="meaning">{help.meaning}</p>
       {/if}
       {@render children?.()}
-      <div class="actions">
-        {@render secondary?.()}
-        <button class="button primary action" disabled={!ready || busy} aria-describedby={`${bodyId}-effect`} onclick={run}>
-          {actionLabel}
-        </button>
-      </div>
-      <p class="effect" id={`${bodyId}-effect`} aria-live="polite">{effect}</p>
+      {#if actionLabel}
+        <div class="actions">
+          {@render secondary?.()}
+          <button
+            class="button primary action"
+            disabled={!ready || busy}
+            aria-pressed={pressed}
+            aria-describedby={`${bodyId}-effect`}
+            onclick={run}
+          >
+            {actionLabel}
+          </button>
+        </div>
+      {/if}
+      {#if effectLine}
+        <p class="effect" id={`${bodyId}-effect`} aria-live="polite">{effectLine}</p>
+      {/if}
     </div>
   {/if}
 </section>

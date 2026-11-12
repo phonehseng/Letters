@@ -15,9 +15,23 @@
   // and find all redraw from it, and the reader's place is kept.
   //
   // page tools act on the pages selected in the thumbnails, or on the
-  // page being read when none are. the Tools inspector, the Explain panel
+  // page being read when none are. presses and drags on the pages go to
+  // the active page tool (Select, or an Annotate tool; see
+  // pageTools/pageTool.ts), which the annotate session owns.
+  // the Tools inspector, the Explain panel
   // and the sidebar share the window by the rules in sidePanels.ts.
   import { tick, untrack } from "svelte";
+  import AnnotateOverlay from "./annotate/AnnotateOverlay.svelte";
+  import { AnnotateSession } from "./annotate/annotateSession.svelte";
+  import SelectionBar from "./annotate/SelectionBar.svelte";
+  // forms and signatures (Fill & Sign)
+  import { FillSignSession } from "./forms/fillSignSession.svelte";
+  import FormsChrome from "./forms/FormsChrome.svelte";
+  import FormsOverlay from "./forms/FormsOverlay.svelte";
+  // redaction, hidden information and passwords (Protect)
+  import { ProtectSession } from "./protect/protectSession.svelte";
+  import ProtectSheets from "./protect/ProtectSheets.svelte";
+  import RedactionMarks from "./protect/RedactionMarks.svelte";
   import {
     asCommandError,
     chooseFile,
@@ -30,7 +44,7 @@
     type OutlineItem,
     type SearchMatch,
   } from "./api";
-  import { appCommands, type Command } from "./commands";
+  import { appCommands, isTextField, type Command } from "./commands";
   import ContextMenu, { type ContextItem } from "./ContextMenu.svelte";
   import CropOverlay from "./CropOverlay.svelte";
   import { startingCrop, type CropBox } from "./cropRect";
@@ -75,6 +89,10 @@
     type PageMode,
   } from "./layout";
   import PageView from "./PageView.svelte";
+  import { pageInput } from "./pageTools/pageInput";
+  import PageMarks from "./pageTools/PageMarks.svelte";
+  import { frameOf, pagePointOf, type PageFrame, type Rect } from "./pageTools/pagePoints";
+  import { isCollapsed, selectionRects } from "./pageTools/textSelection";
   import { highlightsOnPage, matchBounds, matchesByPage } from "./search";
   import SearchHighlights from "./SearchHighlights.svelte";
   import Sidebar from "./Sidebar.svelte";
@@ -132,6 +150,8 @@
   let outlineRevision = -1;
   // on a high density screen one css pixel is several real pixels;
   // tiles are rendered at the real size so text stays sharp
+  // what screen readers are told after an annotation is added or deleted
+  let announcement = $state("");
   let pixelRatio = $state(window.devicePixelRatio || 1);
   let remPx = $state(remInPixels());
 
@@ -149,6 +169,96 @@
   const shownPages = $derived.by(() => {
     const range = visiblePages(layout.pages, scrollTop, viewportHeight, viewportHeight / 2);
     return range ? layout.pages.slice(range.first, range.last + 1) : [];
+  });
+
+  // where each page on screen sits, for turning pointer positions into page points
+  const frames = $derived<PageFrame[]>(shownPages.map((page) => frameOf(page, doc.pages[page.index], pageLeft(page.left))));
+
+  // the Annotate tools' shared state (see annotate/annotateSession.svelte.ts)
+  const annotate = new AnnotateSession({
+    documentId: () => doc.id,
+    pageSize: (page) => doc.pages[page],
+    pageCount: () => doc.pages.length,
+    currentPage: () => Math.min(currentIndex, doc.pages.length - 1),
+    viewCentre,
+    change: (action) => change(null, action),
+    announce,
+    reveal: revealOnPage,
+  });
+
+  // the Fill & Sign tools' shared state (see forms/fillSignSession.svelte.ts)
+  const fillSign = new FillSignSession({
+    documentId: () => doc.id,
+    document: () => doc,
+    pageSize: (page) => doc.pages[page],
+    currentPage: () => Math.min(currentIndex, doc.pages.length - 1),
+    viewCentre,
+    change: (action) => change(null, action),
+    accept: (next) => onDocumentChange(next),
+    announce,
+    reveal: revealOnPage,
+    notify: (text) => showNotice(text),
+    showError: (message) => onError(message),
+    focusDocument,
+    openTool,
+    takePageTool: () => {
+      annotate.setTool("select");
+      protect.dropTool();
+    },
+  });
+
+  // the Protect tools' shared state: marks for redaction, the review,
+  // passwords (see protect/protectSession.svelte.ts)
+  const protect = new ProtectSession({
+    documentId: () => doc.id,
+    pageSize: (page) => doc.pages[page],
+    pageCount: () => doc.pages.length,
+    currentPage: () => Math.min(currentIndex, doc.pages.length - 1),
+    viewCentre,
+    change: (action) => change(null, action),
+    announce,
+    reveal: revealOnPage,
+    notify: showNotice,
+    showError: (message) => onError(message),
+    focusDocument,
+    openTool,
+    text: {
+      text: (page) => annotate.texts.get(page),
+      selection: () => annotate.selection,
+      setSelection: (next) => (annotate.selection = next),
+      currentPage: () => Math.min(currentIndex, doc.pages.length - 1),
+      pageCount: () => doc.pages.length,
+    },
+    takePageTool: () => {
+      annotate.setTool("select");
+      fillSign.setTool("none");
+    },
+  });
+
+  // the one page tool in use: a Protect or Fill & Sign tool while one is picked, else the Annotate session's
+  const activePageTool = $derived(protect.pageTool ?? fillSign.pageTool ?? annotate.pageTool);
+
+  /** the selected text's boxes on one page, or none. */
+  function selectionOn(page: number): Rect[] {
+    const text = annotate.texts.get(page);
+    return annotate.selection && text ? selectionRects(annotate.selection, page, text) : [];
+  }
+
+  // the bar beside selected text: above the selection's first line on
+  // screen, or below its last line when there is no room above
+  const selectionBarAt = $derived.by(() => {
+    if (annotate.dragging || annotate.tool !== "select" || isCollapsed(annotate.selection)) return null;
+    for (const frame of frames) {
+      const rects = selectionOn(frame.index);
+      if (rects.length === 0) continue;
+      const first = rects[0];
+      const last = rects[rects.length - 1];
+      const above = frame.top + first.y * frame.scale - 2.75 * remPx;
+      const below = frame.top + (last.y + last.height) * frame.scale + 0.5 * remPx;
+      const left = Math.min(Math.max(frame.left + first.x * frame.scale, 8), Math.max(8, contentWidth - 22 * remPx));
+      return { left, top: above > scrollTop + toolbarHeight ? above : below, frame, first };
+    }
+    return null;
   });
 
   // the explain panel describes what is on screen right now, with the
@@ -178,6 +288,8 @@
     "newWindow",
     "tools",
     "explain",
+    "selectTool",
+    ...(selectionBarAt ? (["highlightText", "underlineText", "strikeText", "addNote", "copyText"] as const) : []),
   ]);
   const explained = $derived(explainGroups(onScreen, showInspector ? tabById(inspectorTab) : null));
 
@@ -232,6 +344,55 @@
   function goToPage(index: number) {
     if (!scroller || !Number.isFinite(index)) return;
     scroller.scrollTop = scrollTopForPage(layout.pages, index, toolbarHeight);
+  }
+
+  /** the middle of what is on screen, as a place on the page being read. */
+  function viewCentre() {
+    const index = Math.min(currentIndex, doc.pages.length - 1);
+    const placed = layout.pages[index];
+    const frame = frames.find((each) => each.index === index) ?? frameOf(placed, doc.pages[index], pageLeft(placed.left));
+    const point = { x: (scroller?.scrollLeft ?? 0) + viewportWidth / 2, y: scrollTop + (viewportHeight + toolbarHeight) / 2 };
+    return pagePointOf(frame, point);
+  }
+
+  /** brings a place on a page into view, below the toolbar. */
+  function revealOnPage(page: number, rect: Rect) {
+    const placed = layout.pages[page];
+    if (!scroller || !placed) return;
+    const covered = toolbarHeight + remPx;
+    const y = scrollToCentre(placed.top + rect.y * zoom - covered, rect.height * zoom, scroller.scrollTop, viewportHeight - covered);
+    if (y !== null) scroller.scrollTop = y;
+  }
+
+  /** says something to screen readers through the live region. */
+  function announce(text: string) {
+    announcement = "";
+    tick().then(() => (announcement = text));
+  }
+
+  /** the document takes the keyboard again, after a frame or a field let go of it. */
+  function focusDocument() {
+    scroller?.focus({ preventScroll: true });
+  }
+
+  /** a mark from the menu or a key: on the selection, or else the tool for dragging across text. */
+  function markCommand(kind: "highlight" | "underline" | "strikeOut") {
+    if (!isCollapsed(annotate.selection)) annotate.applyMark(kind);
+    else annotate.setTool(kind);
+  }
+
+  /** a tool from the menu or a key, with its section open in the inspector. */
+  function annotateTool(tool: "draw" | "shape", section: ToolName) {
+    openTool(section);
+    annotate.setTool(tool);
+  }
+
+  /** the selection bar's Note: a note just after the selection's first line. */
+  function noteOnSelection() {
+    const at = selectionBarAt;
+    if (!at) return;
+    annotate.selection = null;
+    annotate.startNote(at.frame.index, { x: at.first.x + at.first.width + 14, y: at.first.y + at.first.height / 2 });
   }
 
   // panels that don't fit beside each other take turns (see sidePanels.ts)
@@ -303,6 +464,8 @@
     // changes run one after another, so their answers arrive in order
     return documentChanges(async () => {
       if (command && !isAvailable(command, doc)) return false;
+      // forms and signatures: a signed document asks before its first change
+      if (!(await fillSign.mayChange(command === "undo" || command === "redo"))) return false;
       try {
         await showState(await action());
         return true;
@@ -459,11 +622,19 @@
       setBox: (box) => (cropBox = box),
       setActive: (active) => (cropActive = active),
     },
+    annotate,
+    fillSign,
+    protect,
   });
 
   function onWindowKeyDown(event: KeyboardEvent) {
+    if (event.key !== "Escape" || event.defaultPrevented) return;
     // escape closes find from anywhere in the viewer, not only its field
-    if (event.key === "Escape" && findOpen && !event.defaultPrevented) closeFind();
+    if (findOpen) closeFind();
+    // then it lets go of what the page tools hold, one thing per press
+    else if (protect.escape()) event.preventDefault();
+    else if (fillSign.escape()) event.preventDefault();
+    else if (annotate.escape()) event.preventDefault();
   }
 
   // the menu bar and the keyboard shortcuts reach the viewer through
@@ -492,6 +663,28 @@
       ["merge", () => openTool("mergeDocuments")],
       ["crop", () => openTool("cropPages")],
       ["toggle-inspector", toggleInspector],
+      ["highlight", () => markCommand("highlight")],
+      ["underline", () => markCommand("underline")],
+      ["strike-through", () => markCommand("strikeOut")],
+      ["add-note", () => annotate.placeFromKeyboard("note")],
+      ["add-text-box", () => annotate.placeFromKeyboard("textBox")],
+      ["add-shape", () => annotateTool("shape", "drawShapes")],
+      ["draw", () => annotateTool("draw", "drawInk")],
+      ["add-picture", () => openTool("addPicture")],
+      ["select-tool", () => annotate.setTool("select")],
+      ["show-comments", () => openTool("comments")],
+      ["flatten-comments", () => openTool("flattenComments")],
+      // forms and signatures
+      ["fill-form", () => (openTool("fillForm"), fillSign.nextEmpty())],
+      ["next-empty-field", () => fillSign.nextEmpty()],
+      ["toggle-fields", () => (fillSign.showFields = !fillSign.showFields)],
+      ["find-fields", () => openTool("findFields")],
+      ["add-field", () => openTool("addField")],
+      ["edit-fields", () => (openTool("editFields"), fillSign.setMode("edit"))],
+      ["flatten-form", () => openTool("flattenForm")],
+      ["sign-with-picture", () => openTool("signWithPicture")],
+      ["sign-with-certificate", () => openTool("signWithCertificate")],
+      ["show-signatures", () => openTool("signatures")],
     ];
     const takeBack = handlers.map(([command, handler]) => appCommands.register(command, handler));
     return () => takeBack.forEach((unregister) => unregister());
@@ -509,6 +702,57 @@
         // a document whose outline cannot be read is treated as having none
         .catch(() => (outline = [])),
     );
+  });
+
+  // after every change the text and annotations are read again
+  $effect(() => {
+    const revision = doc.revision;
+    untrack(() => annotate.setRevision(revision));
+  });
+
+  // forms and signatures: the form is read again after every change, and
+  // an Annotate tool picked puts a Fill & Sign tool away
+  $effect(() => {
+    const revision = doc.revision;
+    untrack(() => fillSign.setRevision(revision));
+  });
+  $effect(() => {
+    if (annotate.tool !== "select") untrack(() => fillSign.setTool("none"));
+  });
+
+  // protect: marks and the status follow every change, another tool picked
+  // puts a Protect tool away, and its commands and close question are
+  // registered while the viewer is shown
+  $effect(() => {
+    const revision = doc.revision;
+    untrack(() => protect.setRevision(revision));
+  });
+  $effect(() => {
+    if (annotate.tool !== "select" || fillSign.tool !== "none") untrack(() => protect.dropTool());
+  });
+  $effect(() => untrack(() => protect.attach(appCommands)));
+
+  // the text of the pages on screen is fetched once scrolling rests, so
+  // selecting can start at once without slowing down a fast scroll
+  $effect(() => {
+    const pages = shownPages.map((page) => page.index);
+    void doc.revision;
+    const timer = setTimeout(() => untrack(() => annotate.texts.ensure(pages)), 120);
+    return () => clearTimeout(timer);
+  });
+
+  // ctrl c (command c) copies selected page text, unless a text field has the focus
+  $effect(() => {
+    const onCopy = (event: ClipboardEvent) => {
+      if (isTextField(window.document.activeElement)) return;
+      const words = annotate.selectedWords();
+      if (!words || !event.clipboardData) return;
+      event.clipboardData.setData("text/plain", words);
+      event.preventDefault();
+      announce("Copied.");
+    };
+    window.document.addEventListener("copy", onCopy);
+    return () => window.document.removeEventListener("copy", onCopy);
   });
 
   // the crop rectangle starts fresh on each page it is shown on, and
@@ -592,7 +836,7 @@
   {/if}
 
   <div class="stage">
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
       class="scroller"
       class:night={nightMode}
@@ -603,8 +847,23 @@
       bind:clientWidth={viewportWidth}
       bind:clientHeight={viewportHeight}
       onscroll={() => (scrollTop = scroller?.scrollTop ?? 0)}
+      onkeydown={(event) => {
+        // shift with the arrows selects text when the document itself has the focus
+        if (event.target === scroller && activePageTool.key?.(event)) event.preventDefault();
+      }}
     >
-      <div class="content" style:width="{contentWidth}px" style:height="{layout.totalHeight}px">
+      <div
+        class="content"
+        style:width="{contentWidth}px"
+        style:height="{layout.totalHeight}px"
+        style:cursor={activePageTool.cursor}
+        use:pageInput={{
+          tool: () => activePageTool,
+          frames: () => frames,
+          onPress: (pressing) => (annotate.dragging = pressing),
+          focus: focusDocument,
+        }}
+      >
         {#each shownPages as page (page.index)}
           <PageView
             documentId={doc.id}
@@ -628,12 +887,28 @@
               {page}
               size={doc.pages[page.index]}
               left={pageLeft(page.left)}
-              {zoom}
               box={cropBox}
               onChange={(box) => (cropBox = box)}
             />
           {/if}
         {/each}
+        {#each frames as frame (frame.index)}
+          <PageMarks {frame} selection={selectionOn(frame.index)} marks={activePageTool.marks(frame.index)} />
+          <AnnotateOverlay session={annotate} {frame} onFocusDocument={focusDocument} />
+          <FormsOverlay session={fillSign} {frame} quiet={annotate.tool !== "select" || protect.pageTool !== null} onFocusDocument={focusDocument} />
+          <RedactionMarks session={protect} {frame} onFocusDocument={focusDocument} />
+        {/each}
+        {#if selectionBarAt}
+          <SelectionBar
+            left={selectionBarAt.left}
+            top={selectionBarAt.top}
+            onHighlight={() => annotate.applyMark("highlight")}
+            onUnderline={() => annotate.applyMark("underline")}
+            onStrike={() => annotate.applyMark("strikeOut")}
+            onNote={noteOnSelection}
+            onCopy={() => window.document.execCommand("copy")}
+          />
+        {/if}
       </div>
     </div>
 
@@ -673,6 +948,11 @@
         <button class="button" onclick={() => (notice = null)}>OK</button>
       </div>
     {/if}
+
+    <FormsChrome session={fillSign} onShowSignatures={() => openTool("signatures")} />
+    <ProtectSheets session={protect} document={doc} />
+
+    <div class="visually-hidden" role="status" aria-live="polite">{announcement}</div>
 
     {#if findOpen}
       <FindBar

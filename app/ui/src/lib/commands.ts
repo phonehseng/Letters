@@ -5,6 +5,10 @@
 // both go through the same dispatcher, so the menu and the keys can never
 // drift apart. screens register what each command does while they are shown.
 
+import { WRITER_COMMANDS } from "./writer/writerCommands";
+import { FILL_SIGN_COMMANDS, FILL_SIGN_KEYS } from "./forms/fillSignCommands";
+import { PROTECT_COMMANDS, PROTECT_KEYS } from "./protect/protectCommands";
+
 export const COMMANDS = [
   "open",
   "new-window",
@@ -32,6 +36,23 @@ export const COMMANDS = [
   "toggle-outline",
   "toggle-two-pages",
   "toggle-night-mode",
+  "highlight",
+  "underline",
+  "strike-through",
+  "add-note",
+  "add-text-box",
+  "add-shape",
+  "draw",
+  "add-picture",
+  "select-tool",
+  "show-comments",
+  "flatten-comments",
+  // word-processor mode (writer/writerCommands.ts)
+  ...WRITER_COMMANDS,
+  // forms and signatures (forms/fillSignCommands.ts)
+  ...FILL_SIGN_COMMANDS,
+  // redaction, hidden information and passwords (protect/protectCommands.ts)
+  ...PROTECT_COMMANDS,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];
@@ -68,6 +89,20 @@ const DIGIT_COMMANDS: Record<string, Command> = {
 };
 
 /**
+ * the Annotate keys: a letter with ctrl and alt on windows, or with
+ * control and command on a mac, the keys Preview uses for the same
+ * things. read from `code` for the same reason as the digits above.
+ */
+const ANNOTATE_KEYS: Record<string, Command> = {
+  KeyH: "highlight",
+  KeyU: "underline",
+  KeyS: "strike-through",
+  KeyN: "add-note",
+  KeyT: "add-text-box",
+  KeyD: "draw",
+};
+
+/**
  * the few commands on keys without ctrl or command. they never apply in
  * a text field, where these keys edit text.
  */
@@ -92,7 +127,11 @@ export function commandForKey(press: KeyPress): Command | null {
   // on many layouts AltGr + 3 types ³. in a text field the character
   // wins; anywhere else ctrl + alt + 3 is still the shortcut
   if (press.altGraph && press.typing) return null;
-  if (press.altKey) return DIGIT_COMMANDS[press.code] ?? null;
+  if (press.altKey) {
+    return DIGIT_COMMANDS[press.code] ?? ANNOTATE_KEYS[press.code] ?? FILL_SIGN_KEYS[press.code] ?? PROTECT_KEYS[press.code] ?? null;
+  }
+  // control and command together, as Preview's annotation keys are on a mac
+  if (press.ctrlKey && press.metaKey) return ANNOTATE_KEYS[press.code] ?? PROTECT_KEYS[press.code] ?? null;
 
   const key = press.key.toLowerCase();
   const history = historyCommand(press, key);
@@ -103,6 +142,8 @@ export function commandForKey(press: KeyPress): Command | null {
   if (key === "o") return "open";
   if (key === "n") return "new-window";
   if (key === "f") return "find";
+  // print, for pdfs and writer documents alike (writer/print.ts)
+  if (key === "p") return "print";
   if (key === "=" || key === "+" || press.code === "NumpadAdd") return "zoom-in";
   if (key === "-" || press.code === "NumpadSubtract") return "zoom-out";
   if (key === "0" || press.code === "Numpad0") return "fit-width";

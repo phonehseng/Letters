@@ -4,7 +4,6 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import {
     asCommandError,
-    chooseFile,
     chooseSaveLocation,
     closeDocument,
     listenForMenuCommands,
@@ -22,8 +21,17 @@
   import Home from "./lib/Home.svelte";
   import SaveChangesSheet from "./lib/SaveChangesSheet.svelte";
   import Viewer from "./lib/Viewer.svelte";
+  // word-processor mode: .docx and .odt open in the writer (lib/writer)
+  import { routeForPath, unsupportedMessage } from "./lib/writer/routing";
+  import { chooseFileToOpen, openWriterDocument, type WriterOpened } from "./lib/writer/writerApi";
+  import { writerGuard } from "./lib/writer/writerGuard";
+  import { printPages } from "./lib/writer/print";
+  import WriterScreen from "./lib/writer/WriterScreen.svelte";
+  // protect: the question before marks for redaction are lost (lib/protect)
+  import { protectMayLeave } from "./lib/protect/protectGuard";
 
   let openedDocument = $state<DocumentState | null>(null);
+  let openedWriter = $state<WriterOpened | null>(null);
   let errorMessage = $state<string | null>(null);
   /** the locked file we are asking a password for, if any */
   let lockedPath = $state<string | null>(null);
@@ -37,11 +45,17 @@
    * shows a document: every window keeps its own document.
    */
   async function openPath(path: string, withPassword?: string) {
-    if (openedDocument) {
+    if (openedDocument || openedWriter) {
       await newWindow(path);
       return;
     }
     errorMessage = null;
+    const route = routeForPath(path);
+    if (route !== "viewer") {
+      if (route === "unsupported") errorMessage = unsupportedMessage(path);
+      else await openInWriter(path);
+      return;
+    }
     try {
       openedDocument = await openDocument(path, withPassword);
       lockedPath = null;
@@ -58,7 +72,7 @@
   }
 
   async function chooseAndOpen() {
-    const path = await chooseFile();
+    const path = await chooseFileToOpen();
     if (path) await openPath(path);
   }
 
@@ -66,6 +80,19 @@
     if (!openedDocument || !(await mayLeaveDocument())) return;
     await closeDocument(openedDocument.id);
     openedDocument = null;
+  }
+
+  /** a .docx or .odt: the writer shows it (it closes its own session when it goes). */
+  async function openInWriter(path: string) {
+    try {
+      openedWriter = await openWriterDocument(path);
+    } catch (problem) {
+      errorMessage = asCommandError(problem).message;
+    }
+  }
+
+  async function closeWriter() {
+    if (openedWriter && (await mayLeaveDocument())) openedWriter = null;
   }
 
   /** takes a new state from the shell, if it is still about the document shown. */
@@ -125,6 +152,9 @@
   async function mayLeaveDocument(): Promise<boolean> {
     // wait for edits still on their way, so the question sees them
     await documentChanges(async () => {});
+    if (openedWriter && writerGuard.mayLeave) return writerGuard.mayLeave(askToSave);
+    // protect: marks for redaction not yet applied are offered first
+    if (openedDocument && !(await protectMayLeave())) return false;
     return mayLeave(openedDocument, askToSave, save);
   }
 
@@ -157,7 +187,9 @@
   function onMenuCommand(command: Command) {
     if (saveQuestion) return;
     const typing = isTextField(document.activeElement);
-    if (typing && (command === "undo" || command === "redo")) {
+    // the writer's page is a text field with its own undo history (lib/writer)
+    const inWriterPage = !!document.activeElement?.closest(".ProseMirror");
+    if (typing && !inWriterPage && (command === "undo" || command === "redo")) {
       document.execCommand(command);
       return;
     }
@@ -169,16 +201,22 @@
   // commands that work on every screen. the viewer and the recents
   // screen add their own while they are shown.
   $effect(() => {
-    const takeBack = [
-      appCommands.register("open", chooseAndOpen),
-      appCommands.register("new-window", () => newWindow()),
-      appCommands.register("save", () => {
-        if (openedDocument && isAvailable("save", openedDocument)) save();
-      }),
-      appCommands.register("save-as", () => {
-        if (openedDocument) saveAs();
-      }),
-    ];
+    const takeBack = [appCommands.register("open", chooseAndOpen), appCommands.register("new-window", () => newWindow())];
+    // the writer registers its own save, save as and print while it shows
+    if (!openedWriter) {
+      takeBack.push(
+        appCommands.register("save", () => {
+          if (openedDocument && isAvailable("save", openedDocument)) save();
+        }),
+        appCommands.register("save-as", () => {
+          if (openedDocument) saveAs();
+        }),
+        // printing a pdf: its pages at printer resolution (lib/writer/print.ts)
+        appCommands.register("print", () => {
+          if (openedDocument) printPages(openedDocument.id, openedDocument.pages, openedDocument.revision);
+        }),
+      );
+    }
     return () => takeBack.forEach((unregister) => unregister());
   });
 
@@ -204,6 +242,8 @@
   // several windows can be told apart in the taskbar. an edited document
   // says so, as on a mac
   $effect(() => {
+    // the writer names the window itself while it shows
+    if (openedWriter) return;
     getCurrentWindow().setTitle(windowTitle(openedDocument));
   });
 
@@ -250,6 +290,15 @@
         onDocumentChange={acceptState}
         onError={(message) => (errorMessage = message)}
         onRecents={showRecents}
+        onNewWindow={() => newWindow()}
+      />
+    {/key}
+  {:else if openedWriter}
+    {#key openedWriter.id}
+      <WriterScreen
+        opened={openedWriter}
+        onError={(message) => (errorMessage = message)}
+        onRecents={closeWriter}
         onNewWindow={() => newWindow()}
       />
     {/key}

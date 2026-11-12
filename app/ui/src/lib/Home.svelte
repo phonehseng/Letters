@@ -7,6 +7,8 @@
   import { appCommands } from "./commands";
   import FolderList from "./FolderList.svelte";
   import { matchesSearch, plural, timeAgo } from "./format";
+  // word documents show their kind instead of a page count (lib/writer)
+  import { recentDetails } from "./writer/routing";
   import HelpPanel from "./HelpPanel.svelte";
   import Icon from "./Icon.svelte";
   import ToolButton from "./ToolButton.svelte";
@@ -71,7 +73,7 @@
               </span>
               <span class="name">{file.name}</span>
               <span class="details">
-                {plural(file.pageCount, "page")} · {timeAgo(file.openedAt, now)}
+                {recentDetails(file.path, file.pageCount, (count) => plural(count, "page"))} · {timeAgo(file.openedAt, now)}
               </span>
             </button>
             <button

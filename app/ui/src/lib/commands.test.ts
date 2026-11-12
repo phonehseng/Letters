@@ -105,6 +105,36 @@ describe("commandForKey for page commands", () => {
   });
 });
 
+describe("commandForKey for annotations", () => {
+  it("marks text and adds comments with ctrl + alt and a letter, read from the physical key", () => {
+    expect(commandForKey(press("h", { altKey: true, code: "KeyH" }))).toBe("highlight");
+    expect(commandForKey(press("u", { altKey: true, code: "KeyU" }))).toBe("underline");
+    expect(commandForKey(press("ß", { altKey: true, code: "KeyS" }))).toBe("strike-through");
+    expect(commandForKey(press("n", { altKey: true, code: "KeyN" }))).toBe("add-note");
+    expect(commandForKey(press("t", { altKey: true, code: "KeyT" }))).toBe("add-text-box");
+    expect(commandForKey(press("d", { altKey: true, code: "KeyD" }))).toBe("draw");
+  });
+
+  it("accepts Preview's control + command keys on a mac", () => {
+    expect(commandForKey(press("h", { metaKey: true, code: "KeyH" }))).toBe("highlight");
+    expect(commandForKey(press("n", { metaKey: true, code: "KeyN" }))).toBe("add-note");
+  });
+
+  it("takes no shortcut away from an earlier command", () => {
+    // the same letters without alt keep their old meaning
+    expect(commandForKey(press("s", { code: "KeyS" }))).toBe("save");
+    expect(commandForKey(press("n", { code: "KeyN" }))).toBe("new-window");
+    expect(commandForKey(press("ˆ", { altKey: true, code: "KeyI" }))).toBe("toggle-inspector");
+    expect(commandForKey(press("1", { altKey: true, code: "Digit1" }))).toBe("toggle-thumbnails");
+    // and command + n alone is still a new window on a mac
+    expect(commandForKey(press("n", { ctrlKey: false, metaKey: true, code: "KeyN" }))).toBe("new-window");
+  });
+
+  it("leaves AltGr letters to a text field", () => {
+    expect(commandForKey(press("ś", { altKey: true, code: "KeyS", altGraph: true, typing: true }))).toBeNull();
+  });
+});
+
 describe("isTextField", () => {
   it("knows which elements undo their own typing", () => {
     expect(isTextField({ tagName: "INPUT" } as Element)).toBe(true);

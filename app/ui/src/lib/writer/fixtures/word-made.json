@@ -1,0 +1,2251 @@
+{
+  "blocks": [
+    {
+      "attributes": [
+        {
+          "name": "w14:paraId",
+          "value": "435B3436"
+        },
+        {
+          "name": "w14:textId",
+          "value": "30460C6A"
+        },
+        {
+          "name": "w:rsidR",
+          "value": "00C3514E"
+        },
+        {
+          "name": "w:rsidRDefault",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidP",
+          "value": "005D22DA"
+        }
+      ],
+      "content": [
+        {
+          "text": "Essay Title",
+          "type": "text"
+        }
+      ],
+      "level": 1,
+      "styleId": "Heading1",
+      "type": "heading"
+    },
+    {
+      "attributes": [
+        {
+          "name": "w14:paraId",
+          "value": "49AFC71E"
+        },
+        {
+          "name": "w14:textId",
+          "value": "77769FC3"
+        },
+        {
+          "name": "w:rsidR",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidRDefault",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidP",
+          "value": "005D22DA"
+        }
+      ],
+      "content": [
+        {
+          "text": "Background",
+          "type": "text"
+        }
+      ],
+      "level": 2,
+      "styleId": "Heading2",
+      "type": "heading"
+    },
+    {
+      "attributes": [
+        {
+          "name": "w14:paraId",
+          "value": "3F4CB923"
+        },
+        {
+          "name": "w14:textId",
+          "value": "0DD29448"
+        },
+        {
+          "name": "w:rsidR",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidRDefault",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidP",
+          "value": "005D22DA"
+        }
+      ],
+      "content": [
+        {
+          "text": "Body text with a note",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "styleId": "FootnoteReference",
+              "type": "characterStyle"
+            }
+          ],
+          "noteId": "fn1",
+          "type": "noteReference"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attributes": [
+        {
+          "name": "w14:paraId",
+          "value": "6406CD36"
+        },
+        {
+          "name": "w14:textId",
+          "value": "1663BBF8"
+        },
+        {
+          "name": "w:rsidR",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidRDefault",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidP",
+          "value": "005D22DA"
+        }
+      ],
+      "content": [
+        {
+          "text": "First item",
+          "type": "text"
+        }
+      ],
+      "props": {
+        "list": {
+          "level": 0,
+          "listId": "1"
+        }
+      },
+      "styleId": "ListParagraph",
+      "type": "paragraph"
+    },
+    {
+      "attributes": [
+        {
+          "name": "w14:paraId",
+          "value": "1CAFF71F"
+        },
+        {
+          "name": "w14:textId",
+          "value": "25A8129E"
+        },
+        {
+          "name": "w:rsidR",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidRDefault",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidP",
+          "value": "005D22DA"
+        }
+      ],
+      "content": [
+        {
+          "text": "Second item",
+          "type": "text"
+        }
+      ],
+      "props": {
+        "list": {
+          "level": 0,
+          "listId": "1"
+        }
+      },
+      "styleId": "ListParagraph",
+      "type": "paragraph"
+    },
+    {
+      "borders": {
+        "bottom": {
+          "size": 4,
+          "style": "single"
+        },
+        "insideHorizontal": {
+          "size": 4,
+          "style": "single"
+        },
+        "insideVertical": {
+          "size": 4,
+          "style": "single"
+        },
+        "left": {
+          "size": 4,
+          "style": "single"
+        },
+        "right": {
+          "size": 4,
+          "style": "single"
+        },
+        "top": {
+          "size": 4,
+          "style": "single"
+        }
+      },
+      "columnWidths": [
+        4680,
+        4680
+      ],
+      "preserved": {
+        "children": [
+          "<w:tblW w:w=\"0\" w:type=\"auto\"/>",
+          "<w:tblLayout w:type=\"fixed\"/>",
+          "<w:tblLook w:val=\"0000\" w:firstRow=\"0\" w:lastRow=\"0\" w:firstColumn=\"0\" w:lastColumn=\"0\" w:noHBand=\"0\" w:noVBand=\"0\"/>"
+        ]
+      },
+      "rows": [
+        {
+          "cantSplit": false,
+          "cells": [
+            {
+              "blocks": [
+                {
+                  "attributes": [
+                    {
+                      "name": "w14:paraId",
+                      "value": "4FFC8BA5"
+                    },
+                    {
+                      "name": "w14:textId",
+                      "value": "448A2FE0"
+                    },
+                    {
+                      "name": "w:rsidR",
+                      "value": "005D22DA"
+                    },
+                    {
+                      "name": "w:rsidRDefault",
+                      "value": "005D22DA"
+                    },
+                    {
+                      "name": "w:rsidP",
+                      "value": "005D22DA"
+                    }
+                  ],
+                  "content": [
+                    {
+                      "text": "A1",
+                      "type": "text"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "colSpan": 1,
+              "rowSpan": 1,
+              "width": 4680
+            },
+            {
+              "blocks": [
+                {
+                  "attributes": [
+                    {
+                      "name": "w14:paraId",
+                      "value": "26862344"
+                    },
+                    {
+                      "name": "w14:textId",
+                      "value": "045B7C32"
+                    },
+                    {
+                      "name": "w:rsidR",
+                      "value": "005D22DA"
+                    },
+                    {
+                      "name": "w:rsidRDefault",
+                      "value": "005D22DA"
+                    },
+                    {
+                      "name": "w:rsidP",
+                      "value": "005D22DA"
+                    }
+                  ],
+                  "content": [
+                    {
+                      "text": "B1",
+                      "type": "text"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "colSpan": 1,
+              "rowSpan": 1,
+              "width": 4680
+            }
+          ],
+          "header": false,
+          "preserved": {
+            "attributes": [
+              {
+                "name": "w:rsidR",
+                "value": "005D22DA"
+              },
+              {
+                "name": "w14:paraId",
+                "value": "0303B7E1"
+              },
+              {
+                "name": "w14:textId",
+                "value": "77777777"
+              },
+              {
+                "name": "w:rsidTr",
+                "value": "005D22DA"
+              }
+            ],
+            "children": [
+              "<w:tblPrEx><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPrEx>"
+            ]
+          }
+        },
+        {
+          "cantSplit": false,
+          "cells": [
+            {
+              "blocks": [
+                {
+                  "attributes": [
+                    {
+                      "name": "w14:paraId",
+                      "value": "40B1F3DA"
+                    },
+                    {
+                      "name": "w14:textId",
+                      "value": "44B83925"
+                    },
+                    {
+                      "name": "w:rsidR",
+                      "value": "005D22DA"
+                    },
+                    {
+                      "name": "w:rsidRDefault",
+                      "value": "005D22DA"
+                    },
+                    {
+                      "name": "w:rsidP",
+                      "value": "005D22DA"
+                    }
+                  ],
+                  "content": [
+                    {
+                      "text": "A2",
+                      "type": "text"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "colSpan": 1,
+              "rowSpan": 1,
+              "width": 4680
+            },
+            {
+              "blocks": [
+                {
+                  "attributes": [
+                    {
+                      "name": "w14:paraId",
+                      "value": "05E4C61F"
+                    },
+                    {
+                      "name": "w14:textId",
+                      "value": "6A751602"
+                    },
+                    {
+                      "name": "w:rsidR",
+                      "value": "005D22DA"
+                    },
+                    {
+                      "name": "w:rsidRDefault",
+                      "value": "005D22DA"
+                    },
+                    {
+                      "name": "w:rsidP",
+                      "value": "005D22DA"
+                    }
+                  ],
+                  "content": [
+                    {
+                      "text": "B2",
+                      "type": "text"
+                    }
+                  ],
+                  "type": "paragraph"
+                }
+              ],
+              "colSpan": 1,
+              "rowSpan": 1,
+              "width": 4680
+            }
+          ],
+          "header": false,
+          "preserved": {
+            "attributes": [
+              {
+                "name": "w:rsidR",
+                "value": "005D22DA"
+              },
+              {
+                "name": "w14:paraId",
+                "value": "3491482A"
+              },
+              {
+                "name": "w14:textId",
+                "value": "77777777"
+              },
+              {
+                "name": "w:rsidTr",
+                "value": "005D22DA"
+              }
+            ],
+            "children": [
+              "<w:tblPrEx><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPrEx>"
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "attributes": [
+        {
+          "name": "w14:paraId",
+          "value": "5B7EA959"
+        },
+        {
+          "name": "w14:textId",
+          "value": "77777777"
+        },
+        {
+          "name": "w:rsidR",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidRDefault",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidP",
+          "value": "005D22DA"
+        }
+      ],
+      "content": [],
+      "type": "paragraph"
+    },
+    {
+      "attributes": [
+        {
+          "name": "w14:paraId",
+          "value": "5637C3A3"
+        },
+        {
+          "name": "w14:textId",
+          "value": "34592373"
+        },
+        {
+          "name": "w:rsidR",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidRDefault",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidP",
+          "value": "005D22DA"
+        }
+      ],
+      "content": [
+        {
+          "text": "Picture follows.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attributes": [
+        {
+          "name": "w14:paraId",
+          "value": "713D43FE"
+        },
+        {
+          "name": "w14:textId",
+          "value": "2E2A0CB2"
+        },
+        {
+          "name": "w:rsidR",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidRDefault",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidP",
+          "value": "005D22DA"
+        }
+      ],
+      "content": [
+        {
+          "height": 1800,
+          "marks": [
+            {
+              "type": "preserved",
+              "xml": "<w:noProof/>"
+            }
+          ],
+          "mediaId": "image1.png",
+          "name": "Picture 1",
+          "original": {
+            "asRead": {
+              "height": 1800,
+              "mediaId": "image1.png",
+              "placement": {
+                "type": "inline"
+              },
+              "width": 3000
+            },
+            "xml": "<w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" wp14:anchorId=\"1E35E13B\" wp14:editId=\"06EE9906\"><wp:extent cx=\"1905266\" cy=\"1143160\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/><wp:docPr id=\"78774170\" name=\"Picture 1\"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"78774170\" name=\"\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId7\"><a:extLst><a:ext uri=\"{28A0092B-C50C-407E-A947-70E740481C1C}\"><a14:useLocalDpi xmlns:a14=\"http://schemas.microsoft.com/office/drawing/2010/main\" val=\"0\"/></a:ext></a:extLst></a:blip><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"1905266\" cy=\"1143160\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>"
+          },
+          "placement": {
+            "type": "inline"
+          },
+          "type": "image",
+          "width": 3000
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "attributes": [
+        {
+          "name": "w14:paraId",
+          "value": "3065D3BE"
+        },
+        {
+          "name": "w14:textId",
+          "value": "10738B62"
+        },
+        {
+          "name": "w:rsidR",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidRPr",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidRDefault",
+          "value": "005D22DA"
+        },
+        {
+          "name": "w:rsidP",
+          "value": "005D22DA"
+        }
+      ],
+      "content": [
+        {
+          "marks": [
+            {
+              "id": "0",
+              "type": "comment"
+            }
+          ],
+          "text": "Reviewed sentence.",
+          "type": "text"
+        },
+        {
+          "commentId": "0",
+          "type": "commentReference"
+        },
+        {
+          "marks": [
+            {
+              "author": "Hseng, Phone",
+              "date": "2026-11-11T20:50:00Z",
+              "id": "1",
+              "type": "insertion"
+            }
+          ],
+          "text": " Added later",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    }
+  ],
+  "comments": [
+    {
+      "author": "Hseng, Phone",
+      "blocks": [
+        {
+          "attributes": [
+            {
+              "name": "w14:paraId",
+              "value": "33C33438"
+            },
+            {
+              "name": "w14:textId",
+              "value": "24B8CCFE"
+            },
+            {
+              "name": "w:rsidR",
+              "value": "005D22DA"
+            },
+            {
+              "name": "w:rsidRDefault",
+              "value": "005D22DA"
+            }
+          ],
+          "content": [
+            {
+              "text": "Please expand.",
+              "type": "text"
+            }
+          ],
+          "styleId": "CommentText",
+          "type": "paragraph"
+        }
+      ],
+      "date": "2026-11-11T20:50:00Z",
+      "id": "0",
+      "initials": "PH"
+    }
+  ],
+  "headersFooters": [],
+  "metadata": {
+    "author": "Hseng, Phone",
+    "created": "2026-11-12T01:50:00Z",
+    "description": "",
+    "keywords": "",
+    "lastModifiedBy": "Hseng, Phone",
+    "modified": "2026-11-12T01:50:00Z",
+    "subject": "",
+    "title": "Made in Word"
+  },
+  "notes": [
+    {
+      "blocks": [
+        {
+          "attributes": [
+            {
+              "name": "w14:paraId",
+              "value": "178E82E9"
+            },
+            {
+              "name": "w14:textId",
+              "value": "77777777"
+            },
+            {
+              "name": "w:rsidR",
+              "value": "009F3B60"
+            },
+            {
+              "name": "w:rsidRDefault",
+              "value": "009F3B60"
+            },
+            {
+              "name": "w:rsidP",
+              "value": "005D22DA"
+            }
+          ],
+          "content": [
+            {
+              "type": "preservedRun",
+              "xml": "<w:separator/>"
+            }
+          ],
+          "props": {
+            "spacing": {
+              "after": 0,
+              "line": {
+                "rule": "auto",
+                "value": 240
+              }
+            }
+          },
+          "type": "paragraph"
+        }
+      ],
+      "id": "fn-1",
+      "kind": "footnote",
+      "special": "separator"
+    },
+    {
+      "blocks": [
+        {
+          "attributes": [
+            {
+              "name": "w14:paraId",
+              "value": "437E6318"
+            },
+            {
+              "name": "w14:textId",
+              "value": "77777777"
+            },
+            {
+              "name": "w:rsidR",
+              "value": "009F3B60"
+            },
+            {
+              "name": "w:rsidRDefault",
+              "value": "009F3B60"
+            },
+            {
+              "name": "w:rsidP",
+              "value": "005D22DA"
+            }
+          ],
+          "content": [
+            {
+              "type": "preservedRun",
+              "xml": "<w:continuationSeparator/>"
+            }
+          ],
+          "props": {
+            "spacing": {
+              "after": 0,
+              "line": {
+                "rule": "auto",
+                "value": 240
+              }
+            }
+          },
+          "type": "paragraph"
+        }
+      ],
+      "id": "fn0",
+      "kind": "footnote",
+      "special": "continuationSeparator"
+    },
+    {
+      "blocks": [
+        {
+          "attributes": [
+            {
+              "name": "w14:paraId",
+              "value": "628F350B"
+            },
+            {
+              "name": "w14:textId",
+              "value": "34B171B3"
+            },
+            {
+              "name": "w:rsidR",
+              "value": "005D22DA"
+            },
+            {
+              "name": "w:rsidRDefault",
+              "value": "005D22DA"
+            }
+          ],
+          "content": [
+            {
+              "text": " The footnote text.",
+              "type": "text"
+            }
+          ],
+          "styleId": "FootnoteText",
+          "type": "paragraph"
+        }
+      ],
+      "id": "fn1",
+      "kind": "footnote"
+    },
+    {
+      "blocks": [
+        {
+          "attributes": [
+            {
+              "name": "w14:paraId",
+              "value": "08E4E0F2"
+            },
+            {
+              "name": "w14:textId",
+              "value": "77777777"
+            },
+            {
+              "name": "w:rsidR",
+              "value": "009F3B60"
+            },
+            {
+              "name": "w:rsidRDefault",
+              "value": "009F3B60"
+            },
+            {
+              "name": "w:rsidP",
+              "value": "005D22DA"
+            }
+          ],
+          "content": [
+            {
+              "type": "preservedRun",
+              "xml": "<w:separator/>"
+            }
+          ],
+          "props": {
+            "spacing": {
+              "after": 0,
+              "line": {
+                "rule": "auto",
+                "value": 240
+              }
+            }
+          },
+          "type": "paragraph"
+        }
+      ],
+      "id": "en-1",
+      "kind": "endnote",
+      "special": "separator"
+    },
+    {
+      "blocks": [
+        {
+          "attributes": [
+            {
+              "name": "w14:paraId",
+              "value": "589766FC"
+            },
+            {
+              "name": "w14:textId",
+              "value": "77777777"
+            },
+            {
+              "name": "w:rsidR",
+              "value": "009F3B60"
+            },
+            {
+              "name": "w:rsidRDefault",
+              "value": "009F3B60"
+            },
+            {
+              "name": "w:rsidP",
+              "value": "005D22DA"
+            }
+          ],
+          "content": [
+            {
+              "type": "preservedRun",
+              "xml": "<w:continuationSeparator/>"
+            }
+          ],
+          "props": {
+            "spacing": {
+              "after": 0,
+              "line": {
+                "rule": "auto",
+                "value": 240
+              }
+            }
+          },
+          "type": "paragraph"
+        }
+      ],
+      "id": "en0",
+      "kind": "endnote",
+      "special": "continuationSeparator"
+    }
+  ],
+  "numbering": {
+    "definitions": [
+      {
+        "id": "0",
+        "levels": [
+          {
+            "alignment": "left",
+            "format": "decimal",
+            "level": 0,
+            "paragraph": {
+              "indent": {
+                "hanging": 360,
+                "left": 720
+              }
+            },
+            "start": 1,
+            "text": "%1."
+          }
+        ],
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w15:restartNumberingAfterBreak",
+              "value": "0"
+            }
+          ],
+          "children": [
+            "<w:nsid w:val=\"47513826\"/>",
+            "<w:multiLevelType w:val=\"singleLevel\"/>",
+            "<w:tmpl w:val=\"0409000F\"/>"
+          ]
+        }
+      }
+    ],
+    "instances": [
+      {
+        "definitionId": "0",
+        "id": "1",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w16cid:durableId",
+              "value": "263341642"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "sections": [
+    {
+      "columns": {
+        "count": 1,
+        "separator": false,
+        "space": 720
+      },
+      "differentFirstPage": false,
+      "footers": {},
+      "headers": {},
+      "page": {
+        "height": 15840,
+        "margins": {
+          "bottom": 1440,
+          "footer": 720,
+          "gutter": 0,
+          "header": 720,
+          "left": 1440,
+          "right": 1440,
+          "top": 1440
+        },
+        "orientation": "portrait",
+        "width": 12240
+      },
+      "preserved": {
+        "attributes": [
+          {
+            "name": "w:rsidR",
+            "value": "005D22DA"
+          },
+          {
+            "name": "w:rsidRPr",
+            "value": "005D22DA"
+          }
+        ],
+        "children": [
+          "<w:docGrid w:linePitch=\"360\"/>"
+        ]
+      },
+      "start": "nextPage"
+    }
+  ],
+  "settings": {
+    "defaultTabStop": 720,
+    "evenAndOddHeaders": false,
+    "trackChanges": false
+  },
+  "styles": {
+    "defaults": {
+      "paragraph": {
+        "spacing": {
+          "after": 160,
+          "line": {
+            "rule": "auto",
+            "value": 278
+          }
+        }
+      },
+      "run": {
+        "font": {
+          "extra": [
+            {
+              "name": "w:eastAsiaTheme",
+              "value": "minorHAnsi"
+            },
+            {
+              "name": "w:cstheme",
+              "value": "minorBidi"
+            }
+          ],
+          "name": "Aptos",
+          "theme": "minorHAnsi"
+        },
+        "preserved": [
+          "<w:kern w:val=\"2\"/>",
+          "<w:szCs w:val=\"24\"/>",
+          "<w:lang w:val=\"en-US\" w:eastAsia=\"en-US\" w:bidi=\"ar-SA\"/>",
+          "<w14:ligatures w14:val=\"standardContextual\"/>"
+        ],
+        "size": 24
+      }
+    },
+    "preserved": [
+      "<w:latentStyles w:defLockedState=\"0\" w:defUIPriority=\"99\" w:defSemiHidden=\"0\" w:defUnhideWhenUsed=\"0\" w:defQFormat=\"0\" w:count=\"376\"><w:lsdException w:name=\"Normal\" w:uiPriority=\"0\" w:qFormat=\"1\"/><w:lsdException w:name=\"heading 1\" w:uiPriority=\"9\" w:qFormat=\"1\"/><w:lsdException w:name=\"heading 2\" w:semiHidden=\"1\" w:uiPriority=\"9\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"heading 3\" w:semiHidden=\"1\" w:uiPriority=\"9\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"heading 4\" w:semiHidden=\"1\" w:uiPriority=\"9\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"heading 5\" w:semiHidden=\"1\" w:uiPriority=\"9\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"heading 6\" w:semiHidden=\"1\" w:uiPriority=\"9\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"heading 7\" w:semiHidden=\"1\" w:uiPriority=\"9\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"heading 8\" w:semiHidden=\"1\" w:uiPriority=\"9\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"heading 9\" w:semiHidden=\"1\" w:uiPriority=\"9\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"index 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"index 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"index 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"index 4\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"index 5\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"index 6\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"index 7\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"index 8\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"index 9\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toc 1\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toc 2\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toc 3\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toc 4\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toc 5\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toc 6\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toc 7\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toc 8\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toc 9\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Normal Indent\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"footnote text\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"annotation text\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"header\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"footer\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"index heading\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"caption\" w:semiHidden=\"1\" w:uiPriority=\"35\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"table of figures\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"envelope address\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"envelope return\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"footnote reference\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"annotation reference\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"line number\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"page number\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"endnote reference\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"endnote text\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"table of authorities\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"macro\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"toa heading\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Bullet\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Number\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List 4\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List 5\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Bullet 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Bullet 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Bullet 4\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Bullet 5\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Number 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Number 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Number 4\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Number 5\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Title\" w:uiPriority=\"10\" w:qFormat=\"1\"/><w:lsdException w:name=\"Closing\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Signature\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Default Paragraph Font\" w:semiHidden=\"1\" w:uiPriority=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Body Text\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Body Text Indent\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Continue\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Continue 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Continue 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Continue 4\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"List Continue 5\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Message Header\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Subtitle\" w:uiPriority=\"11\" w:qFormat=\"1\"/><w:lsdException w:name=\"Salutation\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Date\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Body Text First Indent\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Body Text First Indent 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Note Heading\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Body Text 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Body Text 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Body Text Indent 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Body Text Indent 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Block Text\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Hyperlink\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"FollowedHyperlink\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Strong\" w:uiPriority=\"22\" w:qFormat=\"1\"/><w:lsdException w:name=\"Emphasis\" w:uiPriority=\"20\" w:qFormat=\"1\"/><w:lsdException w:name=\"Document Map\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Plain Text\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"E-mail Signature\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Top of Form\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Bottom of Form\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Normal (Web)\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Acronym\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Address\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Cite\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Code\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Definition\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Keyboard\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Preformatted\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Sample\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Typewriter\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"HTML Variable\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Normal Table\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"annotation subject\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"No List\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Outline List 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Outline List 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Outline List 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Simple 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Simple 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Simple 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Classic 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Classic 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Classic 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Classic 4\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Colorful 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Colorful 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Colorful 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Columns 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Columns 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Columns 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Columns 4\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Columns 5\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Grid 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Grid 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Grid 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Grid 4\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Grid 5\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Grid 6\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Grid 7\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Grid 8\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table List 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table List 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table List 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table List 4\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table List 5\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table List 6\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table List 7\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table List 8\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table 3D effects 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table 3D effects 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table 3D effects 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Contemporary\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Elegant\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Professional\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Subtle 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Subtle 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Web 1\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Web 2\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Web 3\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Balloon Text\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Table Grid\" w:uiPriority=\"39\"/><w:lsdException w:name=\"Table Theme\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Placeholder Text\" w:semiHidden=\"1\"/><w:lsdException w:name=\"No Spacing\" w:uiPriority=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"Light Shading\" w:uiPriority=\"60\"/><w:lsdException w:name=\"Light List\" w:uiPriority=\"61\"/><w:lsdException w:name=\"Light Grid\" w:uiPriority=\"62\"/><w:lsdException w:name=\"Medium Shading 1\" w:uiPriority=\"63\"/><w:lsdException w:name=\"Medium Shading 2\" w:uiPriority=\"64\"/><w:lsdException w:name=\"Medium List 1\" w:uiPriority=\"65\"/><w:lsdException w:name=\"Medium List 2\" w:uiPriority=\"66\"/><w:lsdException w:name=\"Medium Grid 1\" w:uiPriority=\"67\"/><w:lsdException w:name=\"Medium Grid 2\" w:uiPriority=\"68\"/><w:lsdException w:name=\"Medium Grid 3\" w:uiPriority=\"69\"/><w:lsdException w:name=\"Dark List\" w:uiPriority=\"70\"/><w:lsdException w:name=\"Colorful Shading\" w:uiPriority=\"71\"/><w:lsdException w:name=\"Colorful List\" w:uiPriority=\"72\"/><w:lsdException w:name=\"Colorful Grid\" w:uiPriority=\"73\"/><w:lsdException w:name=\"Light Shading Accent 1\" w:uiPriority=\"60\"/><w:lsdException w:name=\"Light List Accent 1\" w:uiPriority=\"61\"/><w:lsdException w:name=\"Light Grid Accent 1\" w:uiPriority=\"62\"/><w:lsdException w:name=\"Medium Shading 1 Accent 1\" w:uiPriority=\"63\"/><w:lsdException w:name=\"Medium Shading 2 Accent 1\" w:uiPriority=\"64\"/><w:lsdException w:name=\"Medium List 1 Accent 1\" w:uiPriority=\"65\"/><w:lsdException w:name=\"Revision\" w:semiHidden=\"1\"/><w:lsdException w:name=\"List Paragraph\" w:uiPriority=\"34\" w:qFormat=\"1\"/><w:lsdException w:name=\"Quote\" w:uiPriority=\"29\" w:qFormat=\"1\"/><w:lsdException w:name=\"Intense Quote\" w:uiPriority=\"30\" w:qFormat=\"1\"/><w:lsdException w:name=\"Medium List 2 Accent 1\" w:uiPriority=\"66\"/><w:lsdException w:name=\"Medium Grid 1 Accent 1\" w:uiPriority=\"67\"/><w:lsdException w:name=\"Medium Grid 2 Accent 1\" w:uiPriority=\"68\"/><w:lsdException w:name=\"Medium Grid 3 Accent 1\" w:uiPriority=\"69\"/><w:lsdException w:name=\"Dark List Accent 1\" w:uiPriority=\"70\"/><w:lsdException w:name=\"Colorful Shading Accent 1\" w:uiPriority=\"71\"/><w:lsdException w:name=\"Colorful List Accent 1\" w:uiPriority=\"72\"/><w:lsdException w:name=\"Colorful Grid Accent 1\" w:uiPriority=\"73\"/><w:lsdException w:name=\"Light Shading Accent 2\" w:uiPriority=\"60\"/><w:lsdException w:name=\"Light List Accent 2\" w:uiPriority=\"61\"/><w:lsdException w:name=\"Light Grid Accent 2\" w:uiPriority=\"62\"/><w:lsdException w:name=\"Medium Shading 1 Accent 2\" w:uiPriority=\"63\"/><w:lsdException w:name=\"Medium Shading 2 Accent 2\" w:uiPriority=\"64\"/><w:lsdException w:name=\"Medium List 1 Accent 2\" w:uiPriority=\"65\"/><w:lsdException w:name=\"Medium List 2 Accent 2\" w:uiPriority=\"66\"/><w:lsdException w:name=\"Medium Grid 1 Accent 2\" w:uiPriority=\"67\"/><w:lsdException w:name=\"Medium Grid 2 Accent 2\" w:uiPriority=\"68\"/><w:lsdException w:name=\"Medium Grid 3 Accent 2\" w:uiPriority=\"69\"/><w:lsdException w:name=\"Dark List Accent 2\" w:uiPriority=\"70\"/><w:lsdException w:name=\"Colorful Shading Accent 2\" w:uiPriority=\"71\"/><w:lsdException w:name=\"Colorful List Accent 2\" w:uiPriority=\"72\"/><w:lsdException w:name=\"Colorful Grid Accent 2\" w:uiPriority=\"73\"/><w:lsdException w:name=\"Light Shading Accent 3\" w:uiPriority=\"60\"/><w:lsdException w:name=\"Light List Accent 3\" w:uiPriority=\"61\"/><w:lsdException w:name=\"Light Grid Accent 3\" w:uiPriority=\"62\"/><w:lsdException w:name=\"Medium Shading 1 Accent 3\" w:uiPriority=\"63\"/><w:lsdException w:name=\"Medium Shading 2 Accent 3\" w:uiPriority=\"64\"/><w:lsdException w:name=\"Medium List 1 Accent 3\" w:uiPriority=\"65\"/><w:lsdException w:name=\"Medium List 2 Accent 3\" w:uiPriority=\"66\"/><w:lsdException w:name=\"Medium Grid 1 Accent 3\" w:uiPriority=\"67\"/><w:lsdException w:name=\"Medium Grid 2 Accent 3\" w:uiPriority=\"68\"/><w:lsdException w:name=\"Medium Grid 3 Accent 3\" w:uiPriority=\"69\"/><w:lsdException w:name=\"Dark List Accent 3\" w:uiPriority=\"70\"/><w:lsdException w:name=\"Colorful Shading Accent 3\" w:uiPriority=\"71\"/><w:lsdException w:name=\"Colorful List Accent 3\" w:uiPriority=\"72\"/><w:lsdException w:name=\"Colorful Grid Accent 3\" w:uiPriority=\"73\"/><w:lsdException w:name=\"Light Shading Accent 4\" w:uiPriority=\"60\"/><w:lsdException w:name=\"Light List Accent 4\" w:uiPriority=\"61\"/><w:lsdException w:name=\"Light Grid Accent 4\" w:uiPriority=\"62\"/><w:lsdException w:name=\"Medium Shading 1 Accent 4\" w:uiPriority=\"63\"/><w:lsdException w:name=\"Medium Shading 2 Accent 4\" w:uiPriority=\"64\"/><w:lsdException w:name=\"Medium List 1 Accent 4\" w:uiPriority=\"65\"/><w:lsdException w:name=\"Medium List 2 Accent 4\" w:uiPriority=\"66\"/><w:lsdException w:name=\"Medium Grid 1 Accent 4\" w:uiPriority=\"67\"/><w:lsdException w:name=\"Medium Grid 2 Accent 4\" w:uiPriority=\"68\"/><w:lsdException w:name=\"Medium Grid 3 Accent 4\" w:uiPriority=\"69\"/><w:lsdException w:name=\"Dark List Accent 4\" w:uiPriority=\"70\"/><w:lsdException w:name=\"Colorful Shading Accent 4\" w:uiPriority=\"71\"/><w:lsdException w:name=\"Colorful List Accent 4\" w:uiPriority=\"72\"/><w:lsdException w:name=\"Colorful Grid Accent 4\" w:uiPriority=\"73\"/><w:lsdException w:name=\"Light Shading Accent 5\" w:uiPriority=\"60\"/><w:lsdException w:name=\"Light List Accent 5\" w:uiPriority=\"61\"/><w:lsdException w:name=\"Light Grid Accent 5\" w:uiPriority=\"62\"/><w:lsdException w:name=\"Medium Shading 1 Accent 5\" w:uiPriority=\"63\"/><w:lsdException w:name=\"Medium Shading 2 Accent 5\" w:uiPriority=\"64\"/><w:lsdException w:name=\"Medium List 1 Accent 5\" w:uiPriority=\"65\"/><w:lsdException w:name=\"Medium List 2 Accent 5\" w:uiPriority=\"66\"/><w:lsdException w:name=\"Medium Grid 1 Accent 5\" w:uiPriority=\"67\"/><w:lsdException w:name=\"Medium Grid 2 Accent 5\" w:uiPriority=\"68\"/><w:lsdException w:name=\"Medium Grid 3 Accent 5\" w:uiPriority=\"69\"/><w:lsdException w:name=\"Dark List Accent 5\" w:uiPriority=\"70\"/><w:lsdException w:name=\"Colorful Shading Accent 5\" w:uiPriority=\"71\"/><w:lsdException w:name=\"Colorful List Accent 5\" w:uiPriority=\"72\"/><w:lsdException w:name=\"Colorful Grid Accent 5\" w:uiPriority=\"73\"/><w:lsdException w:name=\"Light Shading Accent 6\" w:uiPriority=\"60\"/><w:lsdException w:name=\"Light List Accent 6\" w:uiPriority=\"61\"/><w:lsdException w:name=\"Light Grid Accent 6\" w:uiPriority=\"62\"/><w:lsdException w:name=\"Medium Shading 1 Accent 6\" w:uiPriority=\"63\"/><w:lsdException w:name=\"Medium Shading 2 Accent 6\" w:uiPriority=\"64\"/><w:lsdException w:name=\"Medium List 1 Accent 6\" w:uiPriority=\"65\"/><w:lsdException w:name=\"Medium List 2 Accent 6\" w:uiPriority=\"66\"/><w:lsdException w:name=\"Medium Grid 1 Accent 6\" w:uiPriority=\"67\"/><w:lsdException w:name=\"Medium Grid 2 Accent 6\" w:uiPriority=\"68\"/><w:lsdException w:name=\"Medium Grid 3 Accent 6\" w:uiPriority=\"69\"/><w:lsdException w:name=\"Dark List Accent 6\" w:uiPriority=\"70\"/><w:lsdException w:name=\"Colorful Shading Accent 6\" w:uiPriority=\"71\"/><w:lsdException w:name=\"Colorful List Accent 6\" w:uiPriority=\"72\"/><w:lsdException w:name=\"Colorful Grid Accent 6\" w:uiPriority=\"73\"/><w:lsdException w:name=\"Subtle Emphasis\" w:uiPriority=\"19\" w:qFormat=\"1\"/><w:lsdException w:name=\"Intense Emphasis\" w:uiPriority=\"21\" w:qFormat=\"1\"/><w:lsdException w:name=\"Subtle Reference\" w:uiPriority=\"31\" w:qFormat=\"1\"/><w:lsdException w:name=\"Intense Reference\" w:uiPriority=\"32\" w:qFormat=\"1\"/><w:lsdException w:name=\"Book Title\" w:uiPriority=\"33\" w:qFormat=\"1\"/><w:lsdException w:name=\"Bibliography\" w:semiHidden=\"1\" w:uiPriority=\"37\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"TOC Heading\" w:semiHidden=\"1\" w:uiPriority=\"39\" w:unhideWhenUsed=\"1\" w:qFormat=\"1\"/><w:lsdException w:name=\"Plain Table 1\" w:uiPriority=\"41\"/><w:lsdException w:name=\"Plain Table 2\" w:uiPriority=\"42\"/><w:lsdException w:name=\"Plain Table 3\" w:uiPriority=\"43\"/><w:lsdException w:name=\"Plain Table 4\" w:uiPriority=\"44\"/><w:lsdException w:name=\"Plain Table 5\" w:uiPriority=\"45\"/><w:lsdException w:name=\"Grid Table Light\" w:uiPriority=\"40\"/><w:lsdException w:name=\"Grid Table 1 Light\" w:uiPriority=\"46\"/><w:lsdException w:name=\"Grid Table 2\" w:uiPriority=\"47\"/><w:lsdException w:name=\"Grid Table 3\" w:uiPriority=\"48\"/><w:lsdException w:name=\"Grid Table 4\" w:uiPriority=\"49\"/><w:lsdException w:name=\"Grid Table 5 Dark\" w:uiPriority=\"50\"/><w:lsdException w:name=\"Grid Table 6 Colorful\" w:uiPriority=\"51\"/><w:lsdException w:name=\"Grid Table 7 Colorful\" w:uiPriority=\"52\"/><w:lsdException w:name=\"Grid Table 1 Light Accent 1\" w:uiPriority=\"46\"/><w:lsdException w:name=\"Grid Table 2 Accent 1\" w:uiPriority=\"47\"/><w:lsdException w:name=\"Grid Table 3 Accent 1\" w:uiPriority=\"48\"/><w:lsdException w:name=\"Grid Table 4 Accent 1\" w:uiPriority=\"49\"/><w:lsdException w:name=\"Grid Table 5 Dark Accent 1\" w:uiPriority=\"50\"/><w:lsdException w:name=\"Grid Table 6 Colorful Accent 1\" w:uiPriority=\"51\"/><w:lsdException w:name=\"Grid Table 7 Colorful Accent 1\" w:uiPriority=\"52\"/><w:lsdException w:name=\"Grid Table 1 Light Accent 2\" w:uiPriority=\"46\"/><w:lsdException w:name=\"Grid Table 2 Accent 2\" w:uiPriority=\"47\"/><w:lsdException w:name=\"Grid Table 3 Accent 2\" w:uiPriority=\"48\"/><w:lsdException w:name=\"Grid Table 4 Accent 2\" w:uiPriority=\"49\"/><w:lsdException w:name=\"Grid Table 5 Dark Accent 2\" w:uiPriority=\"50\"/><w:lsdException w:name=\"Grid Table 6 Colorful Accent 2\" w:uiPriority=\"51\"/><w:lsdException w:name=\"Grid Table 7 Colorful Accent 2\" w:uiPriority=\"52\"/><w:lsdException w:name=\"Grid Table 1 Light Accent 3\" w:uiPriority=\"46\"/><w:lsdException w:name=\"Grid Table 2 Accent 3\" w:uiPriority=\"47\"/><w:lsdException w:name=\"Grid Table 3 Accent 3\" w:uiPriority=\"48\"/><w:lsdException w:name=\"Grid Table 4 Accent 3\" w:uiPriority=\"49\"/><w:lsdException w:name=\"Grid Table 5 Dark Accent 3\" w:uiPriority=\"50\"/><w:lsdException w:name=\"Grid Table 6 Colorful Accent 3\" w:uiPriority=\"51\"/><w:lsdException w:name=\"Grid Table 7 Colorful Accent 3\" w:uiPriority=\"52\"/><w:lsdException w:name=\"Grid Table 1 Light Accent 4\" w:uiPriority=\"46\"/><w:lsdException w:name=\"Grid Table 2 Accent 4\" w:uiPriority=\"47\"/><w:lsdException w:name=\"Grid Table 3 Accent 4\" w:uiPriority=\"48\"/><w:lsdException w:name=\"Grid Table 4 Accent 4\" w:uiPriority=\"49\"/><w:lsdException w:name=\"Grid Table 5 Dark Accent 4\" w:uiPriority=\"50\"/><w:lsdException w:name=\"Grid Table 6 Colorful Accent 4\" w:uiPriority=\"51\"/><w:lsdException w:name=\"Grid Table 7 Colorful Accent 4\" w:uiPriority=\"52\"/><w:lsdException w:name=\"Grid Table 1 Light Accent 5\" w:uiPriority=\"46\"/><w:lsdException w:name=\"Grid Table 2 Accent 5\" w:uiPriority=\"47\"/><w:lsdException w:name=\"Grid Table 3 Accent 5\" w:uiPriority=\"48\"/><w:lsdException w:name=\"Grid Table 4 Accent 5\" w:uiPriority=\"49\"/><w:lsdException w:name=\"Grid Table 5 Dark Accent 5\" w:uiPriority=\"50\"/><w:lsdException w:name=\"Grid Table 6 Colorful Accent 5\" w:uiPriority=\"51\"/><w:lsdException w:name=\"Grid Table 7 Colorful Accent 5\" w:uiPriority=\"52\"/><w:lsdException w:name=\"Grid Table 1 Light Accent 6\" w:uiPriority=\"46\"/><w:lsdException w:name=\"Grid Table 2 Accent 6\" w:uiPriority=\"47\"/><w:lsdException w:name=\"Grid Table 3 Accent 6\" w:uiPriority=\"48\"/><w:lsdException w:name=\"Grid Table 4 Accent 6\" w:uiPriority=\"49\"/><w:lsdException w:name=\"Grid Table 5 Dark Accent 6\" w:uiPriority=\"50\"/><w:lsdException w:name=\"Grid Table 6 Colorful Accent 6\" w:uiPriority=\"51\"/><w:lsdException w:name=\"Grid Table 7 Colorful Accent 6\" w:uiPriority=\"52\"/><w:lsdException w:name=\"List Table 1 Light\" w:uiPriority=\"46\"/><w:lsdException w:name=\"List Table 2\" w:uiPriority=\"47\"/><w:lsdException w:name=\"List Table 3\" w:uiPriority=\"48\"/><w:lsdException w:name=\"List Table 4\" w:uiPriority=\"49\"/><w:lsdException w:name=\"List Table 5 Dark\" w:uiPriority=\"50\"/><w:lsdException w:name=\"List Table 6 Colorful\" w:uiPriority=\"51\"/><w:lsdException w:name=\"List Table 7 Colorful\" w:uiPriority=\"52\"/><w:lsdException w:name=\"List Table 1 Light Accent 1\" w:uiPriority=\"46\"/><w:lsdException w:name=\"List Table 2 Accent 1\" w:uiPriority=\"47\"/><w:lsdException w:name=\"List Table 3 Accent 1\" w:uiPriority=\"48\"/><w:lsdException w:name=\"List Table 4 Accent 1\" w:uiPriority=\"49\"/><w:lsdException w:name=\"List Table 5 Dark Accent 1\" w:uiPriority=\"50\"/><w:lsdException w:name=\"List Table 6 Colorful Accent 1\" w:uiPriority=\"51\"/><w:lsdException w:name=\"List Table 7 Colorful Accent 1\" w:uiPriority=\"52\"/><w:lsdException w:name=\"List Table 1 Light Accent 2\" w:uiPriority=\"46\"/><w:lsdException w:name=\"List Table 2 Accent 2\" w:uiPriority=\"47\"/><w:lsdException w:name=\"List Table 3 Accent 2\" w:uiPriority=\"48\"/><w:lsdException w:name=\"List Table 4 Accent 2\" w:uiPriority=\"49\"/><w:lsdException w:name=\"List Table 5 Dark Accent 2\" w:uiPriority=\"50\"/><w:lsdException w:name=\"List Table 6 Colorful Accent 2\" w:uiPriority=\"51\"/><w:lsdException w:name=\"List Table 7 Colorful Accent 2\" w:uiPriority=\"52\"/><w:lsdException w:name=\"List Table 1 Light Accent 3\" w:uiPriority=\"46\"/><w:lsdException w:name=\"List Table 2 Accent 3\" w:uiPriority=\"47\"/><w:lsdException w:name=\"List Table 3 Accent 3\" w:uiPriority=\"48\"/><w:lsdException w:name=\"List Table 4 Accent 3\" w:uiPriority=\"49\"/><w:lsdException w:name=\"List Table 5 Dark Accent 3\" w:uiPriority=\"50\"/><w:lsdException w:name=\"List Table 6 Colorful Accent 3\" w:uiPriority=\"51\"/><w:lsdException w:name=\"List Table 7 Colorful Accent 3\" w:uiPriority=\"52\"/><w:lsdException w:name=\"List Table 1 Light Accent 4\" w:uiPriority=\"46\"/><w:lsdException w:name=\"List Table 2 Accent 4\" w:uiPriority=\"47\"/><w:lsdException w:name=\"List Table 3 Accent 4\" w:uiPriority=\"48\"/><w:lsdException w:name=\"List Table 4 Accent 4\" w:uiPriority=\"49\"/><w:lsdException w:name=\"List Table 5 Dark Accent 4\" w:uiPriority=\"50\"/><w:lsdException w:name=\"List Table 6 Colorful Accent 4\" w:uiPriority=\"51\"/><w:lsdException w:name=\"List Table 7 Colorful Accent 4\" w:uiPriority=\"52\"/><w:lsdException w:name=\"List Table 1 Light Accent 5\" w:uiPriority=\"46\"/><w:lsdException w:name=\"List Table 2 Accent 5\" w:uiPriority=\"47\"/><w:lsdException w:name=\"List Table 3 Accent 5\" w:uiPriority=\"48\"/><w:lsdException w:name=\"List Table 4 Accent 5\" w:uiPriority=\"49\"/><w:lsdException w:name=\"List Table 5 Dark Accent 5\" w:uiPriority=\"50\"/><w:lsdException w:name=\"List Table 6 Colorful Accent 5\" w:uiPriority=\"51\"/><w:lsdException w:name=\"List Table 7 Colorful Accent 5\" w:uiPriority=\"52\"/><w:lsdException w:name=\"List Table 1 Light Accent 6\" w:uiPriority=\"46\"/><w:lsdException w:name=\"List Table 2 Accent 6\" w:uiPriority=\"47\"/><w:lsdException w:name=\"List Table 3 Accent 6\" w:uiPriority=\"48\"/><w:lsdException w:name=\"List Table 4 Accent 6\" w:uiPriority=\"49\"/><w:lsdException w:name=\"List Table 5 Dark Accent 6\" w:uiPriority=\"50\"/><w:lsdException w:name=\"List Table 6 Colorful Accent 6\" w:uiPriority=\"51\"/><w:lsdException w:name=\"List Table 7 Colorful Accent 6\" w:uiPriority=\"52\"/><w:lsdException w:name=\"Mention\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Smart Hyperlink\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Hashtag\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Unresolved Mention\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/><w:lsdException w:name=\"Smart Link\" w:semiHidden=\"1\" w:unhideWhenUsed=\"1\"/></w:latentStyles>"
+    ],
+    "styles": [
+      {
+        "id": "Normal",
+        "isDefault": true,
+        "kind": "paragraph",
+        "name": "Normal",
+        "preserved": {
+          "children": [
+            "<w:qFormat/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Heading1",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "heading 1",
+        "next": "Normal",
+        "paragraph": {
+          "keepLinesTogether": true,
+          "keepWithNext": true,
+          "outlineLevel": 0,
+          "spacing": {
+            "after": 80,
+            "before": 360
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"Heading1Char\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "font": {
+            "extra": [
+              {
+                "name": "w:eastAsiaTheme",
+                "value": "majorEastAsia"
+              },
+              {
+                "name": "w:cstheme",
+                "value": "majorBidi"
+              }
+            ],
+            "name": "Aptos Display",
+            "theme": "majorHAnsi"
+          },
+          "preserved": [
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>",
+            "<w:szCs w:val=\"40\"/>"
+          ],
+          "size": 40
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Heading2",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "heading 2",
+        "next": "Normal",
+        "paragraph": {
+          "keepLinesTogether": true,
+          "keepWithNext": true,
+          "outlineLevel": 1,
+          "spacing": {
+            "after": 80,
+            "before": 160
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"Heading2Char\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:unhideWhenUsed/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "font": {
+            "extra": [
+              {
+                "name": "w:eastAsiaTheme",
+                "value": "majorEastAsia"
+              },
+              {
+                "name": "w:cstheme",
+                "value": "majorBidi"
+              }
+            ],
+            "name": "Aptos Display",
+            "theme": "majorHAnsi"
+          },
+          "preserved": [
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>",
+            "<w:szCs w:val=\"32\"/>"
+          ],
+          "size": 32
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Heading3",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "heading 3",
+        "next": "Normal",
+        "paragraph": {
+          "keepLinesTogether": true,
+          "keepWithNext": true,
+          "outlineLevel": 2,
+          "spacing": {
+            "after": 80,
+            "before": 160
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"Heading3Char\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>",
+            "<w:szCs w:val=\"28\"/>"
+          ],
+          "size": 28
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Heading4",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "heading 4",
+        "next": "Normal",
+        "paragraph": {
+          "keepLinesTogether": true,
+          "keepWithNext": true,
+          "outlineLevel": 3,
+          "spacing": {
+            "after": 40,
+            "before": 80
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"Heading4Char\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:iCs/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Heading5",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "heading 5",
+        "next": "Normal",
+        "paragraph": {
+          "keepLinesTogether": true,
+          "keepWithNext": true,
+          "outlineLevel": 4,
+          "spacing": {
+            "after": 40,
+            "before": 80
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"Heading5Char\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Heading6",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "heading 6",
+        "next": "Normal",
+        "paragraph": {
+          "keepLinesTogether": true,
+          "keepWithNext": true,
+          "outlineLevel": 5,
+          "spacing": {
+            "after": 0,
+            "before": 40
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"Heading6Char\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:iCs/>",
+            "<w:color w:val=\"595959\" w:themeColor=\"text1\" w:themeTint=\"A6\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Heading7",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "heading 7",
+        "next": "Normal",
+        "paragraph": {
+          "keepLinesTogether": true,
+          "keepWithNext": true,
+          "outlineLevel": 6,
+          "spacing": {
+            "after": 0,
+            "before": 40
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"Heading7Char\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"595959\" w:themeColor=\"text1\" w:themeTint=\"A6\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Heading8",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "heading 8",
+        "next": "Normal",
+        "paragraph": {
+          "keepLinesTogether": true,
+          "keepWithNext": true,
+          "outlineLevel": 7,
+          "spacing": {
+            "after": 0
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"Heading8Char\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:iCs/>",
+            "<w:color w:val=\"272727\" w:themeColor=\"text1\" w:themeTint=\"D8\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Heading9",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "heading 9",
+        "next": "Normal",
+        "paragraph": {
+          "keepLinesTogether": true,
+          "keepWithNext": true,
+          "outlineLevel": 8,
+          "spacing": {
+            "after": 0
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"Heading9Char\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"272727\" w:themeColor=\"text1\" w:themeTint=\"D8\"/>"
+          ]
+        }
+      },
+      {
+        "id": "DefaultParagraphFont",
+        "isDefault": true,
+        "kind": "character",
+        "name": "Default Paragraph Font",
+        "preserved": {
+          "children": [
+            "<w:uiPriority w:val=\"1\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>"
+          ]
+        }
+      },
+      {
+        "id": "TableNormal",
+        "isDefault": true,
+        "kind": "table",
+        "name": "Normal Table",
+        "preserved": {
+          "children": [
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:tblPr><w:tblInd w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+          ]
+        }
+      },
+      {
+        "id": "NoList",
+        "isDefault": true,
+        "kind": "numbering",
+        "name": "No List",
+        "preserved": {
+          "children": [
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "Heading1Char",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Heading 1 Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Heading1\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "font": {
+            "extra": [
+              {
+                "name": "w:eastAsiaTheme",
+                "value": "majorEastAsia"
+              },
+              {
+                "name": "w:cstheme",
+                "value": "majorBidi"
+              }
+            ],
+            "name": "Aptos Display",
+            "theme": "majorHAnsi"
+          },
+          "preserved": [
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>",
+            "<w:szCs w:val=\"40\"/>"
+          ],
+          "size": 40
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "Heading2Char",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Heading 2 Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Heading2\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "font": {
+            "extra": [
+              {
+                "name": "w:eastAsiaTheme",
+                "value": "majorEastAsia"
+              },
+              {
+                "name": "w:cstheme",
+                "value": "majorBidi"
+              }
+            ],
+            "name": "Aptos Display",
+            "theme": "majorHAnsi"
+          },
+          "preserved": [
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>",
+            "<w:szCs w:val=\"32\"/>"
+          ],
+          "size": 32
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "Heading3Char",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Heading 3 Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Heading3\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>",
+            "<w:szCs w:val=\"28\"/>"
+          ],
+          "size": 28
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "Heading4Char",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Heading 4 Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Heading4\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:iCs/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "Heading5Char",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Heading 5 Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Heading5\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "Heading6Char",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Heading 6 Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Heading6\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:iCs/>",
+            "<w:color w:val=\"595959\" w:themeColor=\"text1\" w:themeTint=\"A6\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "Heading7Char",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Heading 7 Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Heading7\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"595959\" w:themeColor=\"text1\" w:themeTint=\"A6\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "Heading8Char",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Heading 8 Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Heading8\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:iCs/>",
+            "<w:color w:val=\"272727\" w:themeColor=\"text1\" w:themeTint=\"D8\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "Heading9Char",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Heading 9 Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Heading9\"/>",
+            "<w:uiPriority w:val=\"9\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"272727\" w:themeColor=\"text1\" w:themeTint=\"D8\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Title",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Title",
+        "next": "Normal",
+        "paragraph": {
+          "preserved": [
+            "<w:contextualSpacing/>"
+          ],
+          "spacing": {
+            "after": 80,
+            "line": {
+              "rule": "auto",
+              "value": 240
+            }
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"TitleChar\"/>",
+            "<w:uiPriority w:val=\"10\"/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "font": {
+            "extra": [
+              {
+                "name": "w:eastAsiaTheme",
+                "value": "majorEastAsia"
+              },
+              {
+                "name": "w:cstheme",
+                "value": "majorBidi"
+              }
+            ],
+            "name": "Aptos Display",
+            "theme": "majorHAnsi"
+          },
+          "preserved": [
+            "<w:spacing w:val=\"-10\"/>",
+            "<w:kern w:val=\"28\"/>",
+            "<w:szCs w:val=\"56\"/>"
+          ],
+          "size": 56
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "TitleChar",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Title Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Title\"/>",
+            "<w:uiPriority w:val=\"10\"/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "font": {
+            "extra": [
+              {
+                "name": "w:eastAsiaTheme",
+                "value": "majorEastAsia"
+              },
+              {
+                "name": "w:cstheme",
+                "value": "majorBidi"
+              }
+            ],
+            "name": "Aptos Display",
+            "theme": "majorHAnsi"
+          },
+          "preserved": [
+            "<w:spacing w:val=\"-10\"/>",
+            "<w:kern w:val=\"28\"/>",
+            "<w:szCs w:val=\"56\"/>"
+          ],
+          "size": 56
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Subtitle",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Subtitle",
+        "next": "Normal",
+        "paragraph": {
+          "preserved": [
+            "<w:numPr><w:ilvl w:val=\"1\"/></w:numPr>"
+          ]
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"SubtitleChar\"/>",
+            "<w:uiPriority w:val=\"11\"/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"595959\" w:themeColor=\"text1\" w:themeTint=\"A6\"/>",
+            "<w:spacing w:val=\"15\"/>",
+            "<w:szCs w:val=\"28\"/>"
+          ],
+          "size": 28
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "SubtitleChar",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Subtitle Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Subtitle\"/>",
+            "<w:uiPriority w:val=\"11\"/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:rFonts w:eastAsiaTheme=\"majorEastAsia\" w:cstheme=\"majorBidi\"/>",
+            "<w:color w:val=\"595959\" w:themeColor=\"text1\" w:themeTint=\"A6\"/>",
+            "<w:spacing w:val=\"15\"/>",
+            "<w:szCs w:val=\"28\"/>"
+          ],
+          "size": 28
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "Quote",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Quote",
+        "next": "Normal",
+        "paragraph": {
+          "alignment": "center",
+          "spacing": {
+            "before": 160
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"QuoteChar\"/>",
+            "<w:uiPriority w:val=\"29\"/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:iCs/>",
+            "<w:color w:val=\"404040\" w:themeColor=\"text1\" w:themeTint=\"BF\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "QuoteChar",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Quote Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"Quote\"/>",
+            "<w:uiPriority w:val=\"29\"/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:iCs/>",
+            "<w:color w:val=\"404040\" w:themeColor=\"text1\" w:themeTint=\"BF\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "ListParagraph",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "List Paragraph",
+        "paragraph": {
+          "indent": {
+            "left": 720
+          },
+          "preserved": [
+            "<w:contextualSpacing/>"
+          ]
+        },
+        "preserved": {
+          "children": [
+            "<w:uiPriority w:val=\"34\"/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "IntenseEmphasis",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Intense Emphasis",
+        "preserved": {
+          "children": [
+            "<w:uiPriority w:val=\"21\"/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:iCs/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "IntenseQuote",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Intense Quote",
+        "next": "Normal",
+        "paragraph": {
+          "alignment": "center",
+          "indent": {
+            "left": 864,
+            "right": 864
+          },
+          "preserved": [
+            "<w:pBdr><w:top w:val=\"single\" w:sz=\"4\" w:space=\"10\" w:color=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/><w:bottom w:val=\"single\" w:sz=\"4\" w:space=\"10\" w:color=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/></w:pBdr>"
+          ],
+          "spacing": {
+            "after": 360,
+            "before": 360
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"IntenseQuoteChar\"/>",
+            "<w:uiPriority w:val=\"30\"/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:iCs/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "IntenseQuoteChar",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Intense Quote Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"IntenseQuote\"/>",
+            "<w:uiPriority w:val=\"30\"/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "<w:iCs/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "IntenseReference",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Intense Reference",
+        "preserved": {
+          "children": [
+            "<w:uiPriority w:val=\"32\"/>",
+            "<w:qFormat/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "bold": true,
+          "preserved": [
+            "<w:bCs/>",
+            "<w:color w:val=\"0F4761\" w:themeColor=\"accent1\" w:themeShade=\"BF\"/>",
+            "<w:spacing w:val=\"5\"/>"
+          ],
+          "smallCaps": true
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "FootnoteText",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "footnote text",
+        "paragraph": {
+          "spacing": {
+            "after": 0,
+            "line": {
+              "rule": "auto",
+              "value": 240
+            }
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"FootnoteTextChar\"/>",
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:szCs w:val=\"20\"/>"
+          ],
+          "size": 20
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "FootnoteTextChar",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Footnote Text Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"FootnoteText\"/>",
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:szCs w:val=\"20\"/>"
+          ],
+          "size": 20
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "FootnoteReference",
+        "isDefault": false,
+        "kind": "character",
+        "name": "footnote reference",
+        "preserved": {
+          "children": [
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "script": "superscript"
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "CommentReference",
+        "isDefault": false,
+        "kind": "character",
+        "name": "annotation reference",
+        "preserved": {
+          "children": [
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:szCs w:val=\"16\"/>"
+          ],
+          "size": 16
+        }
+      },
+      {
+        "basedOn": "Normal",
+        "id": "CommentText",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "annotation text",
+        "paragraph": {
+          "spacing": {
+            "line": {
+              "rule": "auto",
+              "value": 240
+            }
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"CommentTextChar\"/>",
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:szCs w:val=\"20\"/>"
+          ],
+          "size": 20
+        }
+      },
+      {
+        "basedOn": "DefaultParagraphFont",
+        "id": "CommentTextChar",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Comment Text Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"CommentText\"/>",
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "preserved": [
+            "<w:szCs w:val=\"20\"/>"
+          ],
+          "size": 20
+        }
+      },
+      {
+        "basedOn": "CommentText",
+        "id": "CommentSubject",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "annotation subject",
+        "next": "CommentText",
+        "preserved": {
+          "children": [
+            "<w:link w:val=\"CommentSubjectChar\"/>",
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:unhideWhenUsed/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "bold": true,
+          "preserved": [
+            "<w:bCs/>"
+          ]
+        }
+      },
+      {
+        "basedOn": "CommentTextChar",
+        "id": "CommentSubjectChar",
+        "isDefault": false,
+        "kind": "character",
+        "name": "Comment Subject Char",
+        "preserved": {
+          "attributes": [
+            {
+              "name": "w:customStyle",
+              "value": "1"
+            }
+          ],
+          "children": [
+            "<w:link w:val=\"CommentSubject\"/>",
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        },
+        "run": {
+          "bold": true,
+          "preserved": [
+            "<w:bCs/>",
+            "<w:szCs w:val=\"20\"/>"
+          ],
+          "size": 20
+        }
+      },
+      {
+        "id": "Revision",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Revision",
+        "paragraph": {
+          "spacing": {
+            "after": 0,
+            "line": {
+              "rule": "auto",
+              "value": 240
+            }
+          }
+        },
+        "preserved": {
+          "children": [
+            "<w:hidden/>",
+            "<w:uiPriority w:val=\"99\"/>",
+            "<w:semiHidden/>",
+            "<w:rsid w:val=\"005D22DA\"/>"
+          ]
+        }
+      }
+    ],
+    "themeFonts": {
+      "major": "Aptos Display",
+      "minor": "Aptos"
+    }
+  }
+}

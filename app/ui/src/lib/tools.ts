@@ -9,6 +9,10 @@
 // ellipsis means the button opens something else, sentences are short,
 // and nothing makes the reader guess.
 
+import { writerTools } from "./writer/writerTools";
+import { fillSignTools } from "./forms/fillSignTools";
+import { protectTools } from "./protect/protectTools";
+
 export interface ToolHelp {
   label: string;
   /** a brief phrase shown when the pointer rests on the button */
@@ -203,9 +207,10 @@ export const tools = {
   },
   tools: {
     label: "Tools",
-    tooltip: "Show the tools for changing pages",
+    tooltip: "Show the tools for changing pages and adding comments",
     shortcut: "Ctrl Alt I",
-    whenToUse: "To rotate, delete, add, crop, number or watermark pages, or to split and merge PDFs.",
+    whenToUse:
+      "To rotate, delete, add, crop, number or watermark pages, to split and merge PDFs, or to highlight, comment and draw on pages.",
     fileEffect: "Nothing by itself. Each tool says what it will do before you use it.",
   },
   pageSelection: {
@@ -298,12 +303,120 @@ export const tools = {
     whenToUse: "To change your mind about something added with the tools above, even after saving.",
     fileEffect: `Takes them off the pages of your working copy. Only what Letters added is removed. ${ONLY_THE_WORKING_COPY}`,
   },
+  selectTool: {
+    label: "Select",
+    tooltip: "Select text, or click a comment or mark to change it",
+    shortcut: "Escape",
+    whenToUse:
+      "Most of the time. Drag across text to select it (double-click for a word, triple-click for a line), or click a comment or mark to move, resize, restyle or delete it.",
+    fileEffect: NOTHING_CHANGES,
+  },
+  highlightText: {
+    label: "Highlight",
+    tooltip: "Mark the selected text with a see-through colour",
+    shortcut: "Ctrl Alt H",
+    whenToUse: "For key points while reading. Select text first, or click Highlight and then drag across text.",
+    fileEffect: `Adds a highlight over the words in your working copy. The words themselves don’t change. ${ONLY_THE_WORKING_COPY}`,
+  },
+  underlineText: {
+    label: "Underline",
+    tooltip: "Draw a line under the selected text",
+    shortcut: "Ctrl Alt U",
+    whenToUse: "To mark words without colouring them, such as terms to look up.",
+    fileEffect: `Adds an underline mark to your working copy. The words themselves don’t change. ${ONLY_THE_WORKING_COPY}`,
+  },
+  strikeText: {
+    label: "Strike Through",
+    tooltip: "Draw a line through the selected text",
+    shortcut: "Ctrl Alt S",
+    whenToUse: "When reviewing someone’s work, to show which words should go.",
+    fileEffect: `Adds a strike-through mark to your working copy. The words are still there underneath. ${ONLY_THE_WORKING_COPY}`,
+    meaning: "Striking through draws a line across words to suggest removing them; it doesn’t remove them.",
+  },
+  addNote: {
+    label: "Note",
+    tooltip: "Add a comment on a small icon on the page",
+    shortcut: "Ctrl Alt N",
+    whenToUse: "For a question or remark about one place on the page. Click where it should go, then type.",
+    fileEffect: `Adds a note to your working copy. Other PDF readers show it too. ${ONLY_THE_WORKING_COPY}`,
+    meaning: "A note is like a sticky note: a small icon on the page that opens to show a comment.",
+  },
+  comments: {
+    label: "Comments",
+    tooltip: "See every note and remark in this document, with replies",
+    whenToUse: "To read the comments in a document someone sent you, answer them, or find one again.",
+    fileEffect: "Nothing by itself. Replying, editing and deleting change your working copy; the file changes only when you choose Save.",
+    meaning: "A comment is a note, or a remark written on a mark; a reply answers it, and they show together as a thread.",
+  },
+  addTextBox: {
+    label: "Text Box",
+    tooltip: "Type text anywhere on the page",
+    shortcut: "Ctrl Alt T",
+    whenToUse: "To fill in a form that has no fields, or to add a label. Click or drag on the page, then type.",
+    fileEffect: `Adds a text box on top of the page in your working copy. The page’s own text doesn’t change. ${ONLY_THE_WORKING_COPY}`,
+    meaning: "A text box is text you add on top of the page; double-click it later to change the words.",
+  },
+  drawShapes: {
+    label: "Shapes",
+    tooltip: "Draw a rectangle, ellipse, line or arrow",
+    whenToUse: "To circle something, box in a diagram or point at a detail.",
+    fileEffect: `Adds the shape to your working copy. ${ONLY_THE_WORKING_COPY}`,
+  },
+  drawInk: {
+    label: "Draw",
+    tooltip: "Draw freehand with the mouse, a pen or a finger",
+    shortcut: "Ctrl Alt D",
+    whenToUse: "For handwriting, quick sketches, or marking up a diagram. The Highlighter is wide and see-through.",
+    fileEffect: `Adds the drawing to your working copy. Strokes made without a pause become one drawing, so Undo takes back the whole of it. ${ONLY_THE_WORKING_COPY}`,
+    meaning: "Freehand drawing, also called ink, follows your hand the way a pen on paper does.",
+  },
+  addPicture: {
+    label: "Picture",
+    tooltip: "Put a PNG or JPEG picture on the page",
+    whenToUse: "To add a photo, a logo or a picture of your signature. It keeps its proportions when resized.",
+    fileEffect: `Adds the picture on top of the page in your working copy. The picture file doesn’t change. ${ONLY_THE_WORKING_COPY}`,
+  },
+  editAnnotation: {
+    label: "Selection",
+    tooltip: "Change or delete the comment or mark you clicked",
+    shortcut: "Delete",
+    whenToUse: "After clicking a comment or mark: drag it, use its handles, or change its colour here. Arrows move it.",
+    fileEffect: `Changes or deletes it in your working copy. Undo takes the change back. ${ONLY_THE_WORKING_COPY}`,
+  },
+  flattenComments: {
+    label: "Flatten Comments…",
+    tooltip: "Make comments and marks a permanent part of the pages",
+    whenToUse: "Before sending a file, so nobody can change or remove your comments, or for readers that don’t show comments.",
+    fileEffect: `Paints them into the pages of your working copy. They can’t be edited afterwards, but Undo still works until you close the document. ${ONLY_THE_WORKING_COPY}`,
+    // the same sentence as FLATTEN_EXPLANATION in core/annotate, which the tool also shows
+    meaning:
+      "Flattening makes comments and marks a permanent part of the page: they look exactly the same, but can no longer be edited, moved or removed.",
+  },
+  authorName: {
+    label: "Name on Comments",
+    tooltip: "The name other readers see on your comments and marks",
+    whenToUse: "To show your full name instead of the computer’s user name, for example before sharing feedback.",
+    fileEffect: "Nothing now. Comments and marks you add from then on carry the new name.",
+  },
+  copyText: {
+    label: "Copy",
+    tooltip: "Copy the selected text",
+    shortcut: "Ctrl C",
+    whenToUse: "To quote from a document in your notes or an essay.",
+    fileEffect: NOTHING_CHANGES,
+  },
   explain: {
     label: "Explain",
     tooltip: "Show what every button on this screen and in the open tools does",
     whenToUse: "Whenever a button is unclear, or to check whether it changes the file.",
     fileEffect: NOTHING_CHANGES,
   },
+  // word-processor mode: its tools are listed in writer/writerTools.ts
+  ...writerTools,
+  // forms and signatures: listed in forms/fillSignTools.ts
+  ...fillSignTools,
+  // redaction, hidden information and passwords: listed in protect/protectTools.ts
+  ...protectTools,
 } satisfies Record<string, ToolHelp>;
 
 export type ToolName = keyof typeof tools;

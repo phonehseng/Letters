@@ -6,6 +6,8 @@
 // the crop tool in core/pages expects.
 
 import type { PageSize } from "./layout";
+import { dragFrame, HANDLES as FRAME_HANDLES, type Handle } from "./pageTools/objectFrame";
+import type { Rect } from "./pageTools/pagePoints";
 
 export interface CropBox {
   left: number;
@@ -18,9 +20,9 @@ export interface CropBox {
 export const SMALLEST_CROP = 3;
 
 /** which part of the rectangle is being dragged: an edge, a corner, or all of it. */
-export type CropHandle = "move" | "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+export type CropHandle = Handle;
 
-export const HANDLES: Exclude<CropHandle, "move">[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+export const HANDLES = FRAME_HANDLES;
 
 /**
  * where the rectangle starts: half an inch in from each edge, which
@@ -50,15 +52,17 @@ export function keepOnPage(box: CropBox, page: PageSize): CropBox {
  */
 export function dragCrop(start: CropBox, handle: CropHandle, dx: number, dy: number, page: PageSize): CropBox {
   if (handle === "move") return keepOnPage({ ...start, left: start.left + dx, top: start.top + dy }, page);
-  let left = start.left;
-  let top = start.top;
-  let right = start.left + start.width;
-  let bottom = start.top + start.height;
-  if (handle.includes("w")) left = clamp(left + dx, 0, right - SMALLEST_CROP);
-  if (handle.includes("e")) right = clamp(right + dx, left + SMALLEST_CROP, page.width);
-  if (handle.includes("n")) top = clamp(top + dy, 0, bottom - SMALLEST_CROP);
-  if (handle.includes("s")) bottom = clamp(bottom + dy, top + SMALLEST_CROP, page.height);
-  return { left, top, width: right - left, height: bottom - top };
+  // the same frame rules every object on a page follows (pageTools/objectFrame.ts)
+  return asCropBox(dragFrame(asRect(start), handle, dx, dy, { page, minSize: SMALLEST_CROP }));
+}
+
+/** the crop rectangle in the shape the page tools use, and back. */
+export function asRect(box: CropBox): Rect {
+  return { x: box.left, y: box.top, width: box.width, height: box.height };
+}
+
+export function asCropBox(rect: Rect): CropBox {
+  return { left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 }
 
 /** true when the rectangle covers the whole page, so cropping would change nothing. */
