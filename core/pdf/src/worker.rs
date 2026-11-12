@@ -291,7 +291,6 @@ fn serve_requests(mut engine: PdfEngine, mut caches: Caches, inbox: Receiver<Req
             accept(request, &mut engine, &mut caches, &mut waiting_tiles);
         }
         if let Some(tile) = waiting_tiles.pop_newest() {
-            let _pdfium = lock_pdfium();
             let _ = tile
                 .reply
                 .send(cached_or_rendered(&engine, &mut caches.tiles, tile.key));
@@ -402,7 +401,13 @@ fn cached_or_rendered(
     if let Some(tile) = cache.get(&key) {
         return Ok(tile);
     }
-    let tile = Arc::new(engine.render_tile(key)?);
+    let drawn = {
+        // pdfium is held only while it draws. compressing the pixels
+        // afterwards needs no pdfium, so the lock is given back first
+        let _pdfium = lock_pdfium();
+        engine.render_tile(key)?
+    };
+    let tile = Arc::new(drawn.into_png()?);
     cache.insert(key, tile.clone());
     Ok(tile)
 }

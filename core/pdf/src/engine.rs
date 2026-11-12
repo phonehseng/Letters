@@ -215,8 +215,8 @@ impl PdfEngine {
         self.documents.get(&id).ok_or(PdfError::UnknownDocument)
     }
 
-    /// draws one tile and returns it as png bytes.
-    pub fn render_tile(&self, key: TileKey) -> Result<Vec<u8>, PdfError> {
+    /// draws one tile and returns its pixels, not yet compressed.
+    pub fn render_tile(&self, key: TileKey) -> Result<RawTile, PdfError> {
         let open = self.document(key.document)?;
         let page_size = *open
             .page_sizes
@@ -230,8 +230,29 @@ impl PdfEngine {
             .pages()
             .get(key.page as PdfPageIndex)
             .map_err(|_| PdfError::UnknownPage(key.page))?;
-        let pixels = render_region(&page, page_pixels, rect)?;
-        encode_png(&pixels, rect.width, rect.height)
+        let rgba = render_region(&page, page_pixels, rect)?;
+        Ok(RawTile {
+            rgba,
+            width: rect.width,
+            height: rect.height,
+        })
+    }
+}
+
+/// a drawn tile before it is compressed.
+///
+/// drawing needs pdfium; compressing does not. keeping the two apart
+/// lets the caller give pdfium back before the slower compression starts.
+pub struct RawTile {
+    rgba: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+
+impl RawTile {
+    /// compresses the tile as png bytes. needs nothing from pdfium.
+    pub fn into_png(self) -> Result<Vec<u8>, PdfError> {
+        encode_png(&self.rgba, self.width, self.height)
     }
 }
 
