@@ -17,7 +17,26 @@ use letters_exact::pdf::PdfFile;
 use letters_exact::verify::{compare_glyphs, placed_glyphs};
 use letters_exact::{convert, ConvertOptions, OutputMode};
 
-const SOFFICE: &str = r"C:\Users\phone\AppData\Local\Programs\LibreOffice\program\soffice.com";
+/// libreoffice's command line program: LETTERS_SOFFICE, else the usual
+/// install folders on each system (the same places as
+/// letters_office::bridge::libreoffice_path, which this crate doesn't use)
+fn soffice() -> std::path::PathBuf {
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(path) = std::env::var("LETTERS_SOFFICE") {
+        candidates.push(path.into());
+    }
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        candidates
+            .push(std::path::Path::new(&local).join(r"Programs\LibreOffice\program\soffice.com"));
+    }
+    candidates.push(r"C:\Program Files\LibreOffice\program\soffice.com".into());
+    candidates.push("/Applications/LibreOffice.app/Contents/MacOS/soffice".into());
+    candidates.push("/usr/bin/soffice".into());
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .expect("libreoffice was not found; set LETTERS_SOFFICE to its soffice program")
+}
 /// the longest one export may take before it is stopped.
 const EXPORT_LIMIT: Duration = Duration::from_secs(180);
 
@@ -64,7 +83,7 @@ fn file_url(path: &Path) -> String {
 /// exports a docx to pdf with a private libreoffice profile; the pdf, or why not.
 fn export_with_libreoffice(docx: &Path, dir: &Path) -> Result<PathBuf, String> {
     let profile = dir.join("profile");
-    let mut child = Command::new(SOFFICE)
+    let mut child = Command::new(soffice())
         .arg(format!("-env:UserInstallation={}", file_url(&profile)))
         .args([
             "--headless",
@@ -134,7 +153,7 @@ fn docx_for(name: &str, mode: OutputMode, dir: &Path) -> PathBuf {
 #[test]
 #[ignore = "starts libreoffice (a minute or two for the corpus)"]
 fn the_corpus_opened_in_libreoffice() {
-    assert!(Path::new(SOFFICE).is_file(), "libreoffice is not installed");
+    soffice();
     let dir = out_dir();
     let mut rows = Vec::new();
     for (name, class) in DOCUMENTS {

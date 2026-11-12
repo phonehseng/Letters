@@ -20,7 +20,26 @@ use letters_slides::{read_odp, read_pptx, write_odp, write_pptx};
 use pdf_reader::{read_pdf, Page};
 use score::{score, Score};
 
-const SOFFICE: &str = r"C:\Users\phone\AppData\Local\Programs\LibreOffice\program\soffice.com";
+/// libreoffice's command line program: LETTERS_SOFFICE, else the usual
+/// install folders on each system (the same places as
+/// letters_office::bridge::libreoffice_path, which this crate doesn't use)
+fn soffice() -> std::path::PathBuf {
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(path) = std::env::var("LETTERS_SOFFICE") {
+        candidates.push(path.into());
+    }
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        candidates
+            .push(std::path::Path::new(&local).join(r"Programs\LibreOffice\program\soffice.com"));
+    }
+    candidates.push(r"C:\Program Files\LibreOffice\program\soffice.com".into());
+    candidates.push("/Applications/LibreOffice.app/Contents/MacOS/soffice".into());
+    candidates.push("/usr/bin/soffice".into());
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .expect("libreoffice was not found; set LETTERS_SOFFICE to its soffice program")
+}
 
 fn out() -> PathBuf {
     // separate joins keep the separators consistent for libreoffice
@@ -71,7 +90,7 @@ fn libreoffice(files: &[PathBuf], to: &str, folder: &Path) {
         folder.display(),
         files[0].display()
     );
-    let status = Command::new(SOFFICE)
+    let status = Command::new(soffice())
         .arg(format!("-env:UserInstallation={profile_url}"))
         .args(["--headless", "--norestore", "--convert-to", to, "--outdir"])
         .arg(folder)
