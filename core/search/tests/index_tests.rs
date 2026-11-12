@@ -24,7 +24,7 @@ fn library() -> (tempfile::TempDir, Index) {
     let mut index = Index::open(folder.path()).unwrap();
     add(
         &mut index,
-        "C:/library/biology.pdf",
+        "/library/biology.pdf",
         "Biology Notes",
         &[
             (
@@ -40,7 +40,7 @@ fn library() -> (tempfile::TempDir, Index) {
     );
     add(
         &mut index,
-        "C:/library/history.pdf",
+        "/library/history.pdf",
         "Modern History",
         &[
             ("Revolutions", "The French Revolution began in 1789."),
@@ -52,7 +52,7 @@ fn library() -> (tempfile::TempDir, Index) {
     );
     add(
         &mut index,
-        "C:/library/essays/running.docx",
+        "/library/essays/running.docx",
         "Running Essay",
         &[(
             "Training",
@@ -197,7 +197,7 @@ fn filters_narrow_by_kind_folder_date_and_document() {
     let (_folder, mut index) = library();
     index
         .add_document(
-            "C:/library/notes.md",
+            "/library/notes.md",
             DocKind::Text,
             print(5),
             document("notes", &[("", "cell notes")]),
@@ -227,7 +227,7 @@ fn filters_narrow_by_kind_folder_date_and_document() {
     );
     assert_eq!(
         run(Filters {
-            document: Some("c:\\library\\history.pdf".into()),
+            document: Some("/library/history.pdf".into()),
             ..Filters::default()
         }),
         vec!["Modern History"]
@@ -236,7 +236,7 @@ fn filters_narrow_by_kind_folder_date_and_document() {
         .search(&SearchRequest {
             query: "running".into(),
             filters: Filters {
-                folder: Some("C:/library/essays".into()),
+                folder: Some("/library/essays".into()),
                 ..Filters::default()
             },
             ..SearchRequest::default()
@@ -245,7 +245,7 @@ fn filters_narrow_by_kind_folder_date_and_document() {
     assert_eq!(titles(&in_essays), vec!["Running Essay"]);
     // a folder whose name merely starts the same is not inside
     assert!(run(Filters {
-        folder: Some("C:/lib".into()),
+        folder: Some("/lib".into()),
         ..Filters::default()
     })
     .is_empty());
@@ -302,17 +302,17 @@ fn search_this_document_lists_every_page_in_order() {
 #[test]
 fn changed_and_deleted_files_are_handled() {
     let (_folder, mut index) = library();
-    assert!(!index.needs_indexing("C:/library/biology.pdf", &print(1)));
-    assert!(index.needs_indexing("C:/library/biology.pdf", &print(2)));
-    assert!(index.needs_indexing("C:/library/new.pdf", &print(1)));
-    // paths are the same document whatever their case on windows
+    assert!(!index.needs_indexing("/library/biology.pdf", &print(1)));
+    assert!(index.needs_indexing("/library/biology.pdf", &print(2)));
+    assert!(index.needs_indexing("/library/new.pdf", &print(1)));
+    // on windows a path is the same document whatever its case and slashes
     if cfg!(windows) {
-        assert!(!index.needs_indexing("c:\\LIBRARY\\biology.pdf", &print(1)));
+        assert!(!index.needs_indexing("\\LIBRARY\\Biology.pdf", &print(1)));
     }
     // re-indexing replaces the old text
     add(
         &mut index,
-        "C:/library/biology.pdf",
+        "/library/biology.pdf",
         "Biology Notes",
         &[("", "Only ribosomes now.")],
     );
@@ -320,7 +320,7 @@ fn changed_and_deleted_files_are_handled() {
     assert_eq!(titles(&search(&index, "ribosomes")), vec!["Biology Notes"]);
     // deleted files drop out
     let gone = index.retain(|doc| !doc.path.contains("history"));
-    assert_eq!(gone, vec!["C:/library/history.pdf".to_string()]);
+    assert_eq!(gone, vec!["/library/history.pdf".to_string()]);
     assert!(search(&index, "revolution").documents.is_empty());
     assert_eq!(index.stats().documents, 2);
 }
@@ -416,13 +416,13 @@ fn locked_files_are_found_by_name_only() {
 #[test]
 fn a_moved_file_keeps_its_entry_under_the_new_path() {
     let (_folder, mut index) = library();
-    assert!(index.rename_document("C:/library/biology.pdf", "C:/courses/Biology 101.pdf"));
+    assert!(index.rename_document("/library/biology.pdf", "/courses/Biology 101.pdf"));
     let results = search(&index, "respiration");
-    assert_eq!(results.documents[0].path, "C:/courses/Biology 101.pdf");
+    assert_eq!(results.documents[0].path, "/courses/Biology 101.pdf");
     // a title of its own (not the file name) stays as it was
     assert_eq!(results.documents[0].title, "Biology Notes");
-    assert!(!index.needs_indexing("C:/courses/Biology 101.pdf", &print(1)));
-    assert!(!index.rename_document("C:/library/biology.pdf", "x.pdf"));
+    assert!(!index.needs_indexing("/courses/Biology 101.pdf", &print(1)));
+    assert!(!index.rename_document("/library/biology.pdf", "x.pdf"));
 }
 
 #[test]

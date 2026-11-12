@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn titles_and_heading_paths() {
         assert_eq!(
-            title_from_path(Path::new("C:/x/Lab Report.pdf")),
+            title_from_path(Path::new("/x/Lab Report.pdf")),
             "Lab Report"
         );
         assert_eq!(

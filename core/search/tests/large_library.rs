@@ -85,7 +85,7 @@ fn build_and_measure(documents: usize) -> Measured {
             .iter()
             .map(|p| p.text.split_whitespace().count())
             .sum::<usize>();
-        let path = format!("C:/library/folder{}/document{number}.pdf", number % 40);
+        let path = format!("/library/folder{}/document{number}.pdf", number % 40);
         index
             .add_document(&path, DocKind::Pdf, print(number as u64 + 1), extracted)
             .unwrap();
