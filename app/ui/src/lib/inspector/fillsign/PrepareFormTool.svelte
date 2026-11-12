@@ -1,7 +1,9 @@
 <script lang="ts">
   // Prepare Form: the tools for someone making a form rather than filling
   // one. one section with a segmented control, so the tab keeps one line
-  // per tool: Rules (a field's calculation, format and checks). each pane
+  // per tool: Rules (a field's calculation, format and checks), Order (the
+  // tab order), Arrange (groups, one field on several pages) and Values
+  // (export and default values, reset, reset and print buttons). each pane
   // has its own one button and its own "what will happen" line.
   //
   // the form's logic is read once per revision of the document, here, and
@@ -12,7 +14,10 @@
   import type { ToolContext } from "../../inspector";
   import Choices from "../Choices.svelte";
   import ToolSection from "../ToolSection.svelte";
+  import ArrangePane from "./ArrangePane.svelte";
   import RulesPane from "./RulesPane.svelte";
+  import TabOrderPane from "./TabOrderPane.svelte";
+  import ValuesPane from "./ValuesPane.svelte";
 
   interface Props {
     context: ToolContext;
@@ -22,7 +27,7 @@
 
   let { context, open, onToggle }: Props = $props();
 
-  type Pane = "rules";
+  type Pane = "rules" | "order" | "arrange" | "values";
   let pane = $state<Pane>("rules");
   let logic = $state<FormLogicView | null>(null);
 
@@ -45,8 +50,24 @@
 </script>
 
 <ToolSection tool="prepareForm" {open} {onToggle}>
-  <Choices label="Prepare" hideLabel options={[{ value: "rules", label: "Rules" }]} bind:value={pane} />
+  <Choices
+    label="Prepare"
+    hideLabel
+    options={[
+      { value: "rules", label: "Rules" },
+      { value: "order", label: "Order" },
+      { value: "arrange", label: "Arrange" },
+      { value: "values", label: "Values" },
+    ]}
+    bind:value={pane}
+  />
   {#if pane === "rules"}
     <RulesPane {context} {logic} />
+  {:else if pane === "order"}
+    <TabOrderPane {context} />
+  {:else if pane === "arrange"}
+    <ArrangePane {context} />
+  {:else}
+    <ValuesPane {context} noSubmitNote={logic?.noSubmitNote ?? null} />
   {/if}
 </ToolSection>

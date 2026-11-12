@@ -28,6 +28,7 @@ use crate::{sheets_commands, sheets_help_commands};
 // forms round two: form logic, preparing forms, form data, signing options
 // and pdf standards, on their own line for the same reason
 use crate::form_logic_commands;
+use crate::form_building_commands;
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -105,6 +106,14 @@ fn forms_round_two() -> Feature {
         form_logic_commands::forms_set_field_logic,
         form_logic_commands::forms_set_calculation_order,
         form_logic_commands::forms_recalculate,
+        form_building_commands::forms_tab_order,
+        form_building_commands::forms_set_tab_order,
+        form_building_commands::forms_group_fields,
+        form_building_commands::forms_duplicate_across_pages,
+        form_building_commands::forms_set_export_value,
+        form_building_commands::forms_set_default_value,
+        form_building_commands::forms_reset_form,
+        form_building_commands::forms_add_button,
     ]
 }
 
