@@ -80,6 +80,13 @@ describe("css", () => {
     expect(problems[0].message).toContain("never closed");
   });
 
+  it("reads a ';' inside url(...) as part of the value", () => {
+    const icon = ".icon {\n  background: url(data:image/png;base64,iVBORw0KGgo=);\n  color: red;\n}\n";
+    expect(checkCss(icon, known)).toEqual([]);
+    const lostColon = checkCss(".icon {\n  background url(data:image/png;base64,iVBORw0KGgo=);\n  color: red;\n}\n", known);
+    expect(lostColon.map((problem) => [problem.line, problem.message.endsWith("needs a colon between the property and its value.")])).toEqual([[2, true]]);
+  });
+
   it("never flags custom or vendor properties", () => {
     expect(checkCss(":root { --accent: blue; -webkit-appearance: none; }", known)).toEqual([]);
   });

@@ -36,12 +36,19 @@ export function checkCss(text: string, isKnown: PropertyKnown = browserKnowsProp
   const problems: Problem[] = [];
   const stack: Block[] = [];
   let segmentStart = 0;
+  // a ";" inside brackets belongs to the value, as in url(data:image/png;base64,…)
+  let parenDepth = 0;
   for (let index = 0; index < source.length; index++) {
     const char = source[index];
     if (char === '"' || char === "'") {
       index = skipString(source, index);
       continue;
     }
+    if (char === "(") parenDepth++;
+    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (char === ";" && parenDepth > 0) continue;
+    // a brace always ends the value, so a "(" left open can't swallow the rest of the file
+    if (char === "{" || char === "}") parenDepth = 0;
     if (char === "{") {
       const prelude = source.slice(segmentStart, index).trim();
       stack.push({ kind: GROUP_AT_RULES.test(prelude) ? "group" : "rule", open: index });
@@ -65,13 +72,26 @@ function skipString(source: string, start: number): number {
   return source.length;
 }
 
+/** the first ":" not inside brackets or quotes; the "data:" in url(data:…) is part of a value. */
+function colonOutsideBrackets(segment: string): number {
+  let depth = 0;
+  for (let index = 0; index < segment.length; index++) {
+    const char = segment[index];
+    if (char === '"' || char === "'") index = skipString(segment, index);
+    else if (char === "(") depth++;
+    else if (char === ")") depth = Math.max(0, depth - 1);
+    else if (char === ":" && depth === 0) return index;
+  }
+  return -1;
+}
+
 /** one "name: value" between two semicolons. */
 function checkDeclaration(text: string, source: string, start: number, end: number, isKnown: PropertyKnown, problems: Problem[]) {
   const segment = source.slice(start, end);
   if (segment.trim() === "" || segment.trim().startsWith("@")) return;
   const leading = segment.length - segment.trimStart().length;
   const offset = start + leading;
-  const colon = segment.indexOf(":");
+  const colon = colonOutsideBrackets(segment);
   if (colon < 0) {
     problems.push(problemAt(text, offset, segment.trim().length, "error", `“${segment.trim()}” needs a colon between the property and its value.`, CSS_SOURCE));
     return;
