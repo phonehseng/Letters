@@ -44,4 +44,5 @@ the code so source folders hold only what is built or read with it.
 - [`ui-reading.md`](ui-reading.md): `app/ui/src/lib/reading/`
 - [`ui-settings.md`](ui-settings.md): `app/ui/src/lib/settings/`
 - [`ui-slides.md`](ui-slides.md): `app/ui/src/lib/slides/`
+- [`ui-sheets.md`](ui-sheets.md): `app/ui/src/lib/sheets/`
 - [`ui-writer.md`](ui-writer.md): `app/ui/src/lib/writer/`

@@ -22,6 +22,8 @@ import { libraryTools } from "./library/libraryTools";
 import { codeTools } from "./code/codeTools";
 // presentations (slides/slidesTools.ts)
 import { slidesTools } from "./slides/slidesTools";
+// spreadsheets: the sheets screen's tools (sheets/sheetsTools.ts)
+import { sheetsTools } from "./sheets/sheetsTools";
 
 export interface ToolHelp {
   label: string;
@@ -445,6 +447,8 @@ export const tools = {
   ...codeTools,
   // presentations: the slide editor's tools, listed in slides/slidesTools.ts
   ...slidesTools,
+  // spreadsheets: listed in sheets/sheetsTools.ts
+  ...sheetsTools,
 } satisfies Record<string, ToolHelp>;
 
 export type ToolName = keyof typeof tools;

@@ -743,6 +743,34 @@ the slide is the star, everything else floats.
   Presenter View shows the slide, the next one, the notes and a clock; with
   a second screen the audience sees the slides there.
 
+### Spreadsheets
+
+A workbook opens as a sheet of paper on the desk, white in dark mode too,
+as the writer's pages are; the controls float.
+
+- **Toolbar.** Leading: Recents, the workbook's name with its format under
+  it, Save. Centre: four menus, so the toolbar stays short: Format (bold,
+  italic, alignment, wrap, the engine's friendly number formats each with
+  its example, Excel's cell styles, Clear Formats), Sort & Filter, Rows &
+  Columns and Freeze. Each item shows its Excel key. Trailing: Find, New
+  Window, Explain.
+- **Formula bar** under the toolbar: the name box (type B12 or A1:C9 to go
+  there), fx (Explain this formula), and the cell's contents.
+- **The grid** is Excel's: column letters and row numbers, the active cell
+  framed in the accent, the selection tinted with the soft accent, the fill
+  handle at its corner. References in a formula being typed are outlined in
+  Excel's eight colours. Charts, pictures and shapes are quiet dashed cards
+  ("Chart — kept as it is") with their title.
+- **Status bar**: the sheet tabs on the leading side; Average, Count and Sum
+  of the selection, a circular reference when there is one (red, a link to
+  the cell), and the zoom on the trailing side.
+- **Tips** float in the bottom corner, one at a time, never while typing:
+  what, why, what it will put in, Do It (the one accent button), Not Now and
+  Don't Show Again.
+- **Explain** starts with the active cell: its formula said step by step
+  with each part's value, or why it shows an error with the engine's
+  one-click fixes; then every tool, then the shortcuts in Excel's and Google
+  Sheets' keys.
 ### Where Letters differs from the HIG on purpose
 
 - **Toolbar buttons keep their text labels.** The HIG prefers symbols alone in
