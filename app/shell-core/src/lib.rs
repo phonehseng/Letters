@@ -23,6 +23,8 @@ pub mod drive;
 pub mod forms;
 // redaction, hidden information and passwords (Protect), see protect/mod.rs
 pub mod protect;
+// the font library's folders, see fonts/mod.rs
+pub mod fonts;
 
 #[cfg(test)]
 mod annotation_tools_tests;

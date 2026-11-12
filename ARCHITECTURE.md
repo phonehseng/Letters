@@ -578,7 +578,13 @@ The engine is `core/forms` (see its README). The app's parts:
   over a signed file (`SessionError::SignedOriginal`, which points to Save
   As), and Save As of a changed document clears the guard for the copy.
   A signed file opened unchanged gets the same guard when its signatures
-  are checked.
+  are checked. With Protect: when saves are rewritten (a clean save after
+  a redaction) the file on disk is signed, not the working copy, and
+  signing then deletes the undo versions as a clean save does; Save As
+  of the unchanged signed file copies it exactly. A password or
+  restrictions (Protect's `ProtectionTable`, or a locked file on disk)
+  make signing refuse with a plain sentence, since the engine signs only
+  unencrypted files and locking afterwards would break the signature.
 - **The question before changing a signed document.** The viewer's
   `change` asks `fillSign.mayChange` first (undo and redo never ask).
   Save a Copy saves to a new file, releases the guard and goes on; Edit

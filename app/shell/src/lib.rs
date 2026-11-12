@@ -25,6 +25,8 @@ mod forms_menu;
 // redaction, hidden information and passwords (Protect)
 mod protect_commands;
 mod protect_menu;
+// the font library (system, added, bundled and downloadable fonts)
+mod fonts_commands;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
@@ -148,6 +150,26 @@ pub fn run() {
             protect_commands::protection_status,
             protect_commands::unlock_document,
             protect_commands::change_lock_on_save,
+            // the font library
+            fonts_commands::fonts_status,
+            fonts_commands::fonts_families,
+            fonts_commands::fonts_search,
+            fonts_commands::fonts_details,
+            fonts_commands::fonts_writing_systems,
+            fonts_commands::fonts_face_bytes,
+            fonts_commands::fonts_preview,
+            fonts_commands::fonts_add,
+            fonts_commands::fonts_remove,
+            fonts_commands::fonts_set_favourite,
+            fonts_commands::fonts_note_used,
+            fonts_commands::fonts_personal,
+            fonts_commands::fonts_accept_download_notice,
+            fonts_commands::fonts_download,
+            fonts_commands::fonts_cancel_download,
+            fonts_commands::fonts_fetch_preview,
+            fonts_commands::fonts_missing,
+            fonts_commands::fonts_resolve,
+            fonts_commands::fonts_similar,
         ]);
 
     // a menu bar only on macos: on windows it would sit inside every
@@ -161,6 +183,8 @@ pub fn run() {
             app.manage(AppState::start(handle));
             app.manage(writer_commands::WriterState::start(handle));
             app.manage(forms_commands::FormsState::start(handle));
+            // the font library starts scanning system fonts on its own thread
+            app.manage(fonts_commands::FontsState::start(handle));
             let arguments: Vec<String> = std::env::args().collect();
             windows::open_window(handle, file_argument(&arguments));
             Ok(())

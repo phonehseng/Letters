@@ -23,6 +23,8 @@ getrandom = "0.4"
 keyring = { version = "3", features = ["windows-native", "apple-native"] }
 # redaction, hidden information and passwords (see src/protect)
 letters-redact = { path = "../../core/redact" }
+# the font library (see src/fonts)
+letters-fonts = { path = "../../core/fonts" }
 
 [dev-dependencies]
 # the annotation engine, run through an edit session in the tests

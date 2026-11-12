@@ -29,6 +29,8 @@ letters-annotate = { path = "../../core/annotate" }
 letters-forms = { path = "../../core/forms" }
 # redaction, hidden information and passwords (Protect)
 letters-redact = { path = "../../core/redact" }
+# the font library (fonts_commands.rs)
+letters-fonts = { path = "../../core/fonts" }
 letters-shell-core = { path = "../shell-core" }
 # the document type every edit closure receives (mit licence)
 lopdf = "0.47"

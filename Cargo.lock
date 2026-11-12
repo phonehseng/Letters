@@ -2740,6 +2740,7 @@ name = "letters-shell"
 version = "0.1.0"
 dependencies = [
  "letters-annotate",
+ "letters-fonts",
  "letters-forms",
  "letters-pages",
  "letters-pdf",
@@ -2761,6 +2762,7 @@ dependencies = [
  "getrandom 0.4.3",
  "keyring",
  "letters-annotate",
+ "letters-fonts",
  "letters-forms",
  "letters-office",
  "letters-pages",
