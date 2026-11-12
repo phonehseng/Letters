@@ -147,7 +147,8 @@ pub fn subset_truetype(
     Ok(write_font(0x0001_0000, &output))
 }
 
-fn read_loca(loca: &[u8], glyph_count: usize, long: bool) -> Option<Vec<usize>> {
+/// the glyph offsets from a loca table (`glyph_count + 1` of them).
+pub(crate) fn read_loca(loca: &[u8], glyph_count: usize, long: bool) -> Option<Vec<usize>> {
     (0..=glyph_count)
         .map(|glyph| {
             if long {

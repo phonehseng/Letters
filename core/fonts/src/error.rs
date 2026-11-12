@@ -1,3 +1,5 @@
+//! the errors of the font library, each a sentence the person can act on.
+
 use thiserror::Error;
 
 /// everything that can go wrong with fonts.

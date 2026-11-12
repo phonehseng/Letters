@@ -464,6 +464,13 @@ impl FontLibrary {
         path.is_file().then_some(path)
     }
 
+    /// where the fetched preview file of a library family is, once
+    /// `fetch_preview` has fetched it.
+    pub fn preview_font_file(&self, name: &str) -> Option<PathBuf> {
+        let index = self.index();
+        self.preview_file(index.family(name)?)
+    }
+
     /// downloads only the regular file of a library family, so it can be
     /// previewed before choosing to download it all.
     pub fn fetch_preview(&self, name: &str) -> Result<(), FontError> {

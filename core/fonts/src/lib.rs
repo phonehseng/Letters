@@ -11,8 +11,14 @@
 //! alikes (similar), substitutes and fallbacks (substitute), previews
 //! (outline, raster, preview), embedding (subset), added fonts (custom),
 //! the online catalogue (catalogue) and downloads (download).
+//!
+//! `complete` gives a document's subset font the letters new text needs
+//! (the same font found here, a near font fitted to it, letters built from
+//! its own, or optionally generated), using `matching` to compare and fit
+//! outlines.
 
 pub mod catalogue;
+pub mod complete;
 pub mod container;
 pub mod coverage;
 pub mod custom;
@@ -22,6 +28,7 @@ pub mod facts;
 pub mod fuzzy;
 pub mod index;
 pub mod library;
+pub mod matching;
 pub mod model;
 pub mod outline;
 pub mod preview;

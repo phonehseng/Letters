@@ -166,6 +166,175 @@ Every font Letters ships or offers may be redistributed and embedded:
   Fontsource (`@fontsource/atkinson-hyperlegible` 5.3.0), all SIL Open
   Font License 1.1 (`tests/fixtures/OFL.txt`).
 
+## Completing a document's font (`complete/`, `matching/`)
+
+PDFs embed **subset** fonts: only the letters already on the page, often
+of a typeface the person doesn't have. When new words need letters the
+subset lacks, `complete` gives the font those letters, trying the most
+faithful way first and saying which way made each one.
+
+### The calls
+
+```rust
+use letters_fonts::complete::*;
+use letters_fonts::matching::{DonorPool, StyleFit};
+
+// the document's font: its program (FontFile2/3 bytes) and, for fonts
+// whose cmap can't be trusted, which glyph draws each character; plus
+// the pdf's /Widths (thousandths of the em) and its /BaseFont name
+let subset = SubsetFont::from_font_bytes(&program, 0, Some(&char_to_glyph))?
+    .with_pdf_widths(&widths)
+    .with_name("ABCDEF+Corporate-Regular");
+
+// which fonts it could be, best first (`same_design` on the first when found)
+let candidates = identify(&subset, &DonorPool::from_index(&library.index()), &options);
+
+// the font to embed for new text, using every font the library has
+let completed = font_for_new_text(&subset, "text the person typed", &library, &options)?;
+// or with a chosen pool:   complete_font(&subset, text, &pool, &options)?
+// or with generated glyphs: complete_font_with(&subset, text, &pool, &options, Some(&generation))?
+
+completed.font            // TrueType bytes to embed (FontFile2)
+completed.char_to_glyph   // character → glyph number in it
+completed.glyphs          // per needed character: strategy, donor and licence, similarity, sentence
+completed.report          // MatchReport: identified font, fit summary, candidates, licence notes, sentences
+completed.style           // StyleFit: stem, x-height, cap height, ascender, descender, slant, contrast, side bearing
+completed.kerning         // (left, right, em) pairs for new glyphs, from the same design only
+completed.new_glyphs      // the new outlines in em units, for callers that draw or measure them
+```
+
+`SubsetFont::from_glyphs` takes outlines instead (em units, built with
+`matching::ShapeBuilder`, which accepts drawing commands in any font
+units), for callers such as core/exact that already rebuilt the font.
+
+### The contract
+
+- **Existing text is unchanged.** When the document's font is TrueType,
+  every one of its glyphs is copied into the completed font byte for byte
+  and keeps its number; new glyphs are appended after the last one. A
+  composite font can keep `CIDToGIDMap /Identity`; a simple font's old
+  symbol and mac cmap subtables are kept as they were. The hinting
+  programs stay for the old glyphs; new glyphs are unhinted, with their
+  extremes as points and TrueType contour direction. A CFF document font
+  is redrawn as TrueType (within a thousandth of the em) with new glyph
+  numbers, and a notice says so.
+- **Every new glyph says how it was made** (`Strategy`), most faithful
+  first:
+  1. `ExactDonor`: the same design was found on this computer (every
+     shared glyph compared; 90% within 1.5 ‰ of the em on average, 8 ‰ at
+     worst, and 2 ‰ in advance). Its glyphs are copied unchanged, with its
+     kerning for the new pairs. "Found the same font on this computer: X."
+  2. `FittedDonor`: the closest design, changed to imitate the document's
+     font: vertical zones (descender, x-height, capitals, ascenders),
+     width and stem weight by least squares, the weight of bars and serifs
+     separately, slant, and a spacing model of advances and side bearings.
+     Variable donors are first set to their closest axis values. Every
+     fourth shared glyph is held out to report the remaining error.
+  3. `Composed`: built from the font's own glyphs: accented letters (base
+     plus the mark of another accented letter, a spacing accent, or a
+     fitted donor's mark), dotless i and j, ligatures, superscript digits.
+     Accents are built before a near donor is asked, because the base is
+     the real thing. "“é” was built from “e” and the acute accent of “á”."
+  4. `Generated`: drawn by the optional AI tools provider (below), kept
+     only when it fits the measured style better than strategy 2.
+  5. `LookAlike`: the closest font as it is. "New text uses Y because
+     nothing closer was found."
+  6. `Missing`: nothing could draw it. "Nothing on this computer can draw “ж”."
+- **Widths.** A pdf width for the character wins over everything else;
+  then the same design's advance; then the fitted spacing model.
+- **Colour, size, tracking and baseline** come from the surrounding run
+  and are the caller's job; `StyleFit` gives the measured stem, heights,
+  slant and side bearing so callers can keep spacing consistent.
+- **Percent alike** is `100 × (1 − mean outline distance / 30 ‰ of the
+  em)`; unrelated designs of one kind land near 50%, a fit that is very
+  hard to see near 97%, the same font at 100%.
+- **The cache** (`CompleteOptions::cache_folder`) keeps fitted donors and
+  completed fonts, keyed by a hash of the subset's outlines, the letters
+  asked for, the options and the fonts available, so the next edit with
+  the same font is instant. Completions with generated glyphs are not
+  cached.
+
+### Licences, plainly
+
+- A font lends glyphs only when its OS/2 `fsType` allows editable
+  embedding and subsetting (installable or editable). Print-and-preview,
+  restricted and bitmap-only fonts are never copied from; the report says
+  which were skipped and why, and gives the licence sentence of every font
+  that did lend glyphs.
+- A completed font is a derived font. Its name table carries a neutral
+  generated family ("Letters Completed 3f2a91c0"), never the name of the
+  font it came from, and it keeps the document font's `fsType`.
+- What a person should know: this is a tool for editing a document you
+  already have. When the document's typeface is commercial and isn't on
+  your computer, the new letters are **look-alikes**: shapes from another
+  font (or drawn to imitate it), adjusted to fit, not the commercial font
+  itself. Only the glyphs the new text needs are embedded, inside this one
+  document. Using look-alike letters to stand in for a typeface outside
+  editing your own document, or presenting them as that typeface, is up
+  to that typeface's licence and not something Letters grants.
+
+### Generated glyphs (optional AI tools)
+
+Off unless the person turned on AI tools. `plan_generation` works out
+the request and a `GlyphDisclosure` whose sentence says what goes where:
+"This will send the outlines of 24 letters of this document’s font and
+the characters wanted (“j”, “k” and “q”) to fonts.example.org. No text of
+the document is sent." What is sent: example glyphs as path data on a
+1000-unit grid, the measured metrics, and the wanted characters (each
+once, sorted, so the words being typed can't be read from them). A
+generator only sends with a `GlyphPermit`, and only an acknowledgement of
+that very disclosure makes one. Replies are checked strictly (absolute M,
+L, Q, C, Z; closed contours; bounds; no crossings; believable advance) and
+scored against the style; a glyph is kept only when it beats the fitted
+donor's. The request format names no provider; `GlyphGenerator` is all a
+provider implements. Everything is tested with `FakeGenerator` (canned
+replies, including malformed and off-style ones); nothing here contacts a
+service. The letters-ai crate can't carry this request yet (its requests
+and disclosures are built only inside it, for page text), so wiring a real
+provider needs a glyph task added there.
+
+### How seamless it is
+
+`cargo run --release -p letters-fonts --example completion_report --
+core/fonts/COMPLETION_REPORT.md` cuts test fonts down to one sentence's
+letters, asks for a second sentence's, and compares with the true glyphs
+at 11 pt and 300 dpi. Results on this computer (Windows 11, 66 fonts):
+
+- the same font installed: invisible (identical, every time);
+- another weight of the family: invisible for Arial (from Arial Narrow),
+  close for Calibri and Segoe UI (shapes SSIM 0.98, advances 5 to 7 ‰
+  off), plainly visible for Times New Roman and Verdana from Bold;
+- the metric twin only (Arimo, Carlito, Tinos): widths exact, shapes
+  visibly different on close reading (shapes SSIM 0.87 to 0.93) because
+  the twins are different designs;
+- unrelated fonts of the same kind: plainly visible (shapes SSIM 0.76 to
+  0.87, advances 20 to 47 ‰ off);
+- accents built from the subset: invisible to very hard to see.
+
+### Limits
+
+- Fitting can change zones, width, weight and slant, not design: a
+  look-alike's own letterforms ("a", "g", "J", "4") stay its own. Only the
+  same design, built accents, or a generator can be truly seamless.
+- Advances of new letters are predicted from the shared ones; with
+  unrelated donors they are 20 to 45 ‰ of the em off on average, which
+  shows as uneven spacing. A pdf width for the character fixes it.
+- The held-out check uses the subset's own letters, so it flatters fits
+  for letters unlike them (capitals and figures when the subset is mostly
+  lowercase).
+- Thinning is capped by the thinnest stroke, so a much bolder donor can't
+  be brought all the way down (Times New Roman from its Bold).
+- Accents below the letter (cedilla, ogonek) are found only when the font
+  draws them as a separate contour; capital accents are made from
+  lowercase ones by flattening them a little.
+- Kerning comes only from the same design; fitted and built glyphs get
+  side bearings from the spacing model and no kerning.
+- `font_for_new_text` with `allow_download` fetches the online library's
+  closest families' regular files; that path is not exercised by tests
+  (no downloads were made while building it).
+- Small capitals, and digits or punctuation made from neighbouring
+  glyphs, are not built.
+
 ## Making the catalogue again
 
 ```powershell

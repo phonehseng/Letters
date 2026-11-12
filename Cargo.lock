@@ -2609,6 +2609,7 @@ version = "0.1.0"
 dependencies = [
  "image",
  "lopdf",
+ "pdfium-render",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -2736,6 +2737,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "letters-search"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "letters-sheets"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "letters-shell"
 version = "0.1.0"
 dependencies = [
@@ -2774,6 +2789,20 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "ureq",
+]
+
+[[package]]
+name = "letters-slides"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "letters-standards"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
 ]
 
 [[package]]
