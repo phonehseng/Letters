@@ -6,7 +6,7 @@
 //! hidden, which would make every search find them twice). used inside one
 //! edit, so when any page fails nothing changes.
 
-use letters_edit::{convert_scan_to_text, ChangesSummary, ScanOptions};
+use letters_edit::{convert_scan_to_text, page_objects, ChangesSummary, ScanOptions};
 use letters_ocr::{remove_text_layer, OcrPage};
 use serde::Serialize;
 
@@ -34,6 +34,14 @@ pub fn make_pages_editable(
     let mut summary = EditableSummary::default();
     for (page, words) in pages {
         let on_page = |error: String| format!("Page {}: {error}", page + 1);
+        // a page made editable before already shows its words as real
+        // text: converting it again would write every line a second time
+        if has_visible_text(doc, *page) {
+            return Err(format!(
+                "Page {} already has editable text. Change it in the Edit tab, or Undo the earlier Make Editable Text to read the scan again.",
+                page + 1
+            ));
+        }
         remove_text_layer(doc, *page).map_err(|error| on_page(error.to_string()))?;
         let converted = convert_scan_to_text(doc, *page as usize, words, options)
             .map_err(|error| on_page(error.to_string()))?;
@@ -48,6 +56,21 @@ pub fn make_pages_editable(
         merge(&mut summary.changes, converted.summary);
     }
     Ok(summary)
+}
+
+/// whether a page shows text a person can see (not only Letters' hidden
+/// layer over a scan). a page that can't be read is left to the conversion,
+/// which says what is wrong with it.
+fn has_visible_text(doc: &lopdf::Document, page: u32) -> bool {
+    let Ok(objects) = page_objects(doc, page as usize) else {
+        return false;
+    };
+    objects
+        .text_blocks
+        .iter()
+        .flat_map(|block| &block.lines)
+        .flat_map(|line| &line.runs)
+        .any(|run| !run.invisible && !run.text.trim().is_empty())
 }
 
 fn merge(all: &mut ChangesSummary, page: ChangesSummary) {
