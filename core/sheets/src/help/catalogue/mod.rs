@@ -176,6 +176,30 @@ pub fn required_arguments(name: &str) -> usize {
     required.get(name).copied().unwrap_or(0)
 }
 
+/// how many arguments a function takes at most, or `None` when its last
+/// one repeats (SUM's number1, number2, ...). more than that gives #VALUE!,
+/// as too few does: LEN("a","b") used to give 1, PI(1) gave pi.
+pub fn allowed_arguments(name: &str) -> Option<usize> {
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    static ALLOWED: OnceLock<HashMap<&'static str, Option<usize>>> = OnceLock::new();
+    let allowed = ALLOWED.get_or_init(|| {
+        math_and_stats::RECORDS
+            .iter()
+            .chain(lookup_text_dates::RECORDS)
+            .map(|record| {
+                let specs: Vec<&str> = record.3.split("; ").filter(|s| !s.is_empty()).collect();
+                // a name ending in "..." (before its kind) repeats
+                let repeats = specs
+                    .iter()
+                    .any(|spec| spec.split('|').next().unwrap_or("").trim().ends_with("..."));
+                (record.0, (!repeats).then_some(specs.len()))
+            })
+            .collect()
+    });
+    allowed.get(name).copied().flatten()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,6 +256,26 @@ mod tests {
             }
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    /// every function given one argument more than it takes shows #VALUE!
+    #[test]
+    fn too_many_arguments_give_value_errors() {
+        for info in catalogue() {
+            let Some(most) = allowed_arguments(&info.name) else {
+                continue;
+            };
+            let arguments = vec!["1"; most + 1].join(",");
+            let formula = format!("{}({arguments})", info.name);
+            let mut book = Workbook::new();
+            book.set_formula(0, 0, 0, &formula);
+            crate::calc::recalculate(&mut book);
+            assert_eq!(
+                book.value(0, 0, 0),
+                Value::Error(crate::model::ErrorValue::Value),
+                "{formula}"
+            );
+        }
     }
 
     /// every function given fewer arguments than it needs shows #VALUE!
