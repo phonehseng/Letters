@@ -129,6 +129,8 @@ export class AnnotateSession {
   /** where the selected object's frame is drawn while it is dragged or nudged */
   framePreview = $state<Rect | null>(null);
   note = $state<NoteDraft | null>(null);
+  /** the words in the open note's field, kept by NotePopover as they are typed */
+  noteTyped = $state<string | null>(null);
   editing = $state<TextBoxDraft | null>(null);
   styles = $state<AnnotateStyles>(defaultStyles());
   /** the picture chosen for the Picture tool, with its width over height */
@@ -243,6 +245,9 @@ export class AnnotateSession {
   /** the press on a page is about an annotation (Select tool), or null to select text. */
   #pick(pointer: PagePointer): Gesture | null {
     const hit = annotationAt(this.annotations, pointer.page, pointer);
+    // a click away from the open note keeps what was typed in it, as
+    // leaving a text box does; only Escape or the close button drop it
+    if (this.note && hit?.id !== this.note.id) this.keepTypedNote();
     if (!hit) {
       this.deselect();
       this.note = null;
@@ -418,20 +423,33 @@ export class AnnotateSession {
   }
 
   /** saves the note being written: adds a new one, or changes the comment of one that exists. */
-  async saveNote(text: string): Promise<boolean> {
-    const draft = this.note;
+  async saveNote(text: string, draft: NoteDraft | null = this.note): Promise<boolean> {
     if (!draft) return false;
     const id = this.#host.documentId();
+    // the pop-up shows the saved note only if it is still the open one
+    const stillOpen = () => this.note === draft;
     if (draft.id === null) {
       const made = await this.#add(() => addNote(id, draft.page, { position: draft.position, color: this.styles.note, contents: text }), true);
-      if (made) this.note = { ...draft, id: made.id, text };
+      if (made && stillOpen()) this.note = { ...draft, id: made.id, text };
       return made !== null;
     }
     const noteId = draft.id;
     if (text === draft.text) return true;
     const changed = await this.#edit(() => updateAnnotation(id, draft.page, noteId, { contents: text }));
-    if (changed) this.note = { ...draft, text };
+    if (changed && stillOpen()) this.note = { ...draft, text };
     return changed !== null;
+  }
+
+  /**
+   * the note is being closed by a click elsewhere: what was typed in it is
+   * saved, unless nothing changed or a new note was left empty.
+   */
+  keepTypedNote() {
+    const draft = this.note;
+    const typed = this.noteTyped;
+    if (!draft || typed === null || typed === draft.text) return;
+    if (draft.id === null && typed.trim() === "") return;
+    void this.saveNote(typed, draft);
   }
 
   async reply(to: AnnotationInfo, text: string): Promise<boolean> {
@@ -456,6 +474,7 @@ export class AnnotateSession {
 
   editTextBox(annotation: AnnotationInfo) {
     if (annotation.details.type !== "textBox" || !annotation.editable) return;
+    this.keepTypedNote();
     this.note = null;
     // the tab's text controls show, and change, this box's own style while it is typed in
     const { font, fontSize, textColor, align, fill } = annotation.details;

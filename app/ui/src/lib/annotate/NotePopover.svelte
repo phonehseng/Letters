@@ -48,6 +48,12 @@
     if (isNew) tick().then(() => field?.focus());
   });
 
+  // the session saves these words if a click elsewhere closes the note
+  $effect(() => {
+    session.noteTyped = text;
+    return () => (session.noteTyped = null);
+  });
+
   async function save() {
     if (busy) return;
     busy = true;
