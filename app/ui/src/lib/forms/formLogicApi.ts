@@ -89,10 +89,7 @@ export function setFieldLogic(id: number, name: string, changes: FieldLogicChang
   return invoke("forms_set_field_logic", { id, name, changes });
 }
 
-export function setCalculationOrder(id: number, names: string[]): Promise<DocumentState> {
-  return invoke("forms_set_calculation_order", { id, names });
-}
-
+/** works every total out again, for a form whose totals are out of date. */
 export function recalculate(id: number): Promise<{ document: DocumentState; changed: ChangedField[] }> {
   return invoke("forms_recalculate", { id });
 }

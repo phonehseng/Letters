@@ -95,18 +95,6 @@ pub fn forms_set_field_logic(
     Ok(LogicEdit { document, logic })
 }
 
-/// the order calculated fields are worked out in (/CO).
-#[tauri::command(async)]
-pub fn forms_set_calculation_order(
-    state: State<AppState>,
-    id: u64,
-    names: Vec<String>,
-) -> Result<DocumentState, CommandError> {
-    state.edit(DocumentId(id), |document| {
-        forms::set_calculation_order(document, &names)
-    })
-}
-
 /// works every calculation out again, for a form opened with stale totals.
 #[tauri::command(async)]
 pub fn forms_recalculate(state: State<AppState>, id: u64) -> Result<FilledField, CommandError> {

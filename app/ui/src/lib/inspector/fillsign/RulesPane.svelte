@@ -6,7 +6,7 @@
   // (circles, unknown fields) and the scripts Letters leaves alone are
   // listed under it in the engine's own sentences.
   import { untrack } from "svelte";
-  import { setFieldLogic, type FormLogicView } from "../../forms/formLogicApi";
+  import { recalculate, setFieldLogic, type FormLogicView } from "../../forms/formLogicApi";
   import {
     CALCULATION_LABELS,
     changesFrom,
@@ -60,6 +60,18 @@
       if (field) draft = draftFrom(read, field);
     });
   });
+
+  // a form made elsewhere can arrive with totals that don't match its answers
+  async function workOutAgain() {
+    const id = context.document.id;
+    let count = 0;
+    const worked = await context.change(async () => {
+      const result = await recalculate(id);
+      count = result.changed.length;
+      return result.document;
+    });
+    if (worked) context.notify(`${count} ${count === 1 ? "total was" : "totals were"} worked out again.`);
+  }
 
   function toggleSource(name: string, on: boolean) {
     const rest = draft.calculationFields.filter((each) => each !== name);
@@ -194,6 +206,9 @@
 
 {#if logic}
   {#each logic.issues as issue, index (index)}<p class="note" role="alert">{issue.message}</p>{/each}
+  {#if logic.calculationOrder.length > 0}
+    <button class="button" title="Work out every calculated field again from the answers it reads" onclick={workOutAgain}>Work Out Totals Again</button>
+  {/if}
   {#if logic.customScriptNote}<p class="note">{logic.customScriptNote}.</p>{/if}
   <details>
     <summary class="hint">Not offered</summary>

@@ -147,10 +147,6 @@ export function setSigningOrder(id: number, fields: string[]): Promise<DocumentS
   return invoke("forms_set_signing_order", { id, fields });
 }
 
-export function addDocumentTimestamp(id: number): Promise<DocumentState> {
-  return invoke("forms_add_document_timestamp", { id });
-}
-
 export function addValidationData(id: number): Promise<DocumentState> {
   return invoke("forms_add_validation_data", { id });
 }

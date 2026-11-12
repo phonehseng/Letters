@@ -95,3 +95,11 @@ audit trail entry signing adds. The overview now carries the engine's
 verdict per signature (from verify_document), and a valid signature whose
 later changes the author allowed reads "Valid, changed as allowed"; changes
 that weren't allowed, or with no verdict, still read as changed.
+
+## 2026-11-12: Work Out Totals Again, and no commands without a button
+
+Rules has Work Out Totals Again for a form that arrives with totals that
+don't match its answers. The commands for setting the calculation order and
+adding a document time stamp had no place in the interface yet, so they
+were taken out rather than left unused; core/forms has both when they get
+one (a document time stamp also needs the disclosure shown first).

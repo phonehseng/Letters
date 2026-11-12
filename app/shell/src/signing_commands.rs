@@ -169,19 +169,6 @@ pub fn forms_set_signing_order(
     })
 }
 
-/// a time stamp over the whole document so far, from the server in Settings.
-#[tauri::command(async)]
-pub fn forms_add_document_timestamp(
-    state: State<AppState>,
-    settings: State<SettingsState>,
-    id: u64,
-) -> Result<DocumentState, CommandError> {
-    let authority = timestamp_authority(&settings)?;
-    change_saved_bytes(&state, id, |bytes| {
-        forms::add_document_timestamp(bytes, &authority)
-    })
-}
-
 /// the certificates every signature carries, stored in the document so it
 /// can be checked later. nothing is fetched.
 #[tauri::command(async)]
