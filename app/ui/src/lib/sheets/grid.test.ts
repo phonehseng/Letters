@@ -123,3 +123,25 @@ describe("the fill handle", () => {
     expect(fillTarget(source, { row: 2, col: 1 })).toBeNull();
   });
 });
+
+describe("AutoSum on a selection", async () => {
+  const { autoSumCells } = await import("./sheetActions");
+  const at = (row: number, col: number) => ({ row, col });
+
+  it("puts the total below a selected column, not over its first number", () => {
+    // A1:A3 selected: =SUM(A1:A3) in A4
+    expect(autoSumCells(rangeOf(at(0, 0), at(2, 0)))).toEqual([{ row: 3, col: 0, formula: "=SUM(A1:A3)" }]);
+  });
+
+  it("puts a total below each column of a block, and to the right of a row", () => {
+    expect(autoSumCells(rangeOf(at(0, 0), at(1, 1)))).toEqual([
+      { row: 2, col: 0, formula: "=SUM(A1:A2)" },
+      { row: 2, col: 1, formula: "=SUM(B1:B2)" },
+    ]);
+    expect(autoSumCells(rangeOf(at(4, 1), at(4, 3)))).toEqual([{ row: 4, col: 4, formula: "=SUM(B5:D5)" }]);
+  });
+
+  it("leaves a single cell to AutoSum in place", () => {
+    expect(autoSumCells(rangeOf(at(3, 0), at(3, 0)))).toBeNull();
+  });
+});
