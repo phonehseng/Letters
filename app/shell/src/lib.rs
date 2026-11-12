@@ -37,6 +37,13 @@ mod content_menu;
 mod edit_commands;
 mod ocr_commands;
 mod ocr_images_commands;
+// edit tab, round two: text that reflows, shapes, picture crops, page
+// setup, and scans made editable
+mod edit_answers;
+mod edit_flow_commands;
+mod edit_page_commands;
+mod edit_shape_commands;
+mod ocr_editable_commands;
 // conversion and export, the optional ai tools, the settings window, and
 // opening every registered kind of file (several at once included)
 mod ai_commands;
@@ -103,6 +110,8 @@ fn manage_feature_states(app: &tauri::App) {
     app.manage(forms_commands::FormsState::start(handle));
     // the font library starts scanning system fonts on its own thread
     app.manage(fonts_commands::FontsState::start(handle));
+    // edit tab: the font library's fonts lent to edits that add letters
+    app.manage(edit_flow_commands::EditFlowState::start(handle));
     // compare: the comparisons open in each window
     app.manage(compare_commands::CompareState::start(handle));
     // export, ai tools and settings

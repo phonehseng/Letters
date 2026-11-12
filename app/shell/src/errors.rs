@@ -32,6 +32,16 @@ impl CommandError {
         }
     }
 
+    /// edit tab: the file is digitally signed and the change would make
+    /// the signature invalid; the ui asks, naming the signer, then sends
+    /// the change again with consent.
+    pub fn needs_consent(message: String) -> Self {
+        Self {
+            kind: "signatures-would-break",
+            message,
+        }
+    }
+
     pub fn not_open() -> Self {
         Self::from(PdfError::UnknownDocument)
     }

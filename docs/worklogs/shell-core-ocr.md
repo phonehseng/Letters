@@ -41,3 +41,10 @@ recognised pages inside one edit. A page's invisible text layer (from
 Recognize Text) is taken off first; otherwise every word would be on the
 page twice and every search would find it twice. A page that fails names
 itself in the sentence and nothing changes.
+
+## 2026-11-12 the Make Editable Text command
+
+`ocr_make_editable` takes the words of a finished run (`job`), or for pages
+read before, tesseract's kept words while they match the page, else the
+hidden layer read back. A page with neither is refused with a sentence
+naming it.
