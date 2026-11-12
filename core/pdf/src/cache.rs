@@ -4,7 +4,7 @@
 //! dropped first. this is what stops a 500 page document, or ten open
 //! windows, from slowly eating all the memory.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use crate::TileKey;
@@ -12,12 +12,23 @@ use crate::TileKey;
 /// finished tiles are shared, not copied, when they are handed out.
 pub type TileBytes = Arc<Vec<u8>>;
 
+/// a tile together with the moment it was last used.
+struct Entry {
+    tile: TileBytes,
+    last_used: u64,
+}
+
 pub struct TileCache {
     budget_bytes: usize,
     used_bytes: usize,
-    tiles: HashMap<TileKey, TileBytes>,
-    /// keys from least recently used (front) to most recently used (back)
-    recency: VecDeque<TileKey>,
+    tiles: HashMap<TileKey, Entry>,
+    /// the same tiles ordered by when they were last used, oldest first.
+    /// an ordered map makes "touch a tile" and "find the oldest" quick
+    /// however many tiles there are, where a plain list had to be
+    /// searched from end to end on every use.
+    by_age: BTreeMap<u64, TileKey>,
+    /// counts uses. every use gets the next number, so numbers never repeat.
+    clock: u64,
 }
 
 impl TileCache {
@@ -26,7 +37,8 @@ impl TileCache {
             budget_bytes,
             used_bytes: 0,
             tiles: HashMap::new(),
-            recency: VecDeque::new(),
+            by_age: BTreeMap::new(),
+            clock: 0,
         }
     }
 
@@ -44,9 +56,12 @@ impl TileCache {
 
     /// returns the tile if it is cached, and marks it as just used.
     pub fn get(&mut self, key: &TileKey) -> Option<TileBytes> {
-        let tile = self.tiles.get(key)?.clone();
-        self.mark_as_recent(key);
-        Some(tile)
+        let now = self.tick();
+        let entry = self.tiles.get_mut(key)?;
+        self.by_age.remove(&entry.last_used);
+        entry.last_used = now;
+        self.by_age.insert(now, *key);
+        Some(entry.tile.clone())
     }
 
     /// stores a tile, then drops old tiles until the budget is met again.
@@ -57,9 +72,16 @@ impl TileCache {
         if tile.len() > self.budget_bytes {
             return;
         }
+        let now = self.tick();
         self.used_bytes += tile.len();
-        self.tiles.insert(key, tile);
-        self.recency.push_back(key);
+        self.tiles.insert(
+            key,
+            Entry {
+                tile,
+                last_used: now,
+            },
+        );
+        self.by_age.insert(now, key);
         self.drop_old_tiles_until_within_budget();
     }
 
@@ -77,24 +99,24 @@ impl TileCache {
     }
 
     fn remove(&mut self, key: &TileKey) {
-        if let Some(tile) = self.tiles.remove(key) {
-            self.used_bytes -= tile.len();
-            self.recency.retain(|other| other != key);
+        if let Some(entry) = self.tiles.remove(key) {
+            self.used_bytes -= entry.tile.len();
+            self.by_age.remove(&entry.last_used);
         }
     }
 
-    fn mark_as_recent(&mut self, key: &TileKey) {
-        self.recency.retain(|other| other != key);
-        self.recency.push_back(*key);
+    fn tick(&mut self) -> u64 {
+        self.clock += 1;
+        self.clock
     }
 
     fn drop_old_tiles_until_within_budget(&mut self) {
         while self.used_bytes > self.budget_bytes {
-            let Some(oldest) = self.recency.pop_front() else {
+            let Some((_, oldest)) = self.by_age.pop_first() else {
                 break;
             };
-            if let Some(tile) = self.tiles.remove(&oldest) {
-                self.used_bytes -= tile.len();
+            if let Some(entry) = self.tiles.remove(&oldest) {
+                self.used_bytes -= entry.tile.len();
             }
         }
     }
@@ -181,5 +203,23 @@ mod tests {
         assert_eq!(cache.len(), 1);
         assert_eq!(cache.used_bytes(), 10);
         assert!(cache.get(&key(2, 0)).is_some());
+    }
+
+    #[test]
+    fn heavy_mixed_use_keeps_the_count_and_the_bytes_right() {
+        let mut cache = TileCache::new(640);
+        for step in 0..5_000u32 {
+            let page = (step * 7) % 40;
+            if step % 3 == 0 {
+                cache.get(&key(1, page));
+            } else {
+                cache.insert(key(1, page), tile(64));
+            }
+            assert!(cache.used_bytes() <= 640);
+            assert_eq!(cache.used_bytes(), cache.len() * 64);
+        }
+        cache.remove_where(|_| true);
+        assert!(cache.is_empty());
+        assert_eq!(cache.used_bytes(), 0);
     }
 }
