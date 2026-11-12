@@ -19,6 +19,7 @@ import { editTools } from "./edit/editTools";
 import { ocrTools } from "./ocr/ocrTools";
 import { conversionTools } from "./export/conversionTools";
 import { libraryTools } from "./library/libraryTools";
+import { codeTools } from "./code/codeTools";
 
 export interface ToolHelp {
   label: string;
@@ -438,6 +439,8 @@ export const tools = {
   ...conversionTools,
   // search all documents, the page finder, reading and writing long documents: library/libraryTools.ts
   ...libraryTools,
+  // code and text files: listed in code/codeTools.ts
+  ...codeTools,
 } satisfies Record<string, ToolHelp>;
 
 export type ToolName = keyof typeof tools;

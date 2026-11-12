@@ -9,6 +9,8 @@
   import { matchesSearch, plural, timeAgo } from "./format";
   // word documents show their kind instead of a page count (lib/writer)
   import { recentDetails } from "./writer/routing";
+  // code files show their language ("C file") instead of a page count (lib/code)
+  import { codeFileKind } from "./code/languages";
   import HelpPanel from "./HelpPanel.svelte";
   import Icon from "./Icon.svelte";
   import ToolButton from "./ToolButton.svelte";
@@ -123,7 +125,7 @@
               </span>
               <span class="name">{file.name}</span>
               <span class="details">
-                {recentDetails(file.path, file.pageCount, (count) => plural(count, "page"))} · {timeAgo(file.openedAt, now)}
+                {codeFileKind(file.path) ?? recentDetails(file.path, file.pageCount, (count) => plural(count, "page"))} · {timeAgo(file.openedAt, now)}
               </span>
             </button>
             <button

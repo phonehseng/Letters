@@ -47,6 +47,8 @@ pub mod library_search;
 pub mod reading;
 // moving, copying, renaming and recycling documents, see organise/mod.rs
 pub mod organise;
+// code files: the code editor's files, checks and exports, see code/mod.rs
+pub mod code;
 
 #[cfg(test)]
 mod annotation_tools_tests;

@@ -15,6 +15,8 @@ use crate::{
     page_commands, protect_commands, reading_commands, search_commands, settings_commands,
     writer_commands,
 };
+// code and text files, kept on its own line so it never shifts the list above
+use crate::code_commands;
 // moving, copying and renaming documents, on its own line for the same reason
 use crate::organise_commands;
 
@@ -71,6 +73,7 @@ fn features() -> Vec<Feature> {
         settings(),
         library_search(),
         reading_and_writing(),
+        code_files(),
         organising(),
     ]
 }
@@ -405,6 +408,23 @@ fn reading_and_writing() -> Feature {
     ]
 }
 
+/// code and text files: the code editor screen, its checks and exports.
+fn code_files() -> Feature {
+    feature![
+        code_commands::code_open,
+        code_commands::code_open_untitled,
+        code_commands::code_save,
+        code_commands::code_autosave,
+        code_commands::code_discard_recovery,
+        code_commands::code_tools,
+        code_commands::code_check,
+        code_commands::code_cancel_check,
+        code_commands::code_open_in_vscode,
+        code_commands::code_reveal,
+        code_commands::code_export_document,
+        code_commands::code_find_in_document,
+    ]
+}
 
 /// organising documents: move, copy, rename, undo, recycle, reveal, new folder.
 fn organising() -> Feature {

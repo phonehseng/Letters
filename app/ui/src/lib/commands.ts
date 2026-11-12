@@ -16,6 +16,8 @@ import { NEW_FROM_IMAGES, OCR_COMMANDS, OCR_KEYS } from "./ocr/ocrCommands";
 import { CONVERSION_COMMANDS, conversionCommandForKey } from "./export/conversionCommands";
 // search all documents and long documents (reading/readingCommands.ts)
 import { READING_COMMANDS, readingCommandForKey, readingPlainKey } from "./reading/readingCommands";
+// code and text files (code/codeCommands.ts)
+import { CODE_COMMANDS, CODE_KEYS } from "./code/codeCommands";
 
 export const COMMANDS = [
   "open",
@@ -76,6 +78,8 @@ export const COMMANDS = [
   ...CONVERSION_COMMANDS,
   // search all documents, go to, back and forward, bookmarks, focus (reading/readingCommands.ts)
   ...READING_COMMANDS,
+  // code and text files, exports and checks of code in documents (code/codeCommands.ts)
+  ...CODE_COMMANDS,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];
@@ -153,7 +157,8 @@ export function commandForKey(press: KeyPress): Command | null {
   if (press.altGraph && press.typing) return null;
   if (press.altKey) {
     // edit: W edits the page's text, O recognises it (edit/editCommands.ts, ocr/ocrCommands.ts)
-    return DIGIT_COMMANDS[press.code] ?? ANNOTATE_KEYS[press.code] ?? FILL_SIGN_KEYS[press.code] ?? PROTECT_KEYS[press.code] ?? EDIT_KEYS[press.code] ?? OCR_KEYS[press.code] ?? null;
+    // code: X exports as a code file, K checks the code in a document (code/codeCommands.ts)
+    return DIGIT_COMMANDS[press.code] ?? ANNOTATE_KEYS[press.code] ?? FILL_SIGN_KEYS[press.code] ?? PROTECT_KEYS[press.code] ?? EDIT_KEYS[press.code] ?? OCR_KEYS[press.code] ?? CODE_KEYS[press.code] ?? null;
   }
   // control and command together, as Preview's annotation keys are on a mac
   if (press.ctrlKey && press.metaKey) return ANNOTATE_KEYS[press.code] ?? PROTECT_KEYS[press.code] ?? EDIT_KEYS[press.code] ?? OCR_KEYS[press.code] ?? null;

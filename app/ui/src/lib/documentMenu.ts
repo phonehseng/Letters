@@ -41,6 +41,11 @@ const GROUPS: [Command, ToolName][][] = [
   ],
   // compare: this document as the newer version (compare/CompareScreen.svelte)
   [["compare-with-version", "compareWithVersion"]],
+  // code: the document as markdown, latex..., and the code inside it (code/DocumentCodeTools.svelte)
+  [
+    ["export-code-file", "exportCodeFile"],
+    ["check-document-code", "checkDocumentCode"],
+  ],
 ];
 
 /** whether a document command can run on this document now. */

@@ -51,6 +51,8 @@ mod reading_commands;
 mod search_commands;
 // moving, copying, renaming and recycling documents (Recents and the library)
 mod organise_commands;
+// code and text files (the code editor screen)
+mod code_commands;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 

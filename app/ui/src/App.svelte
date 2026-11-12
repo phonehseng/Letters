@@ -23,7 +23,7 @@
   import Viewer from "./lib/Viewer.svelte";
   // word-processor mode: .docx and .odt open in the writer (lib/writer)
   import { routeForPath, unsupportedMessage } from "./lib/writer/routing";
-  import { chooseFileToOpen, openWriterDocument, type WriterOpened } from "./lib/writer/writerApi";
+  import { openWriterDocument, type WriterOpened } from "./lib/writer/writerApi";
   import { writerGuard } from "./lib/writer/writerGuard";
   import { printPages } from "./lib/writer/print";
   import WriterScreen from "./lib/writer/WriterScreen.svelte";
@@ -51,6 +51,10 @@
   import LibrarySearchScreen from "./lib/library/LibrarySearchScreen.svelte";
   import { listen } from "@tauri-apps/api/event";
   import { documentState } from "./lib/api";
+  // code and text files: the code editor screen, loaded only when one opens (lib/code)
+  import { chooseAnyFileToOpen, openCodeDocument, type CodeDocument } from "./lib/code/codeApi";
+  import { isCodePath } from "./lib/code/languages";
+  import DocumentCodeTools from "./lib/code/DocumentCodeTools.svelte";
 
   let openedDocument = $state<DocumentState | null>(null);
   /** the Compare screen while it shows; the document (or Recents) waits underneath */
@@ -67,6 +71,8 @@
   let saveQuestion = $state<{ name: string; answer: (choice: SaveChoice) => void } | null>(null);
   /** scan: the New from Images sheet while it shows, with the pictures it starts with */
   let newFromImages = $state<string[] | null>(null);
+  /** code: the code or text file this window shows, if any */
+  let openedCode = $state<CodeDocument | null>(null);
 
   /** scan: the pdf New from Images made is open (unsaved); it takes this window's place */
   async function showNewDocument(next: DocumentState) {
@@ -90,7 +96,7 @@
       newFromImages = [path];
       return;
     }
-    if (openedDocument || openedWriter) {
+    if (openedDocument || openedWriter || openedCode) {
       await newWindow(path);
       return;
     }
@@ -104,7 +110,8 @@
     if (route !== "viewer") {
       // export: a spreadsheet or presentation is shown as a pdf office lays out
       if (route === "unsupported" && isShownAsPdf(path)) await openAsPdf(path);
-      else if (route === "unsupported") errorMessage = unsupportedMessage(path);
+      // code: code and text files, and any other file that turns out to be text
+      else if (route === "unsupported") await openInCode(path);
       else await openInWriter(path);
       return;
     }
@@ -124,8 +131,22 @@
   }
 
   async function chooseAndOpen() {
-    const path = await chooseFileToOpen();
+    // code: the Open panel also offers code and text files
+    const path = await chooseAnyFileToOpen();
     if (path) await openPath(path);
+  }
+
+  /** code: a code or text file in the code editor; anything that isn't text gets the usual sentence. */
+  async function openInCode(path: string) {
+    try {
+      openedCode = await openCodeDocument(path);
+    } catch (problem) {
+      errorMessage = isCodePath(path) ? asCommandError(problem).message : unsupportedMessage(path);
+    }
+  }
+
+  async function closeCode() {
+    if (openedCode && (await mayLeaveDocument())) openedCode = null;
   }
 
   async function showRecents() {
@@ -235,7 +256,8 @@
   async function mayLeaveDocument(): Promise<boolean> {
     // wait for edits still on their way, so the question sees them
     await documentChanges(async () => {});
-    if (openedWriter && writerGuard.mayLeave) return writerGuard.mayLeave(askToSave);
+    // code: the code screen answers through the same guard as the writer
+    if ((openedWriter || openedCode) && writerGuard.mayLeave) return writerGuard.mayLeave(askToSave);
     // protect: marks for redaction not yet applied are offered first
     if (openedDocument && !(await protectMayLeave())) return false;
     return mayLeave(openedDocument, askToSave, save);
@@ -271,7 +293,8 @@
     if (saveQuestion) return;
     const typing = isTextField(document.activeElement);
     // the writer's page is a text field with its own undo history (lib/writer)
-    const inWriterPage = !!document.activeElement?.closest(".ProseMirror");
+    // and so is the code editor (lib/code), which keeps its own history too
+    const inWriterPage = !!document.activeElement?.closest(".ProseMirror, .cm-editor");
     if (typing && !inWriterPage && (command === "undo" || command === "redo")) {
       document.execCommand(command);
       return;
@@ -297,8 +320,8 @@
   // screen add their own while they are shown.
   $effect(() => {
     const takeBack = [appCommands.register("open", chooseAndOpen), appCommands.register("new-window", () => newWindow())];
-    // the writer registers its own save, save as and print while it shows
-    if (!openedWriter) {
+    // the writer registers its own save, save as and print while it shows (and so does the code screen)
+    if (!openedWriter && !openedCode) {
       takeBack.push(
         appCommands.register("save", () => {
           if (openedDocument && isAvailable("save", openedDocument)) save();
@@ -317,7 +340,7 @@
 
   // compare: with a document open it is the newer version; from Recents both are chosen
   $effect(() => {
-    if (openedWriter) return;
+    if (openedWriter || openedCode) return;
     const takeBack = [
       appCommands.register("compare-with-version", () => {
         if (openedDocument) openCompare(setupFromDocument(openedDocument));
@@ -387,8 +410,8 @@
   // several windows can be told apart in the taskbar. an edited document
   // says so, as on a mac
   $effect(() => {
-    // the writer names the window itself while it shows, and so does compare
-    if (openedWriter || comparing) return;
+    // the writer names the window itself while it shows, and so do compare and the code screen
+    if (openedWriter || comparing || openedCode) return;
     // the Settings window is called Settings (lib/settings)
     if (getCurrentWindow().label === SETTINGS_WINDOW) return;
     getCurrentWindow().setTitle(windowTitle(openedDocument));
@@ -460,8 +483,19 @@
         onNewWindow={() => newWindow()}
       />
     {/key}
+  {:else if openedCode}
+    <!-- code: the code editor screen and codemirror load only now, in their own chunk (lib/code) -->
+    {#await import("./lib/code/CodeScreen.svelte") then screen}
+      <screen.default document={openedCode} onError={(message: string) => (errorMessage = message)} onRecents={closeCode} onNewWindow={() => newWindow()} />
+    {/await}
   {:else}
     <Home onOpenPath={openPath} onChooseFile={chooseAndOpen} onNewWindow={() => newWindow()} />
+  {/if}
+  <!-- code: Export as Code File… and Check Code in This Document, beside a pdf or a word document -->
+  {#if openedDocument}
+    <DocumentCodeTools source={{ path: openedDocument.path, kind: "pdf", pdfId: openedDocument.id, edited: openedDocument.dirty }} />
+  {:else if openedWriter}
+    <DocumentCodeTools source={{ path: openedWriter.path, kind: "writer", pdfId: null, edited: false }} />
   {/if}
 </div>
 

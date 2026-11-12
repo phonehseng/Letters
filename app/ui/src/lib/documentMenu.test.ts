@@ -26,6 +26,10 @@ describe("documentMenuEntries", () => {
       "rotate-right",
       "—",
       "compare-with-version",
+      // code (code/DocumentCodeTools.svelte)
+      "—",
+      "export-code-file",
+      "check-document-code",
     ]);
   });
 

@@ -235,6 +235,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let protect_menu = crate::protect_menu::protect_menu(app)?;
     // the Content menu (editing page text and pictures, recognising text), see content_menu.rs
     let content_menu = crate::content_menu::content_menu(app)?;
+    // the Code menu (code files, and code inside documents), see code_commands.rs
+    let code_menu = crate::code_commands::menu::code_menu(app)?;
 
     MenuBuilder::new(app)
         .items(&[
@@ -249,6 +251,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &forms_menu,
             &protect_menu,
             &content_menu,
+            &code_menu,
         ])
         .build()
 }
@@ -314,6 +317,7 @@ fn is_window_command(id: &str) -> bool {
         || crate::protect_menu::is_protect_command(id)
         || crate::content_menu::is_content_command(id)
         || crate::conversion_menu::is_conversion_command(id)
+        || crate::code_commands::menu::is_code_command(id)
 }
 
 fn focused_window(app: &AppHandle) -> Option<WebviewWindow> {
