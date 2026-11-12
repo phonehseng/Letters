@@ -25,6 +25,7 @@ pub mod index;
 pub mod jump;
 pub mod model;
 pub mod normalize;
+pub mod paths;
 pub mod postings;
 pub mod query;
 pub mod results;
