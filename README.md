@@ -152,7 +152,7 @@ node tools\licenses\make-third-party-licenses.mjs   # THIRD-PARTY-LICENSES.txt, 
 
 | System | Command | Result |
 |---|---|---|
-| Windows | `cd app\shell; npx tauri build` | `target\release\bundle\nsis\Letters_0.1.0_x64-setup.exe`: a per-user installer (no administrator rights) that registers Letters for PDF, Word, OpenDocument, RTF and picture files and lists it in Settings > Apps > Default apps |
+| Windows | `cd app\shell; npx tauri build` | `target\release\bundle\nsis\Letters_0.1.0_x64-setup.exe`: a per-user installer (no administrator rights) that registers Letters for PDF, Word, Excel, PowerPoint, OpenDocument, RTF and picture files and lists it in Settings > Apps > Default apps |
 | macOS | `cd app/shell && npx tauri build` | `target/release/bundle/macos/Letters.app` and `target/release/bundle/dmg/Letters_0.1.0_aarch64.dmg`, with the same document types in the app's Info.plist |
 
 Tauri's bundler downloads NSIS (Windows) the first time. The file types,
@@ -197,7 +197,7 @@ Nothing for macOS could be built or run here. On the Mac:
 3. `cd app/shell && npx tauri build 2>&1 | tee ~/letters-build.log`.
    Send `~/letters-build.log` (or its last 100 lines if it is long).
 4. `plutil -p target/release/bundle/macos/Letters.app/Contents/Info.plist`.
-   Send the output (CFBundleDocumentTypes should list the twelve types).
+   Send the output (CFBundleDocumentTypes should list the fourteen types).
 5. `codesign -dv target/release/bundle/macos/Letters.app 2>&1` and
    `spctl -a -vv target/release/bundle/macos/Letters.app 2>&1`. Send both
    (the app is not signed or notarized yet; this shows what Gatekeeper says).

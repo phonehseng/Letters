@@ -16,7 +16,7 @@ $out = Join-Path $root "app\shell\icons\documents"
 New-Item -ItemType Directory -Force $out | Out-Null
 
 # the same names the installer hook uses (app/shell/installer-hooks.nsh)
-$types = "pdf", "docx", "odt", "ods", "odp", "rtf", "png", "jpg", "tif", "bmp", "gif", "webp"
+$types = "pdf", "docx", "odt", "xlsx", "ods", "pptx", "odp", "rtf", "png", "jpg", "tif", "bmp", "gif", "webp"
 
 function New-DocumentPng([string]$label) {
     $size = 256
