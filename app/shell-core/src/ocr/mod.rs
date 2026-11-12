@@ -7,12 +7,14 @@
 //! drawing a page at 300 dpi with our own renderer (`render`), what the
 //! banner and the tab show about a document (`overview`), the summary
 //! after a run (`summary`), and the words for the "Show Recognized Text"
-//! overlay and correcting one of them (`words`).
+//! overlay and correcting one of them (`words`), and turning scans into
+//! real, visible text ("Make Editable Text", `editable`).
 //!
 //! results are written into the document only at the end, in one edit
 //! (`apply_layers` inside `AppState::edit`), so a run is one undo step and
 //! a run that is cancelled or fails changes nothing.
 
+pub mod editable;
 pub mod engine_folder;
 pub mod job;
 pub mod jobs;
