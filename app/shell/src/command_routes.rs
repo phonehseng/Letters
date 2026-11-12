@@ -19,6 +19,8 @@ use crate::{
 use crate::code_commands;
 // moving, copying and renaming documents, on its own line for the same reason
 use crate::organise_commands;
+// in-app updates, on its own line for the same reason
+use crate::updates;
 // presentations (the slide editor), on its own line for the same reason
 use crate::slides_commands;
 // edit tab round two and make editable text, on their own line for the same reason
@@ -202,6 +204,10 @@ fn windows_and_recents() -> Feature {
     feature![
         commands::take_startup_file,
         commands::new_window,
+        // in-app updates (updates.rs)
+        updates::update_check,
+        updates::update_prepare,
+        updates::update_cancel,
         // one window per file (see windows.rs)
         commands::window_shows,
         commands::focus_window_showing,
