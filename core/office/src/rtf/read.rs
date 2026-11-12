@@ -18,7 +18,17 @@ struct State {
     skip: bool,
     destination: Option<&'static str>,
     unicode_skip: usize,
+    /// how many plain characters follow each \u for readers that can't
+    /// show it (\ucN). none means the rtf default, one. like other
+    /// properties it holds for the group it was set in
+    fallback_length: Option<usize>,
     font_table: bool,
+}
+
+impl State {
+    fn fallback_length(&self) -> usize {
+        self.fallback_length.unwrap_or(1)
+    }
 }
 
 /// reads rtf: text, character and paragraph formatting, lists (as list
@@ -60,6 +70,9 @@ struct RtfReader {
     document: Document,
     stack: Vec<State>,
     state: State,
+    /// the first half of a character outside the basic plane (an emoji):
+    /// \u gives utf-16 units, so it waits here for its second half
+    high_surrogate: Option<u16>,
     fonts: HashMap<i32, String>,
     font_number: i32,
     colours: Vec<String>,
@@ -161,6 +174,35 @@ impl RtfReader {
             self.state.unicode_skip -= 1;
             return;
         }
+        // a first half whose second half never came can't be shown
+        if self.high_surrogate.take().is_some() {
+            self.add_character('\u{FFFD}');
+        }
+        self.add_character(c);
+    }
+
+    /// one utf-16 unit from \u: a whole character, or one half of a pair.
+    fn unicode_unit(&mut self, unit: u16) {
+        const HIGH: std::ops::RangeInclusive<u16> = 0xD800..=0xDBFF;
+        const LOW: std::ops::RangeInclusive<u16> = 0xDC00..=0xDFFF;
+        if HIGH.contains(&unit) {
+            if self.high_surrogate.replace(unit).is_some() {
+                self.add_character('\u{FFFD}');
+            }
+            return;
+        }
+        let c = match (self.high_surrogate.take(), LOW.contains(&unit)) {
+            (Some(high), true) => char::decode_utf16([high, unit]).next().and_then(Result::ok),
+            (Some(_), false) => {
+                self.add_character('\u{FFFD}');
+                char::from_u32(u32::from(unit))
+            }
+            (None, _) => char::from_u32(u32::from(unit)),
+        };
+        self.add_character(c.unwrap_or('\u{FFFD}'));
+    }
+
+    fn add_character(&mut self, c: char) {
         if self.state.destination.is_some() {
             self.destination_text.push(c);
             return;
@@ -312,12 +354,12 @@ impl RtfReader {
             }
             "plain" => self.state.run = RunProps::default(),
             "u" => {
-                let code = if value < 0 { value + 65536 } else { value } as u32;
-                if let Some(c) = char::from_u32(code) {
-                    self.character(c);
-                }
-                self.state.unicode_skip = 1;
+                // the value is a utf-16 unit, written as a signed 16-bit number
+                let unit = if value < 0 { value + 65536 } else { value } as u16;
+                self.unicode_unit(unit);
+                self.state.unicode_skip = self.state.fallback_length();
             }
+            "uc" => self.state.fallback_length = Some(value.max(0) as usize),
             "par" | "sect" => self.end_paragraph(),
             "line" => self.push(Inline::Break {
                 kind: BreakKind::Line,
