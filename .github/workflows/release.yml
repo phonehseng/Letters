@@ -52,9 +52,12 @@ jobs:
       - name: fetch pdfium, tesseract and the fonts (macos)
         if: runner.os == 'macOS'
         run: |
-          brew install tesseract
+          brew install tesseract dylibbundler
           sh tools/fetch-pdfium.sh
           sh tools/fetch-tesseract.sh
+          # the app carries its own tesseract and libraries, so a mac
+          # without homebrew can read scans too
+          sh tools/bundle-tesseract-macos.sh
           sh tools/fetch-fonts.sh
 
       - uses: tauri-apps/tauri-action@v0
