@@ -1,0 +1,8 @@
+# the fidelity folder's settings, plus this folder's own modules so imports sort as first party
+extend = "../ruff.toml"
+
+[lint.isort]
+known-first-party = ["corpus_checks", "edit_check", "fidelity_path", "fitted_convert", "fitted_docx", "fitted_font",
+                     "fitted_measure", "fitted_package", "fitted_pieces", "fitted_plan", "pdf_glyphs", "probe_ligatures",
+                     "raster_check", "corpus_fitted", "word_session", "docx_writer", "font_prep", "grid_model", "test_fonts",
+                     "word_pdf_raw", "word_writer_model", "prototype", "corpus_builder"]
