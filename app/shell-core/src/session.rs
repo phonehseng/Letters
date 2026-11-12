@@ -31,6 +31,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use lopdf::Document;
 
+use crate::disk_stamp::DiskStamp;
+
 /// how many undo steps are kept. older ones are dropped first.
 pub const MAX_HISTORY_STEPS: usize = 30;
 
@@ -115,6 +117,11 @@ pub enum SessionError {
         name: String,
         reason: String,
     },
+    /// another window or program changed the file since it was opened or
+    /// last saved here; saving over it would lose that change
+    ChangedOnDisk {
+        name: String,
+    },
 }
 
 impl fmt::Display for SessionError {
@@ -124,6 +131,9 @@ impl fmt::Display for SessionError {
                 f,
                 "“{name}” can’t be opened for editing because Letters couldn’t make a working copy. Check that this computer has free space, then try again. ({detail})"
             ),
+            Self::ChangedOnDisk { name } => {
+                write!(f, "{}", crate::disk_stamp::changed_on_disk_message(name))
+            }
             Self::OriginalMissing { name } => write!(
                 f,
                 "“{name}” can’t be found. It may have been moved, renamed or deleted. Choose Save As… to save the changes as a new file."
@@ -192,6 +202,9 @@ static NEXT_SESSION_NUMBER: AtomicU64 = AtomicU64::new(1);
 pub struct EditSession {
     /// the person's file: where save writes to
     original: PathBuf,
+    /// the person's file as this session last read or wrote it, so a save
+    /// can tell when another window or program changed it in between
+    disk_stamp: Option<DiskStamp>,
     /// this session's own folder in the cache, removed when the session ends
     folder: PathBuf,
     /// the version the engine shows
@@ -248,6 +261,7 @@ impl EditSession {
         let bytes = file_size(&first);
         Ok(Self {
             original: original.to_path_buf(),
+            disk_stamp: DiskStamp::of(original),
             folder,
             current: Version {
                 number: 0,
@@ -372,8 +386,16 @@ impl EditSession {
     /// writes the current version over the person's file.
     ///
     /// refuses, without touching anything, when the file is gone or
-    /// read-only; the message suggests Save As instead.
+    /// read-only, or when another window or program changed it since this
+    /// session read it; the message suggests Save As instead.
     pub fn save(&mut self) -> Result<(), SessionError> {
+        self.check_unchanged_on_disk()?;
+        self.save_replacing_changes()
+    }
+
+    /// `save`, after the person chose to replace a file that changed on
+    /// disk: the other change is thrown away on purpose.
+    pub fn save_replacing_changes(&mut self) -> Result<(), SessionError> {
         // a signed file is only ever written exactly (adopt_exact_bytes)
         if self.protected_original && self.is_dirty() {
             return Err(SessionError::SignedOriginal {
@@ -496,9 +518,25 @@ impl EditSession {
     }
 
     fn after_save(&mut self) {
+        // what this session just wrote is now what it expects to find
+        self.disk_stamp = DiskStamp::of(&self.original);
         if self.forget_history_on_save {
             self.forget_history();
         }
+    }
+
+    /// refuses when the person's file changed since this session read or
+    /// wrote it (another window saved it, or another program changed it).
+    fn check_unchanged_on_disk(&self) -> Result<(), SessionError> {
+        if self
+            .disk_stamp
+            .is_some_and(|stamp| stamp.changed_since(&self.original))
+        {
+            return Err(SessionError::ChangedOnDisk {
+                name: file_name(&self.original),
+            });
+        }
+        Ok(())
     }
 
     // ---- signed documents (forms and signatures, see forms/signed.rs) ----
@@ -523,6 +561,7 @@ impl EditSession {
         bytes: &[u8],
         reload: impl Fn(&Path) -> Result<T, String>,
     ) -> Result<T, SessionError> {
+        self.check_unchanged_on_disk()?;
         check_can_replace(&self.original)?;
         let next = self.store_exact_version(bytes)?;
         let shown = match reload(&next.path) {
@@ -1043,6 +1082,66 @@ mod tests {
         // undoing past the save makes the document differ from the file again
         session.undo(show).unwrap();
         assert!(session.is_dirty());
+    }
+
+    #[test]
+    fn saving_over_a_file_another_window_saved_asks_first() {
+        let Fixture {
+            original,
+            root,
+            session: mut first,
+        } = fixture("two-windows", HistoryLimits::default());
+        let mut second = EditSession::start(&original, &root).unwrap();
+        first.apply(turn_first_page, show).unwrap();
+        first.save().unwrap();
+        second.apply(turn_first_page, show).unwrap();
+        second.apply(turn_first_page, show).unwrap();
+
+        let refused = second.save().unwrap_err();
+        assert!(
+            matches!(refused, SessionError::ChangedOnDisk { .. }),
+            "{refused}"
+        );
+        assert!(refused.to_string().contains("Save As"), "{refused}");
+        assert_eq!(
+            page_rotation(&original, 1),
+            90,
+            "the first window's save is kept"
+        );
+
+        // replacing on purpose writes the second window's version
+        second.save_replacing_changes().unwrap();
+        assert_eq!(page_rotation(&original, 1), 180);
+    }
+
+    #[test]
+    fn a_window_can_save_its_own_file_again_and_again() {
+        let Fixture {
+            original,
+            mut session,
+            ..
+        } = fixture("save-twice", HistoryLimits::default());
+        session.apply(turn_first_page, show).unwrap();
+        session.save().unwrap();
+        session.apply(turn_first_page, show).unwrap();
+        session.save().unwrap();
+        assert_eq!(page_rotation(&original, 1), 180);
+    }
+
+    #[test]
+    fn saving_over_a_file_another_program_changed_asks_first() {
+        let Fixture {
+            original,
+            mut session,
+            ..
+        } = fixture("changed-elsewhere", HistoryLimits::default());
+        write_pdf(&original, 3);
+        session.apply(turn_first_page, show).unwrap();
+        let refused = session.save().unwrap_err();
+        assert!(
+            matches!(refused, SessionError::ChangedOnDisk { .. }),
+            "{refused}"
+        );
     }
 
     #[test]

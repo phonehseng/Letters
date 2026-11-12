@@ -161,9 +161,19 @@ impl OpenDocuments {
         })
     }
 
-    pub fn save(&self, id: DocumentId) -> Result<DocumentState, CommandError> {
+    /// saves over the document's file. `replace_changed` is the person's
+    /// answer when the file had changed on disk: write over it anyway.
+    pub fn save(
+        &self,
+        id: DocumentId,
+        replace_changed: bool,
+    ) -> Result<DocumentState, CommandError> {
         self.with_document(id, |document| {
-            document.session.save()?;
+            if replace_changed {
+                document.session.save_replacing_changes()?;
+            } else {
+                document.session.save()?;
+            }
             Ok(document.state(id))
         })
     }

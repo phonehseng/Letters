@@ -40,7 +40,8 @@ export interface RecentFile {
 
 /** `kind` tells the ui how to react; `message` is safe to show as it is. */
 export interface CommandError {
-  kind: "password-required" | "engine-unavailable" | "failed";
+  // "changed-on-disk": saving would write over a change made elsewhere since opening
+  kind: "password-required" | "engine-unavailable" | "changed-on-disk" | "failed";
   message: string;
 }
 
@@ -88,8 +89,12 @@ export function redo(id: number): Promise<DocumentState> {
 }
 
 /** writes the changes to the document's own file. */
-export function saveDocument(id: number): Promise<DocumentState> {
-  return invoke("save_document", { id });
+/**
+ * `replaceChanged` is the person's answer when the file changed on disk
+ * since it was opened (an error of kind "changed-on-disk"): write over it.
+ */
+export function saveDocument(id: number, replaceChanged = false): Promise<DocumentState> {
+  return invoke("save_document", { id, replaceChanged });
 }
 
 /** writes the document to a new file; from then on it belongs to that file. */

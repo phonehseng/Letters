@@ -53,7 +53,16 @@ impl From<PdfError> for CommandError {
 
 impl From<SessionError> for CommandError {
     fn from(error: SessionError) -> Self {
-        Self::failed(error.to_string())
+        // the ui asks whether to replace a file someone else changed,
+        // rather than only showing the sentence
+        let kind = match error {
+            SessionError::ChangedOnDisk { .. } => "changed-on-disk",
+            _ => "failed",
+        };
+        Self {
+            kind,
+            message: error.to_string(),
+        }
     }
 }
 
