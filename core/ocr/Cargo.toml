@@ -1,0 +1,9 @@
+[package]
+name = "letters-ocr"
+description = "turns scans and photos into searchable text, fully offline"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"

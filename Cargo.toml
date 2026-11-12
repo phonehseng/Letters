@@ -6,6 +6,9 @@ members = [
     "core/annotate",
     "core/redact",
     "core/forms",
+    "core/ocr",
+    "core/office",
+    "core/a11y",
     "app/shell-core",
     "app/shell",
 ]
