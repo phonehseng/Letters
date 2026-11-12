@@ -21,6 +21,7 @@ describe("signatures with later changes", () => {
     expect(signatureStatus(changedSince, "asIntended")).toBe("allowed");
     expect(statusSentence(changedSince, "asIntended")).toBe("What was signed hasn’t changed; the changes since are ones the author allowed.");
     expect(bannerText([changedSince], ["asIntended"])).toBe("Signed by Ada Lovelace. The changes since are ones the author allowed.");
+    expect(bannerText([changedSince, changedSince], ["asIntended", "unchanged"])).toBe("2 signatures. The changes since are ones the author allowed.");
   });
 
   it("other changes still show as changed, and without a verdict nothing is assumed", () => {

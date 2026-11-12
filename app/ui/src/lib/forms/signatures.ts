@@ -78,6 +78,8 @@ export function bannerText(reports: SignatureReport[], verdicts: (ChangeVerdict 
     return `Signed by ${who}, but the signature can’t be checked.`;
   }
   const problems = statuses.filter((status) => status !== "valid" && status !== "allowed").length;
+  const allowed = statuses.includes("allowed");
+  if (problems === 0 && allowed) return `${reports.length} signatures. The changes since are ones the author allowed.`;
   if (problems === 0) return `${reports.length} signatures. The document hasn’t changed since.`;
   return `${reports.length} signatures. ${problems === 1 ? "One shows" : `${problems} show`} changes or problems.`;
 }
