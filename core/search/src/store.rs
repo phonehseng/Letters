@@ -25,7 +25,10 @@ use crate::model::DocRecord;
 use crate::postings::{read_varint, write_varint, PostingList};
 use crate::SearchError;
 
-const MAGIC: &[u8; 8] = b"LTRSIDX1";
+// the 2 says how words were folded when the index was written: an index
+// from an older folding can't find words folded the new way, so it is
+// read as damaged and rebuilt from the documents
+const MAGIC: &[u8; 8] = b"LTRSIDX2";
 const SNAPSHOT_NAME: &str = "index.bin";
 
 /// where one passage is, and enough about it to rank it without reading it.
@@ -387,7 +390,7 @@ mod tests {
         assert_eq!(back.docs, docs);
         assert_eq!(back.units, units);
         assert_eq!(back.terms, vec![(term.clone(), list.clone())]);
-        fs::write(snapshot_path(folder.path()), b"LTRSIDX1garbage").unwrap();
+        fs::write(snapshot_path(folder.path()), b"LTRSIDX2garbage").unwrap();
         assert!(read_snapshot(folder.path()).is_err());
     }
 }

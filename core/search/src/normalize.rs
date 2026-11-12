@@ -24,9 +24,12 @@ pub struct Token {
 pub const MAX_TERM_CHARS: usize = 40;
 
 /// lower case without accents: "Ça Étè" becomes "ca ete".
+///
+/// nfkd, not just nfd: it also takes apart compatibility letters, so the
+/// ligatures "ﬁ" and "ﬂ" and full-width letters read as plain letters
 pub fn fold(text: &str) -> String {
     let mut folded = String::with_capacity(text.len());
-    for ch in text.nfd() {
+    for ch in text.nfkd() {
         if is_combining_mark(ch) {
             continue;
         }
@@ -52,8 +55,11 @@ fn fold_char_into(ch: char, out: &mut String) {
     }
 }
 
+/// a letter or digit, or an accent written as its own character after
+/// one: macos and some keyboards write "é" as "e" plus U+0301, and the
+/// word mustn't be cut in two at the accent.
 fn is_word_char(ch: char) -> bool {
-    ch.is_alphanumeric()
+    ch.is_alphanumeric() || is_combining_mark(ch)
 }
 
 fn is_apostrophe(ch: char) -> bool {
@@ -113,6 +119,22 @@ mod tests {
         assert_eq!(fold("Straße"), "strasse");
         assert_eq!(fold("Œuvre ÇA"), "oeuvre ca");
         assert_eq!(fold("naïve façade"), "naive facade");
+    }
+
+    #[test]
+    fn an_accent_written_as_its_own_character_stays_in_its_word() {
+        // "élan" as "e" followed by the combining acute accent
+        assert_eq!(terms("e\u{301}lan vital"), vec!["elan", "vital"]);
+        assert_eq!(terms("e\u{301}lan"), terms("élan"));
+        let text = "the cafe\u{301} society";
+        let tokens = tokenize(text);
+        assert_eq!(&text[tokens[1].start..tokens[1].end], "cafe\u{301}");
+    }
+
+    #[test]
+    fn ligature_and_full_width_letters_read_as_plain_letters() {
+        assert_eq!(terms("\u{FB01}nal \u{FB02}ow"), vec!["final", "flow"]);
+        assert_eq!(terms("\u{FF21}\u{FF22}\u{FF23}"), vec!["abc"]);
     }
 
     #[test]
