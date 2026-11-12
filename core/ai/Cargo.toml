@@ -1,0 +1,9 @@
+[package]
+name = "letters-ai"
+description = "optional document helpers (summaries, questions, find-by-meaning) through a provider the user chooses, off by default"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"
