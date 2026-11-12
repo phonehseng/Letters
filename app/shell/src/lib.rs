@@ -9,6 +9,7 @@ mod documents;
 mod engine_location;
 mod errors;
 mod menu;
+mod page_commands;
 mod state;
 mod tile_protocol;
 mod windows;
@@ -38,7 +39,22 @@ pub fn run() {
             commands::redo,
             commands::save_document,
             commands::save_document_as,
-            commands::rotate_pages,
+            page_commands::rotate_pages,
+            page_commands::move_pages,
+            page_commands::delete_pages,
+            page_commands::insert_blank_pages,
+            page_commands::insert_pages_from,
+            page_commands::crop_pages,
+            page_commands::uncrop_pages,
+            page_commands::add_page_numbers,
+            page_commands::add_header_footer,
+            page_commands::add_text_watermark,
+            page_commands::add_image_watermark,
+            page_commands::remove_stamps,
+            page_commands::extract_pages,
+            page_commands::split_document,
+            page_commands::merge_documents,
+            page_commands::pdf_page_count,
             commands::take_startup_file,
             commands::new_window,
             commands::recent_files,

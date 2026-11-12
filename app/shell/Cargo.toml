@@ -23,6 +23,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 letters-pdf = { path = "../../core/pdf" }
+letters-pages = { path = "../../core/pages" }
 letters-shell-core = { path = "../shell-core" }
 # the document type every edit closure receives (mit licence)
 lopdf = "0.47"

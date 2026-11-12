@@ -67,10 +67,37 @@ const UNDO_COMMANDS: [Command; 2] = [
     command("redo", "Redo", "CmdOrCtrl+Shift+Z"),
 ];
 
-/// the same keys as Preview's Rotate Left and Rotate Right.
-const TOOL_COMMANDS: [Command; 2] = [
+/// a menu entry without a key of its own.
+const fn plain(id: &'static str, label: &'static str) -> Command {
+    Command {
+        id,
+        label,
+        shortcut: None,
+    }
+}
+
+/// the Pages menu. rotate uses the same keys as Preview. Delete has no
+/// key here on purpose: a menu key would take the delete key away from
+/// every text field, so the ui handles it in the thumbnails instead.
+/// items with an ellipsis open the Tools inspector at that tool.
+const PAGE_COMMANDS: [Command; 4] = [
     command("rotate-left", "Rotate Left", "CmdOrCtrl+L"),
     command("rotate-right", "Rotate Right", "CmdOrCtrl+R"),
+    command("move-pages-up", "Move Pages Up", "Alt+Up"),
+    command("move-pages-down", "Move Pages Down", "Alt+Down"),
+];
+
+const PAGE_CHANGE_COMMANDS: [Command; 4] = [
+    plain("delete-pages", "Delete Pages"),
+    plain("insert-blank-page", "Insert Blank Page"),
+    plain("insert-from-pdf", "Insert Pages from PDF…"),
+    plain("crop", "Crop…"),
+];
+
+const PAGE_FILE_COMMANDS: [Command; 3] = [
+    plain("extract-pages", "Extract Pages…"),
+    plain("split", "Split…"),
+    plain("merge", "Merge PDFs…"),
 ];
 
 const ZOOM_COMMANDS: [Command; 3] = [
@@ -79,11 +106,13 @@ const ZOOM_COMMANDS: [Command; 3] = [
     command("fit-width", "Fit Width", "CmdOrCtrl+0"),
 ];
 
-const PANEL_COMMANDS: [Command; 5] = [
+const PANEL_COMMANDS: [Command; 6] = [
     command("find", "Find…", "CmdOrCtrl+F"),
     command("toggle-thumbnails", "Thumbnails", "CmdOrCtrl+Alt+1"),
     command("toggle-outline", "Outline", "CmdOrCtrl+Alt+2"),
     command("toggle-two-pages", "Two Pages", "CmdOrCtrl+Alt+3"),
+    // the same key as Show Inspector in Pages and Keynote
+    command("toggle-inspector", "Tools", "CmdOrCtrl+Alt+I"),
     Command {
         id: "toggle-night-mode",
         label: "Night Mode",
@@ -91,7 +120,7 @@ const PANEL_COMMANDS: [Command; 5] = [
     },
 ];
 
-/// builds the whole menu bar: the app menu, File, Edit, View and Tools.
+/// builds the whole menu bar: the app menu, File, Edit, View and Pages.
 pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let app_menu = SubmenuBuilder::new(app, "Letters")
         .about(None)
@@ -127,8 +156,12 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .select_all()
         .build()?;
 
-    let tools_menu = SubmenuBuilder::new(app, "Tools")
-        .items(&as_items(&menu_items(app, &TOOL_COMMANDS)?))
+    let pages_menu = SubmenuBuilder::new(app, "Pages")
+        .items(&as_items(&menu_items(app, &PAGE_COMMANDS)?))
+        .separator()
+        .items(&as_items(&menu_items(app, &PAGE_CHANGE_COMMANDS)?))
+        .separator()
+        .items(&as_items(&menu_items(app, &PAGE_FILE_COMMANDS)?))
         .build()?;
 
     let view_menu = SubmenuBuilder::new(app, "View")
@@ -138,7 +171,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .build()?;
 
     MenuBuilder::new(app)
-        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &tools_menu])
+        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &pages_menu])
         .build()
 }
 
@@ -190,7 +223,9 @@ fn is_window_command(id: &str) -> bool {
         .chain(&UNDO_COMMANDS)
         .chain(&ZOOM_COMMANDS)
         .chain(&PANEL_COMMANDS)
-        .chain(&TOOL_COMMANDS)
+        .chain(&PAGE_COMMANDS)
+        .chain(&PAGE_CHANGE_COMMANDS)
+        .chain(&PAGE_FILE_COMMANDS)
         .any(|command| command.id == id)
 }
 

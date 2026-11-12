@@ -67,7 +67,7 @@ impl AppState {
     /// old tiles are dropped, and the new state is returned for the ui.
     /// the person's file is not touched until they save.
     ///
-    /// see `rotate_pages` in commands.rs for the example to copy.
+    /// see `rotate_pages` in page_commands.rs for the example to copy.
     pub fn edit<E: Display>(
         &self,
         id: DocumentId,
@@ -75,6 +75,17 @@ impl AppState {
     ) -> Result<DocumentState, CommandError> {
         let worker = self.worker().map_err(CommandError::engine_unavailable)?;
         self.documents.edit(worker, id, edit)
+    }
+
+    /// reads a document as it is shown now, for tools that make other
+    /// files from it (extract, split). the document itself is not changed
+    /// and no undo step is made. `read` reports its own errors.
+    pub fn read_document<T>(
+        &self,
+        id: DocumentId,
+        read: impl FnOnce(&lopdf::Document) -> Result<T, CommandError>,
+    ) -> Result<T, CommandError> {
+        self.documents.read(id, read)
     }
 
     pub fn remember_document(&self, window: &str, id: DocumentId) {

@@ -122,6 +122,21 @@ impl OpenDocuments {
         })
     }
 
+    /// gives `read` the document as it is shown now, without changing it
+    /// or making an undo step. for tools that make other files from it.
+    pub fn read<T>(
+        &self,
+        id: DocumentId,
+        read: impl FnOnce(&lopdf::Document) -> Result<T, CommandError>,
+    ) -> Result<T, CommandError> {
+        // the document stays locked while it is read, so an edit can't
+        // swap the working copy half way through
+        self.with_document(id, |document| {
+            let loaded = document.session.read_document()?;
+            read(&loaded)
+        })
+    }
+
     pub fn undo(
         &self,
         worker: &RenderWorker,

@@ -57,6 +57,18 @@ impl From<SessionError> for CommandError {
     }
 }
 
+impl From<letters_pages::PagesError> for CommandError {
+    fn from(error: letters_pages::PagesError) -> Self {
+        Self::failed(error.to_string())
+    }
+}
+
+impl From<letters_shell_core::outputs::OutputError> for CommandError {
+    fn from(error: letters_shell_core::outputs::OutputError) -> Self {
+        Self::failed(error.to_string())
+    }
+}
+
 /// an edit's own refusal and a session problem both become a message.
 impl<E: Display> From<ApplyError<E>> for CommandError {
     fn from(error: ApplyError<E>) -> Self {

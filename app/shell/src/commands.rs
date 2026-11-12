@@ -18,7 +18,6 @@ use crate::state::AppState;
 use crate::windows;
 use letters_shell_core::pinned::{describe_folders, PinnedFolder};
 use letters_shell_core::recents::{thumbnail_name, RecentFile};
-use letters_shell_core::rotate;
 use letters_shell_core::session::with_pdf_extension;
 
 /// thumbnails on the home screen are drawn about this wide.
@@ -140,24 +139,6 @@ pub fn save_document_as(
         remember_in_recents(&state, worker, &saved);
     }
     Ok(saved)
-}
-
-/// turns pages a quarter, half or three quarter turn.
-///
-/// this is the reference example every editing command follows: check
-/// nothing here, call one pure edit function from a core crate through
-/// `state.edit`, and return the new state. `pages` are counted from 0;
-/// `degrees` is a multiple of 90, clockwise, negative for anticlockwise.
-#[tauri::command(async)]
-pub fn rotate_pages(
-    state: State<AppState>,
-    id: u64,
-    pages: Vec<u32>,
-    degrees: i32,
-) -> Result<DocumentState, CommandError> {
-    state.edit(DocumentId(id), |document| {
-        rotate::rotate_pages(document, &pages, degrees)
-    })
 }
 
 /// the file this window was opened for, if any. answers only once, so
