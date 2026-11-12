@@ -59,6 +59,10 @@
   import DocumentCodeTools from "./lib/code/DocumentCodeTools.svelte";
   // presentations: .pptx and .odp open in the slide editor, loaded only when one opens (lib/slides)
   import { isAudienceWindow, isSlidesPath, openDeck, type OpenedDeck } from "./lib/slides/slidesApi";
+  // spreadsheets: the sheets screen, loaded only when a workbook opens (lib/sheets)
+  import { newWorkbook, openWorkbook, type OpenedSheet } from "./lib/sheets/sheetsApi";
+  import { takeStarter } from "./lib/sheets/sheetsCommands";
+  import { sheetShownAsPdfSentence } from "./lib/export/openByKind";
 
   let openedDocument = $state<DocumentState | null>(null);
   /** the Compare screen while it shows; the document (or Recents) waits underneath */
@@ -81,6 +85,8 @@
   let openedCode = $state<CodeDocument | null>(null);
   /** presentations: the deck this window shows, if any */
   let openedSlides = $state<OpenedDeck | null>(null);
+  /** spreadsheets: the workbook this window shows, if any */
+  let openedSheet = $state<OpenedSheet | null>(null);
 
   /** scan: the pdf New from Images made is open (unsaved); it takes this window's place */
   async function showNewDocument(next: DocumentState) {
@@ -104,7 +110,8 @@
       newFromImages = [path];
       return;
     }
-    if (openedDocument || openedWriter || openedCode || openedSlides) {
+    // presentations and spreadsheets: a window showing one keeps it too
+    if (openedDocument || openedWriter || openedCode || openedSlides || openedSheet) {
       await newWindow(path);
       return;
     }
@@ -120,6 +127,11 @@
       return;
     }
     const route = routeForPath(path);
+    // spreadsheets: workbooks and csv files open in the sheets screen
+    if (route === "sheets") {
+      await openInSheets(path);
+      return;
+    }
     if (route !== "viewer") {
       // export: a spreadsheet or presentation is shown as a pdf office lays out
       if (route === "unsupported" && isShownAsPdf(path)) await openAsPdf(path);
@@ -169,6 +181,30 @@
 
   async function closeSlides() {
     if (openedSlides && (await mayLeaveDocument())) openedSlides = null;
+  }
+
+  /** spreadsheets: a workbook in the sheets screen; one the engine can't read is shown as a pdf office lays out. */
+  async function openInSheets(path: string) {
+    try {
+      openedSheet = await openWorkbook(path);
+    } catch (problem) {
+      const reason = asCommandError(problem).message;
+      if (!isShownAsPdf(path)) {
+        errorMessage = reason;
+        return;
+      }
+      try {
+        const made = await showOfficeAsPdf(path);
+        openedDocument = await openDocument(made.pdf);
+        errorMessage = sheetShownAsPdfSentence(path, made.program, reason);
+      } catch {
+        errorMessage = reason;
+      }
+    }
+  }
+
+  async function closeSheets() {
+    if (openedSheet && (await mayLeaveDocument())) openedSheet = null;
   }
 
   async function closeCode() {
@@ -308,7 +344,8 @@
     // wait for edits still on their way, so the question sees them
     await documentChanges(async () => {});
     // code: the code screen answers through the same guard as the writer
-    if ((openedWriter || openedCode || openedSlides) && writerGuard.mayLeave) return writerGuard.mayLeave(askToSave);
+    // the slide editor and the sheets screen answer through it too
+    if ((openedWriter || openedCode || openedSlides || openedSheet) && writerGuard.mayLeave) return writerGuard.mayLeave(askToSave);
     // protect: marks for redaction not yet applied are offered first
     if (openedDocument && !(await protectMayLeave())) return false;
     return mayLeave(openedDocument, askToSave, save);
@@ -372,7 +409,7 @@
   $effect(() => {
     const takeBack = [appCommands.register("open", chooseAndOpen), appCommands.register("new-window", () => newWindow())];
     // the writer registers its own save, save as and print while it shows (and so does the code screen)
-    if (!openedWriter && !openedCode && !openedSlides) {
+    if (!openedWriter && !openedCode && !openedSlides && !openedSheet) {
       takeBack.push(
         appCommands.register("save", () => {
           if (openedDocument && isAvailable("save", openedDocument)) save();
@@ -391,7 +428,7 @@
 
   // compare: with a document open it is the newer version; from Recents both are chosen
   $effect(() => {
-    if (openedWriter || openedCode || openedSlides) return;
+    if (openedWriter || openedCode || openedSlides || openedSheet) return;
     const takeBack = [
       appCommands.register("compare-with-version", () => {
         if (openedDocument) openCompare(setupFromDocument(openedDocument));
@@ -400,6 +437,19 @@
     ];
     return () => takeBack.forEach((unregister) => unregister());
   });
+
+  // spreadsheets: Recents' New Spreadsheet opens a blank or starter workbook in this window
+  $effect(() =>
+    appCommands.register("new-spreadsheet", async () => {
+      const template = takeStarter();
+      if (openedDocument || openedWriter || openedCode || openedSlides || openedSheet) return;
+      try {
+        openedSheet = await newWorkbook(template);
+      } catch (problem) {
+        errorMessage = asCommandError(problem).message;
+      }
+    }),
+  );
 
   // scan: New from Images… works from Recents and from a document
   $effect(() => appCommands.register("new-from-images", () => (newFromImages = [])));
@@ -462,7 +512,7 @@
   // says so, as on a mac
   $effect(() => {
     // the writer names the window itself while it shows, and so do compare and the code screen
-    if (openedWriter || comparing || openedCode || openedSlides) return;
+    if (openedWriter || comparing || openedCode || openedSlides || openedSheet) return;
     // the Settings window is called Settings (lib/settings)
     if (getCurrentWindow().label === SETTINGS_WINDOW) return;
     getCurrentWindow().setTitle(windowTitle(openedDocument));
@@ -551,6 +601,13 @@
     {#await import("./lib/code/CodeScreen.svelte") then screen}
       <screen.default document={openedCode} onError={(message: string) => (errorMessage = message)} onRecents={closeCode} onNewWindow={() => newWindow()} />
     {/await}
+  {:else if openedSheet}
+    <!-- spreadsheets: the sheets screen loads only now, in its own chunk (lib/sheets) -->
+    {#key openedSheet.id}
+      {#await import("./lib/sheets/SheetsScreen.svelte") then screen}
+        <screen.default opened={openedSheet} onError={(message: string) => (errorMessage = message)} onRecents={closeSheets} onNewWindow={() => newWindow()} onReopen={(next: OpenedSheet) => (openedSheet = next)} />
+      {/await}
+    {/key}
   {:else}
     <Home onOpenPath={openPath} onChooseFile={chooseAndOpen} onNewWindow={() => newWindow()} />
   {/if}

@@ -29,6 +29,7 @@ the code so source folders hold only what is built or read with it.
 - [`shell-core-reading.md`](shell-core-reading.md): `app/shell-core/src/reading/`
 - [`shell-core-settings_store.md`](shell-core-settings_store.md): `app/shell-core/src/settings_store/`
 - [`shell-core-slides.md`](shell-core-slides.md): `app/shell-core/src/slides/`
+- [`shell-core-sheets.md`](shell-core-sheets.md): `app/shell-core/src/sheets/`
 - [`shell-core-writer.md`](shell-core-writer.md): `app/shell-core/src/writer/`
 - [`ui-a11y.md`](ui-a11y.md): `app/ui/src/lib/a11y/`
 - [`ui-ai.md`](ui-ai.md): `app/ui/src/lib/ai/`
@@ -43,4 +44,5 @@ the code so source folders hold only what is built or read with it.
 - [`ui-reading.md`](ui-reading.md): `app/ui/src/lib/reading/`
 - [`ui-settings.md`](ui-settings.md): `app/ui/src/lib/settings/`
 - [`ui-slides.md`](ui-slides.md): `app/ui/src/lib/slides/`
+- [`ui-sheets.md`](ui-sheets.md): `app/ui/src/lib/sheets/`
 - [`ui-writer.md`](ui-writer.md): `app/ui/src/lib/writer/`

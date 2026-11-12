@@ -53,6 +53,8 @@ pub mod organise;
 pub mod code;
 // presentations: the slide editor's decks, pictures and saves, see slides/mod.rs
 pub mod slides;
+// spreadsheets: open workbooks, their edits, undo and saving, see sheets/mod.rs
+pub mod sheets;
 
 #[cfg(test)]
 mod annotation_tools_tests;

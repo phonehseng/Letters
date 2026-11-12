@@ -14,11 +14,14 @@
   import HelpPanel from "./HelpPanel.svelte";
   import Icon from "./Icon.svelte";
   import ToolButton from "./ToolButton.svelte";
+  import { tooltipFor } from "./tools";
   import { openLibrarySearch } from "./library/launcher";
   // organising: choose documents with ctrl or shift and move, copy, rename them (lib/organise)
   import { pinnedFolders } from "./api";
   import { clickChoose, keepListed, NOTHING_CHOSEN, type Chosen } from "./organise/organise";
   import OrganiseBar from "./organise/OrganiseBar.svelte";
+  // spreadsheets: a blank or starter workbook (lib/sheets)
+  import NewSpreadsheetSheet from "./sheets/NewSpreadsheetSheet.svelte";
 
   interface Props {
     onOpenPath: (path: string) => void;
@@ -29,6 +32,8 @@
   let { onOpenPath, onChooseFile, onNewWindow }: Props = $props();
 
   let files = $state<RecentFile[]>([]);
+  /** spreadsheets: the New Spreadsheet sheet while it shows */
+  let choosingSpreadsheet = $state(false);
   let search = $state("");
   let showExplain = $state(false);
   let searchField = $state<HTMLInputElement>();
@@ -115,6 +120,15 @@
             <span class="name">New from Images…</span>
             <span class="details">photos or scans to a PDF</span>
           </button>
+        </li>        <!-- spreadsheets: a blank or starter workbook in the sheets screen (lib/sheets) -->
+        <li>
+          <button class="document" onclick={() => (choosingSpreadsheet = true)} title={tooltipFor("sheetsNewSpreadsheet")}>
+            <span class="sheet placeholder quiet">
+              <Icon name="plus" size={1.75} />
+            </span>
+            <span class="name">New Spreadsheet…</span>
+            <span class="details">blank, budget, grades and more</span>
+          </button>
         </li>
 
         {#each shownFiles as file (file.path)}
@@ -188,11 +202,16 @@
   </div>
 
   {#if showExplain}
-    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "compareTwoPdfs", "newFromImages", "pinFolder", "searchEverywhere", "moveToFolder", "copyToFolder", "renameDocument", "removeFromRecents", "moveToRecycleBin", "settings", "explain"] }]} onClose={() => (showExplain = false)} />
+    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "compareTwoPdfs", "newFromImages", "sheetsNewSpreadsheet", "pinFolder", "searchEverywhere", "moveToFolder", "copyToFolder", "renameDocument", "removeFromRecents", "moveToRecycleBin", "settings", "explain"] }]} onClose={() => (showExplain = false)} />
   {/if}
 </div>
 
 <svelte:window onkeydown={organiseKeys} />
+
+<!-- spreadsheets: the starter workbooks (lib/sheets) -->
+{#if choosingSpreadsheet}
+  <NewSpreadsheetSheet onClose={() => (choosingSpreadsheet = false)} />
+{/if}
 
 <style>
   .home {

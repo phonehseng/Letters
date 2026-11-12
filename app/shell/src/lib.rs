@@ -62,6 +62,9 @@ mod organise_commands;
 mod code_commands;
 // presentations: the slide editor and the slide show (.pptx and .odp)
 mod slides_commands;
+// spreadsheets (the sheets screen) and their formula help
+mod sheets_commands;
+mod sheets_help_commands;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
@@ -123,6 +126,8 @@ fn manage_feature_states(app: &tauri::App) {
     app.manage(reading_commands::ReadingState::start(handle));
     // presentations: the decks open in each window
     app.manage(slides_commands::SlidesState::start(handle));
+    // spreadsheets: the open workbooks and dismissed tips
+    app.manage(sheets_commands::SheetsState::start(handle));
 }
 
 fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
@@ -157,4 +162,6 @@ fn close_window_parts(handle: &tauri::AppHandle, label: &str) {
     compare_commands::close_window(handle, label);
     // presentations: the window's decks and their slide pictures close with it
     slides_commands::close_window(handle, label);
+    // spreadsheets: the window's workbooks close with it
+    sheets_commands::close_window(handle, label);
 }

@@ -20,6 +20,8 @@ import { READING_COMMANDS, readingCommandForKey, readingPlainKey } from "./readi
 import { CODE_COMMANDS, CODE_KEYS } from "./code/codeCommands";
 // presentations: the slide editor's commands; its keys are read by the slide screen (slides/slidesCommands.ts)
 import { SLIDES_COMMANDS } from "./slides/slidesCommands";
+// spreadsheets: a new workbook from Recents (sheets/sheetsCommands.ts)
+import { SHEETS_COMMANDS } from "./sheets/sheetsCommands";
 
 export const COMMANDS = [
   "open",
@@ -84,6 +86,8 @@ export const COMMANDS = [
   ...CODE_COMMANDS,
   // presentations: the slide editor (slides/slidesCommands.ts)
   ...SLIDES_COMMANDS,
+  // spreadsheets: a new workbook from Recents (sheets/sheetsCommands.ts)
+  ...SHEETS_COMMANDS,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];

@@ -23,6 +23,8 @@ use crate::organise_commands;
 use crate::slides_commands;
 // edit tab round two and make editable text, on their own line for the same reason
 use crate::{edit_flow_commands, edit_page_commands, edit_shape_commands, ocr_editable_commands};
+// spreadsheets, on their own line for the same reason
+use crate::{sheets_commands, sheets_help_commands};
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -83,6 +85,9 @@ fn features() -> Vec<Feature> {
         organising(),
         // presentations: the slide editor and the slide show
         presentations(),
+        // spreadsheets: the sheets screen and its formula help
+        spreadsheets(),
+        spreadsheet_help(),
     ]
 }
 
@@ -474,6 +479,7 @@ fn organising() -> Feature {
         organise_commands::organise_new_folder,
     ]
 }
+
 /// presentations: the slide editor, its saves and exports, the slide show.
 fn presentations() -> Feature {
     feature![
@@ -501,5 +507,56 @@ fn presentations() -> Feature {
         slides_commands::slides_full_screen,
         slides_commands::slides_open_audience,
         slides_commands::slides_close_audience,
+    ]
+}
+
+/// spreadsheets: opening, the cells on screen, edits, undo, saving.
+fn spreadsheets() -> Feature {
+    feature![
+        sheets_commands::sheets_open,
+        sheets_commands::sheets_new,
+        sheets_commands::sheets_close,
+        sheets_commands::sheets_info,
+        sheets_commands::sheets_cells,
+        sheets_commands::sheets_styles,
+        sheets_commands::sheets_edit_text,
+        sheets_commands::sheets_apply,
+        sheets_commands::sheets_format,
+        sheets_commands::sheets_resize,
+        sheets_commands::sheets_hide,
+        sheets_commands::sheets_paste_text,
+        sheets_commands::sheets_copy,
+        sheets_commands::sheets_undo,
+        sheets_commands::sheets_redo,
+        sheets_commands::sheets_save,
+        sheets_commands::sheets_save_losses,
+        sheets_commands::sheets_autosave,
+        sheets_commands::sheets_discard_recovery,
+        sheets_commands::sheets_stats,
+        sheets_commands::sheets_find,
+        sheets_commands::sheets_column_values,
+        sheets_commands::sheets_edge,
+        sheets_commands::sheets_region,
+    ]
+}
+
+/// spreadsheets: formula help, explanations, error help, tips and shortcuts.
+fn spreadsheet_help() -> Feature {
+    feature![
+        sheets_help_commands::sheets_complete,
+        sheets_help_commands::sheets_function_info,
+        sheets_help_commands::sheets_argument_hint,
+        sheets_help_commands::sheets_reference_spans,
+        sheets_help_commands::sheets_insert_reference,
+        sheets_help_commands::sheets_expects_reference,
+        sheets_help_commands::sheets_cycle_reference,
+        sheets_help_commands::sheets_auto_close,
+        sheets_help_commands::sheets_explain,
+        sheets_help_commands::sheets_diagnose,
+        sheets_help_commands::sheets_tips,
+        sheets_help_commands::sheets_dismiss_tip,
+        sheets_help_commands::sheets_shortcuts,
+        sheets_help_commands::sheets_friendly_formats,
+        sheets_help_commands::sheets_style_presets,
     ]
 }

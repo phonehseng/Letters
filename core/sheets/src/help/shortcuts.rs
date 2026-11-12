@@ -2,12 +2,12 @@
 //! excel (windows and mac) and google sheets key sets, so the ui can offer
 //! either set and show the keys next to every command.
 //!
-//! sources, to check against: microsoft's "keyboard shortcuts in excel"
+//! sources: microsoft's "keyboard shortcuts in excel"
 //! (support.microsoft.com/office/1798d9d5-842a-42b8-9c99-9b7213f0040f)
 //! and google's "keyboard shortcuts for google sheets"
-//! (support.google.com/docs/answer/181110). the table was written from
-//! those applications' published defaults and has not been checked line
-//! by line against the pages in this build; `checked` says so.
+//! (support.google.com/docs/answer/181110, the pc list). every row was
+//! compared with both pages on 12 november 2026; `UNCONFIRMED` lists the
+//! rows where a page doesn't name one of the keys, with the reason.
 
 use serde::Serialize;
 
@@ -25,6 +25,31 @@ pub struct Shortcut {
     /// false until compared with the cited pages
     pub checked: bool,
 }
+
+/// rows a published page doesn't confirm in full, and why:
+/// - moveToEdge, selectToEdge: google's list has no ctrl with the arrows
+/// - editCell: google's list has no key for editing a cell
+/// - lineBreak: google's list names no key for a line break in a cell
+/// - fillRight, toggleFilter, replace, print: microsoft's windows tables
+///   don't list ctrl r, ctrl shift l, ctrl h or ctrl p (its mac and web
+///   tables do)
+/// - autoSum, formatCells, flashFill, clearContents: not in google's list
+/// - merge: neither page lists a key for merging cells
+const UNCONFIRMED: &[&str] = &[
+    "moveToEdge",
+    "selectToEdge",
+    "editCell",
+    "lineBreak",
+    "fillRight",
+    "toggleFilter",
+    "replace",
+    "print",
+    "autoSum",
+    "formatCells",
+    "flashFill",
+    "clearContents",
+    "merge",
+];
 
 /// (operation, excel windows, excel mac, google sheets, description, conflict)
 const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
@@ -87,18 +112,18 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
     (
         "editCell",
         "F2",
-        "Ctrl+U",
+        "F2",
         "Enter",
         "Edit the active cell",
-        "F2 also edits in Google Sheets",
+        "Google Sheets' list has no key to edit a cell; Enter and F2 both start editing there",
     ),
     (
         "cycleReference",
         "F4",
-        "Cmd+T",
+        "Cmd+T or F4",
         "F4",
         "While editing: cycle a reference through $A$1, A$1, $A1, A1",
-        "In Excel F4 outside editing repeats the last action",
+        "Outside a formula F4 repeats the last action in Excel and redoes in Google Sheets",
     ),
     (
         "fillDown",
@@ -119,7 +144,7 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
     (
         "fillSelection",
         "Ctrl+Enter",
-        "Ctrl+Return",
+        "Ctrl+Return or Cmd+Return",
         "Ctrl+Enter",
         "Put what was typed into every selected cell",
         "",
@@ -127,15 +152,15 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
     (
         "lineBreak",
         "Alt+Enter",
-        "Option+Return",
+        "Ctrl+Option+Return",
         "Ctrl+Enter",
         "A new line inside the cell",
-        "Ctrl+Enter is fill selection in Excel but a line break in Google Sheets",
+        "Google Sheets' list gives Ctrl+Enter as filling the range and Alt+Enter as opening a link",
     ),
     (
         "insertDate",
         "Ctrl+;",
-        "Cmd+;",
+        "Ctrl+;",
         "Ctrl+;",
         "Type today's date",
         "",
@@ -143,7 +168,7 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
     (
         "insertTime",
         "Ctrl+Shift+;",
-        "Cmd+Shift+;",
+        "Cmd+;",
         "Ctrl+Shift+;",
         "Type the time now",
         "",
@@ -222,8 +247,8 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
     ),
     (
         "insertCells",
-        "Ctrl+Plus",
-        "Cmd+Shift+=",
+        "Ctrl+Shift+Plus",
+        "Ctrl+Shift+=",
         "Ctrl+Alt+=",
         "Insert rows, columns or cells",
         "",
@@ -239,7 +264,7 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
     (
         "hideRows",
         "Ctrl+9",
-        "Cmd+9",
+        "Ctrl+9",
         "Ctrl+Alt+9",
         "Hide the selected rows",
         "",
@@ -247,7 +272,7 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
     (
         "hideColumns",
         "Ctrl+0",
-        "Cmd+0",
+        "Ctrl+0",
         "Ctrl+Alt+0",
         "Hide the selected columns",
         "",
@@ -256,7 +281,7 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
         "nextSheet",
         "Ctrl+PageDown",
         "Option+Right",
-        "Ctrl+Shift+PageDown",
+        "Alt+Down",
         "Go to the next sheet",
         "",
     ),
@@ -264,7 +289,7 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
         "previousSheet",
         "Ctrl+PageUp",
         "Option+Left",
-        "Ctrl+Shift+PageUp",
+        "Alt+Up",
         "Go to the previous sheet",
         "",
     ),
@@ -272,7 +297,7 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
         "showFormulas",
         "Ctrl+`",
         "Ctrl+`",
-        "Ctrl+`",
+        "Ctrl+~",
         "Show formulas instead of results",
         "",
     ),
@@ -286,14 +311,7 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
     ),
     ("bold", "Ctrl+B", "Cmd+B", "Ctrl+B", "Bold", ""),
     ("italic", "Ctrl+I", "Cmd+I", "Ctrl+I", "Italic", ""),
-    (
-        "underline",
-        "Ctrl+U",
-        "Cmd+U",
-        "Ctrl+U",
-        "Underline",
-        "Ctrl+U edits the cell in Excel for Mac",
-    ),
+    ("underline", "Ctrl+U", "Cmd+U", "Ctrl+U", "Underline", ""),
     ("undo", "Ctrl+Z", "Cmd+Z", "Ctrl+Z", "Undo", ""),
     ("redo", "Ctrl+Y", "Cmd+Y", "Ctrl+Y", "Redo", ""),
     ("copy", "Ctrl+C", "Cmd+C", "Ctrl+C", "Copy", ""),
@@ -307,7 +325,7 @@ const TABLE: &[(&str, &str, &str, &str, &str, &str)] = &[
         "Paste only the values",
         "",
     ),
-    ("find", "Ctrl+F", "Cmd+F", "Ctrl+F", "Find", ""),
+    ("find", "Ctrl+F", "Ctrl+F", "Ctrl+F", "Find", ""),
     (
         "replace",
         "Ctrl+H",
@@ -380,7 +398,7 @@ pub fn shortcuts() -> Vec<Shortcut> {
                     google_sheets,
                     description,
                     conflict,
-                    checked: false,
+                    checked: !UNCONFIRMED.contains(operation),
                 }
             },
         )
@@ -411,5 +429,16 @@ mod tests {
         assert_eq!(names.len(), all.len());
         assert_eq!(keys_for("autoSum", "excelWindows"), Some("Alt+="));
         assert_eq!(keys_for("recalculate", "googleSheets"), None);
+    }
+
+    #[test]
+    fn rows_the_published_pages_confirm_are_marked_checked() {
+        let all = shortcuts();
+        let row = |name: &str| all.iter().find(|s| s.operation == name).unwrap();
+        assert!(row("fillDown").checked);
+        assert!(!row("merge").checked);
+        assert!(UNCONFIRMED.iter().all(|name| all.iter().any(|s| s.operation == *name)));
+        assert_eq!(keys_for("nextSheet", "googleSheets"), Some("Alt+Down"));
+        assert_eq!(keys_for("insertTime", "excelMac"), Some("Cmd+;"));
     }
 }
