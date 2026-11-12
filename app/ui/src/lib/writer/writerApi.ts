@@ -83,8 +83,9 @@ export function closeWriterDocument(id: number): Promise<void> {
   return invoke("writer_close", { id });
 }
 
-export function saveWriterDocument(id: number, model: DocumentModel, path: string | null): Promise<WriterSaved> {
-  return invoke("writer_save", { id, model: forShell(model), path });
+/** `replaceChanged`: the person chose to write over a change made to the file elsewhere. */
+export function saveWriterDocument(id: number, model: DocumentModel, path: string | null, replaceChanged = false): Promise<WriterSaved> {
+  return invoke("writer_save", { id, model: forShell(model), path, replaceChanged });
 }
 
 /** what saving as .odt would lose, in a sentence, or null. */

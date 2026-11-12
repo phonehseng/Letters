@@ -176,9 +176,31 @@ impl WriterSessions {
         Ok(opened)
     }
 
+    /// the sentence for a save over the document's own file that another
+    /// window or program changed since this one read or wrote it; `None`
+    /// when the file is as this window left it. the ui then asks whether
+    /// to replace that change (see `save`'s `replace_changed`).
+    pub fn changed_on_disk(&self, id: u64) -> Result<Option<String>, String> {
+        self.with(id, |open| {
+            let path = &open.document.path;
+            Ok(open
+                .disk_stamp
+                .is_some_and(|stamp| stamp.changed_since(path))
+                .then(|| changed_on_disk_message(&file_name(path))))
+        })
+    }
+
     /// saves to the document's file, or to `to` (save as). the format comes
     /// from the name; a name without .docx or .odt gets the current one.
-    pub fn save(&self, id: u64, model: Value, to: Option<&Path>) -> Result<SavedWriter, String> {
+    /// `replace_changed`: the person chose to write over a change made to
+    /// the file elsewhere; otherwise such a save is refused.
+    pub fn save(
+        &self,
+        id: u64,
+        model: Value,
+        to: Option<&Path>,
+        replace_changed: bool,
+    ) -> Result<SavedWriter, String> {
         self.with(id, |open| {
             let target = match to {
                 Some(path) => with_writer_extension(path, open.document.kind),
@@ -189,6 +211,7 @@ impl WriterSessions {
             // changed since: refuse, so that change isn't thrown away
             let over_own_file = target == open.document.path;
             if over_own_file
+                && !replace_changed
                 && open
                     .disk_stamp
                     .is_some_and(|stamp| stamp.changed_since(&target))

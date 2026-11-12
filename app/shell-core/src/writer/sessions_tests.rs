@@ -42,7 +42,12 @@ fn open_edit_save_and_save_as_odt() {
     assert_eq!(opened.kind, "docx");
     assert!(opened.recovery.is_none());
     sessions
-        .save(opened.id, edited(&opened.model, "Second draft"), None)
+        .save(
+            opened.id,
+            edited(&opened.model, "Second draft"),
+            None,
+            false,
+        )
         .unwrap();
     assert_eq!(read_text(&path), "Second draft");
 
@@ -51,6 +56,7 @@ fn open_edit_save_and_save_as_odt() {
             opened.id,
             edited(&opened.model, "As odt"),
             Some(&dir.join("essay copy")),
+            false,
         )
         .unwrap();
     assert_eq!(
@@ -62,6 +68,7 @@ fn open_edit_save_and_save_as_odt() {
             opened.id,
             edited(&opened.model, "As odt"),
             Some(&dir.join("essay.odt")),
+            false,
         )
         .unwrap();
     assert_eq!(odt.kind, "odt");
@@ -95,7 +102,7 @@ fn a_crash_leaves_a_recovery_copy_that_the_next_open_offers() {
     );
     // saving the recovered version makes the copy go away
     next_run
-        .save(recovered.id, recovered.model.clone(), None)
+        .save(recovered.id, recovered.model.clone(), None, false)
         .unwrap();
     assert!(next_run
         .open("window-1", &path, false)
@@ -142,20 +149,44 @@ fn saving_over_a_document_another_window_saved_refuses_and_keeps_its_change() {
     let first = sessions.open("window-1", &path, false).unwrap();
     let second = sessions.open("window-2", &path, false).unwrap();
     sessions
-        .save(first.id, edited(&first.model, "hello FIRSTWINDOW"), None)
+        .save(
+            first.id,
+            edited(&first.model, "hello FIRSTWINDOW"),
+            None,
+            false,
+        )
         .unwrap();
 
     let refused = sessions
-        .save(second.id, edited(&second.model, "hello SECONDWINDOW"), None)
+        .save(
+            second.id,
+            edited(&second.model, "hello SECONDWINDOW"),
+            None,
+            false,
+        )
         .unwrap_err();
     assert!(refused.contains("Save As"), "{refused}");
     assert_eq!(read_text(&path), "hello FIRSTWINDOW");
-
-    // the first window may go on saving its own file
+    // the shell asks the person before that save (writer_save)
+    assert!(sessions.changed_on_disk(second.id).unwrap().is_some());
+    assert!(sessions.changed_on_disk(first.id).unwrap().is_none());
+    // Replace: the person chose to write over the first window's change
     sessions
-        .save(first.id, edited(&first.model, "hello again"), None)
+        .save(
+            second.id,
+            edited(&second.model, "hello SECONDWINDOW"),
+            None,
+            true,
+        )
         .unwrap();
-    assert_eq!(read_text(&path), "hello again");
+    assert_eq!(read_text(&path), "hello SECONDWINDOW");
+    assert!(sessions.changed_on_disk(second.id).unwrap().is_none());
+
+    // the first window is now the one asked
+    let refused = sessions
+        .save(first.id, edited(&first.model, "hello again"), None, false)
+        .unwrap_err();
+    assert!(refused.contains("Save As"), "{refused}");
 }
 
 #[test]
@@ -251,7 +282,7 @@ fn open_and_save_without_edits_keeps_the_document() {
     let opened = sessions.open("w", &path, false).unwrap();
     let before = letters_office::open(&fs::read(&path).unwrap()).unwrap();
     sessions
-        .save(opened.id, opened.model.clone(), None)
+        .save(opened.id, opened.model.clone(), None, false)
         .unwrap();
     let after = letters_office::open(&fs::read(&path).unwrap()).unwrap();
     assert_eq!(after.blocks, before.blocks);

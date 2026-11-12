@@ -43,6 +43,8 @@ export class WriterSession {
   id: number;
   name = $state("");
   path = $state("");
+  /** the file changed on disk since this window read it: the sentence while Replace, Cancel or Save As is asked */
+  changedOnDisk = $state<string | null>(null);
   kind = $state<"docx" | "odt">("docx");
   /** the editor state as of the last change; read it, never change it */
   editor = $state.raw<EditorState>(PmEditorState.create({ schema }));
@@ -212,11 +214,11 @@ export class WriterSession {
 
   // --- saving
 
-  async save(path: string | null = null): Promise<boolean> {
+  async save(path: string | null = null, replaceChanged = false): Promise<boolean> {
     const model = this.model();
     const doc = this.view?.state.doc ?? this.editor.doc;
     try {
-      const saved = await api.saveWriterDocument(this.id, model, path);
+      const saved = await api.saveWriterDocument(this.id, model, path, replaceChanged);
       this.name = saved.name;
       this.path = saved.path;
       this.kind = saved.kind;
@@ -226,7 +228,9 @@ export class WriterSession {
       this.announce(`Saved “${saved.name}”.`);
       return true;
     } catch (problem) {
-      this.onError(errorText(problem));
+      // another window or program changed the file: the screen asks (ChangedOnDiskSheet)
+      if (errorKind(problem) === "changed-on-disk") this.changedOnDisk = errorText(problem);
+      else this.onError(errorText(problem));
       return false;
     }
   }
@@ -649,6 +653,12 @@ export class WriterSession {
   setTabStops(tabs: TabStop[]) {
     this.run((s) => edit.updateParagraphs(s, (props) => ({ ...props, tabs: tabs.length ? tabs : undefined })), false);
   }
+}
+
+/** the shell's kind of error ("changed-on-disk", "failed"…), if it gave one. */
+export function errorKind(problem: unknown): string | null {
+  if (typeof problem === "object" && problem && "kind" in problem) return String((problem as { kind: unknown }).kind);
+  return null;
 }
 
 export function errorText(problem: unknown): string {
