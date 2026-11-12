@@ -29,3 +29,11 @@ incremental, which is harmless.
 
 Save a Copy no longer drops the guard: the copy is still signed, so its
 changes are appended too. The command that dropped it is gone.
+
+## 2026-11-12: form data files
+
+`data_files` reads the kind of a form data file from its extension, reads
+a chosen data file within 16 MB (answers are small; a bigger file is the
+wrong one), and merges filled copies, each read within 256 MB so one huge
+scan can't stall a merge. A copy that can't be read joins the engine's
+`skipped` list with the reason, so the person sees every file accounted for.

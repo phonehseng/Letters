@@ -38,3 +38,12 @@ stands for, a field's default answer, resets fields to their defaults, and
 adds Clear Form and Print buttons at the bottom right of the page being
 read, where Edit Fields can move them. The engine's sentence about why
 there is no submit button sits under the buttons.
+
+## 2026-11-12: Form Data
+
+A Form Data section exports a form's answers as FDF, XFDF, CSV or JSON
+(the kind chosen sets the save panel's filter, and the shell reads the kind
+back from the file's name), imports answers from any of them, and merges
+many filled copies into one CSV with a File column. An import is one undo
+step and says how many answers went in and which were left out and why, in
+the engine's sentences.

@@ -60,6 +60,15 @@ export const fillSignTools = {
     meaning:
       "A calculation works a field’s answer out from other fields. A format decides how an answer is shown, such as 1,234.50 or 25%. A check refuses an answer that breaks a rule and says why.",
   },
+  formData: {
+    label: "Form Data",
+    tooltip: "Export or import a form’s answers, or merge many filled copies into one table",
+    whenToUse:
+      "To keep answers apart from the PDF, to fill a form from answers you already have, or to collect the answers of a whole class’s filled forms in one spreadsheet.",
+    fileEffect: `Export and Merge save new files and leave this PDF as it is. Import fills the form in your working copy, as one undo step. ${ONLY_THE_WORKING_COPY}`,
+    meaning:
+      "Form data is just the answers, without the pages: field names and what was typed or ticked. FDF and XFDF are the PDF standard’s own kinds; CSV opens in a spreadsheet.",
+  },
   flattenForm: {
     label: "Flatten Form…",
     tooltip: "Make the answers a permanent part of the pages",

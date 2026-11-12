@@ -29,6 +29,7 @@ use crate::{sheets_commands, sheets_help_commands};
 // and pdf standards, on their own line for the same reason
 use crate::form_logic_commands;
 use crate::form_building_commands;
+use crate::form_data_commands;
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -114,6 +115,9 @@ fn forms_round_two() -> Feature {
         form_building_commands::forms_set_default_value,
         form_building_commands::forms_reset_form,
         form_building_commands::forms_add_button,
+        form_data_commands::forms_export_data,
+        form_data_commands::forms_import_data,
+        form_data_commands::forms_merge_data,
     ]
 }
 
