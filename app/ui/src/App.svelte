@@ -8,6 +8,8 @@
     closeDocument,
     listenForMenuCommands,
     newWindow,
+    focusWindowShowing,
+    windowShows,
     openDocument,
     saveDocument,
     saveDocumentAs,
@@ -128,6 +130,8 @@
       await newWindow(path);
       return;
     }
+    // one window per file: a file open in another window brings that window forward
+    if (await focusWindowShowing(path).catch(() => false)) return;
     errorMessage = null;
     // export: a window opened by "Open PDF as Document…" shows the pdf as a document
     if (await takeOpenAsDocument(path)) {
@@ -416,6 +420,13 @@
     comparing = null;
     openPath(path);
   }
+
+  // one window per file: the shell is told which file this window shows,
+  // so opening it again (from Recents, Explorer or another window) comes here
+  $effect(() => {
+    const shown = openedDocument?.path ?? openedWriter?.path ?? openedCode?.path ?? openedSlides?.path ?? openedSheet?.path ?? null;
+    windowShows(shown).catch(() => {});
+  });
 
   // commands that work on every screen. the viewer and the recents
   // screen add their own while they are shown.

@@ -17,6 +17,8 @@ pub mod recents;
 pub mod session;
 pub mod settings;
 pub mod startup;
+// which file each window shows, so a file opens once (see window_files.rs)
+pub mod window_files;
 // word-processor mode (.docx and .odt), see writer/mod.rs
 pub mod writer;
 // save to google drive (desktop folder or direct upload), see drive/mod.rs
