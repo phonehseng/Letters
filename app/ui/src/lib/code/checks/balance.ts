@@ -50,7 +50,8 @@ const SYNTAX: Record<string, Syntax> = {
   rust: { ...C_LIKE, quotes: '"', nestedBlockComments: true, skipSpecial: skipRustRawString },
   python: { lineComment: "#", blockComment: null, quotes: "\"'", tripleQuotes: "\"'" },
   shell: SHELL,
-  sql: { lineComment: "--", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: "" },
+  // mysql quotes names in backticks: `order(old)` is one name
+  sql: { lineComment: "--", blockComment: ["/*", "*/"], quotes: "\"'`", tripleQuotes: "" },
 };
 
 const PAIRS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };

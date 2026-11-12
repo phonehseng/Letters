@@ -201,6 +201,11 @@ describe("the basic check", () => {
     expect(checkBalance('let s = r#"text"; fn f() {}', "rust")[0].message).toBe('This raw string is never closed. Add "# where it ends.');
   });
 
+  it("reads mysql backtick names as names, brackets and all", () => {
+    expect(checkBalance("SELECT `weird(col` FROM t WHERE (a = 1);\n", "sql")).toEqual([]);
+    expect(checkBalance("SELECT `weird(col` FROM t WHERE (a = 1;\n", "sql").map((problem) => problem.column)).toEqual([33]);
+  });
+
   it("knows rust lifetimes are not strings", () => {
     expect(checkBalance("fn f<'a>(x: &'a str) -> &'a str { x }", "rust")).toEqual([]);
   });
