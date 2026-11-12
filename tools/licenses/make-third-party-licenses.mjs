@@ -49,6 +49,14 @@ const KNOWN_NOTES = [
   "Microsoft Office and LibreOffice are used only when the person has installed them, as separate programs; nothing of theirs is shipped.",
 ];
 
+// the file is written on every build, so it must come out the same each
+// time and on every computer: a fixed order (not the locale's), line breaks
+// as LF only (some licence files have CRLF), and no date in it.
+function byNameThenVersion(a, b) {
+  const first = a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  return first || (a.version < b.version ? -1 : a.version > b.version ? 1 : 0);
+}
+
 function cargoPackages() {
   const metadata = JSON.parse(execFileSync("cargo", ["metadata", "--format-version", "1", "--locked"], { cwd: root, maxBuffer: 256 * 1024 * 1024, encoding: "utf8" }));
   const byId = new Map(metadata.packages.map((pkg) => [pkg.id, pkg]));
@@ -66,18 +74,18 @@ function cargoPackages() {
       if (dep.dep_kinds.some((kind) => kind.kind === null || kind.kind === "build")) queue.push(dep.pkg);
     }
   }
-  return [...seen].filter((id) => !workspace.has(id)).map((id) => byId.get(id)).sort((a, b) => a.name.localeCompare(b.name));
+  return [...seen].filter((id) => !workspace.has(id)).map((id) => byId.get(id)).sort(byNameThenVersion);
 }
 
 function licenseText(pkg) {
   const folder = path.dirname(pkg.manifest_path);
   let names = [];
   try {
-    names = fs.readdirSync(folder).filter((name) => /^(licen[cs]e|copying|notice)/i.test(name));
+    names = fs.readdirSync(folder).filter((name) => /^(licen[cs]e|copying|notice)/i.test(name)).sort();
   } catch {
     return "";
   }
-  return names.map((name) => `--- ${name} ---\n${fs.readFileSync(path.join(folder, name), "utf8").trim()}`).join("\n\n");
+  return names.map((name) => `--- ${name} ---\n${fs.readFileSync(path.join(folder, name), "utf8").replace(/\r\n?/g, "\n").trim()}`).join("\n\n");
 }
 
 function npmPackages() {
@@ -86,7 +94,7 @@ function npmPackages() {
   return Object.entries(lock.packages ?? {})
     .filter(([key]) => key.startsWith("node_modules/") || key.includes("/node_modules/"))
     .map(([key, value]) => ({ name: key.replace(/^.*node_modules\//, ""), version: value.version, license: value.license ?? "", dev: !!value.dev }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort(byNameThenVersion);
 }
 
 const crates = cargoPackages();
@@ -105,7 +113,7 @@ const flagged = [
 ];
 
 const lines = [];
-lines.push("Letters: third-party licenses", "", `Made by tools/licenses/make-third-party-licenses.mjs on ${new Date().toISOString().slice(0, 10)}.`, "");
+lines.push("Letters: third-party licenses", "", "Made by tools/licenses/make-third-party-licenses.mjs each time the app is built.", "");
 lines.push("== Notes", "", ...KNOWN_NOTES.map((note) => `- ${note}`), "");
 lines.push("== For review (not MIT, Apache, BSD, ISC, Zlib, OFL, MPL or similar)", "");
 lines.push(...(flagged.length ? flagged.map((item) => `- ${item}`) : ["- none"]), "");
