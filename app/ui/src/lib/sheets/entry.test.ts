@@ -56,6 +56,30 @@ describe("the clipboard", () => {
     ]);
   });
 
+  it("keeps a row-spanning cell's column in the rows below, as excel pastes a web table", () => {
+    const html = `<table><tr><th>Country</th><th>City</th><th>People</th></tr>
+      <tr><td rowspan="2">France</td><td>Paris</td><td>2.1</td></tr>
+      <tr><td>Lyon</td><td>0.5</td></tr>
+      <tr><td>Spain</td><td>Madrid</td><td>3.3</td></tr></table>`;
+    expect(rowsFromHtml(html)).toEqual([
+      ["Country", "City", "People"],
+      ["France", "Paris", "2.1"],
+      ["", "Lyon", "0.5"],
+      ["Spain", "Madrid", "3.3"],
+    ]);
+    // a spanning cell at the end of a row, and one spanning both ways
+    const corner = `<table><tr><td>a</td><td rowspan=2 colspan=2>wide</td></tr><tr><td>b</td></tr><tr><td>c</td><td>d</td><td>e</td></tr></table>`;
+    expect(rowsFromHtml(corner)).toEqual([
+      ["a", "wide", ""],
+      ["b", "", ""],
+      ["c", "d", "e"],
+    ]);
+  });
+
+  it("decodes html's named characters, keeping their case", () => {
+    expect(rowsFromHtml("<table><tr><td>Zo&euml; &amp; co</td><td>&Euml;&eacute; &ndash; &euro;5 &frac12;</td></tr></table>")).toEqual([["Zoë & co", "Ëé – €5 ½"]]);
+  });
+
   it("reads a google sheets table and ignores html without one", () => {
     const html = '<google-sheets-html-origin><style>td{}</style><table><tbody><tr style="height:21px"><td>1</td><td>x</td></tr></tbody></table>';
     expect(rowsFromHtml(html)).toEqual([["1", "x"]]);

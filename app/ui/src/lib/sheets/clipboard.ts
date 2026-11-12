@@ -15,15 +15,41 @@ export interface CopiedRange {
   cut: boolean;
 }
 
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+// html's named characters: the latin-1 set (&nbsp; to &yuml;, in code
+// order from 160) and the punctuation web pages use most. "Zo&euml;" was
+// pasted as it was written
+const LATIN_1 =
+  "nbsp iexcl cent pound curren yen brvbar sect uml copy ordf laquo not shy reg macr deg plusmn sup2 sup3 acute micro para middot cedil sup1 ordm raquo frac14 frac12 frac34 iquest " +
+  "Agrave Aacute Acirc Atilde Auml Aring AElig Ccedil Egrave Eacute Ecirc Euml Igrave Iacute Icirc Iuml ETH Ntilde Ograve Oacute Ocirc Otilde Ouml times Oslash Ugrave Uacute Ucirc Uuml Yacute THORN szlig " +
+  "agrave aacute acirc atilde auml aring aelig ccedil egrave eacute ecirc euml igrave iacute icirc iuml eth ntilde ograve oacute ocirc otilde ouml divide oslash ugrave uacute ucirc uuml yacute thorn yuml";
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  euro: "€",
+  ndash: "–",
+  mdash: "—",
+  lsquo: "‘",
+  rsquo: "’",
+  ldquo: "“",
+  rdquo: "”",
+  hellip: "…",
+  bull: "•",
+  trade: "™",
+  minus: "−",
+  ...Object.fromEntries(LATIN_1.split(" ").map((name, index) => [name, String.fromCharCode(160 + index)])),
+};
 
 function decodeEntities(text: string): string {
-  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (whole, name: string) => {
+  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z][a-z0-9]*);/gi, (whole, name: string) => {
     if (name[0] === "#") {
       const code = name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
       return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
     }
-    return ENTITIES[name.toLowerCase()] ?? whole;
+    // case matters: &Euml; is Ë and &euml; is ë; &AMP; and the like still work
+    return ENTITIES[name] ?? ENTITIES[name.toLowerCase()] ?? whole;
   });
 }
 
@@ -44,13 +70,36 @@ export function rowsFromHtml(html: string): string[][] | null {
   const table = /<table[\s\S]*?<\/table>/i.exec(html);
   if (!table) return null;
   const rows: string[][] = [];
+  // for each column, how many more rows a cell above still covers: a cell
+  // with rowspan keeps its column in the rows below, which leave it empty,
+  // as excel and google sheets paste it (the cells used to slide left
+  // under the wrong headings)
+  const covered: number[] = [];
   for (const row of table[0].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
     const fields: string[] = [];
+    const skipCovered = () => {
+      while ((covered[fields.length] ?? 0) > 0) {
+        covered[fields.length] -= 1;
+        fields.push("");
+      }
+    };
     for (const cell of row[1].matchAll(/<t([dh])([^>]*)>([\s\S]*?)<\/t\1>/gi)) {
-      fields.push(cellText(cell[3]));
+      skipCovered();
       // a merged cell spans columns: the cells it covers are empty
-      const span = /colspan\s*=\s*["']?(\d+)/i.exec(cell[2]);
-      for (let extra = 1; extra < Number(span?.[1] ?? 1); extra += 1) fields.push("");
+      const across = Number(/colspan\s*=\s*["']?(\d+)/i.exec(cell[2])?.[1] ?? 1);
+      const down = Number(/rowspan\s*=\s*["']?(\d+)/i.exec(cell[2])?.[1] ?? 1);
+      for (let column = 0; column < Math.max(1, across); column += 1) {
+        if (down > 1) covered[fields.length] = down - 1;
+        fields.push(column === 0 ? cellText(cell[3]) : "");
+      }
+    }
+    // columns at the end of the row still covered from above
+    for (let column = fields.length; column < covered.length; column += 1) {
+      if ((covered[column] ?? 0) > 0) {
+        while (fields.length < column) fields.push("");
+        covered[column] -= 1;
+        fields.push("");
+      }
     }
     rows.push(fields);
   }
