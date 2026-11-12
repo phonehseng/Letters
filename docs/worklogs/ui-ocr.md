@@ -28,3 +28,13 @@ the pdf has no file of its own yet.
 A corrected word's overlay is kept for the revision the correction made
 and set when the viewer reaches that revision; setting it straight away
 was wiped by the revision change that followed.
+
+## 2026-11-12 Make Editable Text
+
+A new Scan section turns scanned pages into visible, editable text, as
+text over the cleaned scan or text only, each said in one sentence. Pages
+already read are converted at once; others are read first by the same run
+Recognize Text uses, and the run then ends in `ocr_make_editable` instead
+of the hidden layer. A run for this purpose that fails or is cancelled
+leaves the next Recognize Text a plain one. The edit tab's consent question
+guards it, since it changes page content.

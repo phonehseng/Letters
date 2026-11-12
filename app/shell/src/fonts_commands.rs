@@ -39,6 +39,12 @@ impl FontsState {
         // is written through a temporary file, so quitting mid-scan is safe
         Self { library }
     }
+
+    /// edit tab: the library's fonts as they are now, lent to edits that
+    /// add letters to a document's font (see edit_flow_commands.rs)
+    pub fn index(&self) -> Arc<letters_fonts::FontIndex> {
+        self.library.index()
+    }
 }
 
 /// where the shipped fonts can be: the installed app's resources, beside

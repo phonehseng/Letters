@@ -33,3 +33,18 @@ away right after a run. `same_words` now compares the letters alone.
 `app/shell/src/ocr_commands.rs` had grown past 550 lines. Making a pdf
 from pictures is a separate job from recognising an open document, so
 its commands move to `app/shell/src/ocr_images_commands.rs`.
+
+## 2026-11-12 Make Editable Text
+
+`make_pages_editable` runs letters-edit's `convert_scan_to_text` over
+recognised pages inside one edit. A page's invisible text layer (from
+Recognize Text) is taken off first; otherwise every word would be on the
+page twice and every search would find it twice. A page that fails names
+itself in the sentence and nothing changes.
+
+## 2026-11-12 the Make Editable Text command
+
+`ocr_make_editable` takes the words of a finished run (`job`), or for pages
+read before, tesseract's kept words while they match the page, else the
+hidden layer read back. A page with neither is refused with a sentence
+naming it.

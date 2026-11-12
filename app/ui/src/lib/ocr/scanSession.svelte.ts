@@ -6,17 +6,18 @@
 // a run happens in the shell on its own thread; the session asks how it
 // is doing a few times a second, so the document stays usable meanwhile.
 // when it has finished, every page's text is added through the viewer's
-// change queue as one edit, so one Undo takes it back.
+// change queue as one edit, so one Undo takes it back. a run started by
+// Make Editable Text ends differently: its words become visible text.
 
 import { SvelteMap } from "svelte/reactivity";
 import type { DocumentState } from "../api";
 import type { Dispatcher } from "../commands";
 import type { ToolName } from "../tools";
 import { defaultLanguage, languageNames } from "./languages";
-import { ocrApi, optionsFrom, type CleanupChoices, type OcrStatus, type OverlayPage, type ScanOverview } from "./ocrApi";
+import { ocrApi, optionsFrom, type CleanupChoices, type EditableSummary, type OcrStatus, type OverlayPage, type ScanMode, type ScanOverview } from "./ocrApi";
 import { OCR_COMMANDS, type OcrCommand } from "./ocrCommands";
 import { IDLE, isBusy, jobOf, nextView, type JobEvent, type JobView } from "./ocrJob";
-import { cancelledSentence, summarySentence } from "./ocrSentences";
+import { cancelledSentence, editableSentence, summarySentence } from "./ocrSentences";
 import { pagesInWords, type PageChoice } from "./pageRange";
 
 export interface ScanHost {
@@ -42,6 +43,12 @@ export class ScanSession {
   #loadingOverlays = new Set<number>();
   /** the words a correction answered, for the revision it made */
   #answered: { revision: number; overlay: OverlayPage } | null = null;
+  /** set while a run is for Make Editable Text: what to make of its words */
+  #editable: { mode: ScanMode; consent: { invalidateSignatures: boolean } } | null = null;
+
+  /** what the last Make Editable Text did */
+  editable = $state<EditableSummary | null>(null);
+  editableMode = $state<ScanMode>("textOverCleanedImage");
 
   status = $state<OcrStatus | null>(null);
   overview = $state<ScanOverview | null>(null);
@@ -118,7 +125,13 @@ export class ScanSession {
     this.view = nextView(this.view, event);
   }
 
-  async start(pages: number[]): Promise<void> {
+  /** Recognize Text: reads the pages and adds the hidden text layer. */
+  start(pages: number[]): Promise<void> {
+    if (!this.busy) this.#editable = null;
+    return this.#read(pages);
+  }
+
+  async #read(pages: number[]): Promise<void> {
     if (this.busy || pages.length === 0) return;
     this.#send({ type: "start" });
     const id = this.#host.documentId();
@@ -178,6 +191,7 @@ export class ScanSession {
   }
 
   async #apply(job: number) {
+    if (this.#editable) return this.#applyEditable(job, this.#editable);
     const id = this.#host.documentId();
     let summary = null as Awaited<ReturnType<typeof ocrApi.apply>>["summary"] | null;
     const worked = await this.#host.change(async () => {
@@ -191,6 +205,45 @@ export class ScanSession {
     }
     this.#send({ type: "applied", summary });
     this.#host.announce(summarySentence(summary));
+  }
+
+  // ---- Make Editable Text ----
+
+  /**
+   * turns `pages` into real text. pages already read are converted at
+   * once; otherwise they are read first (with the Recognize Text choices)
+   * and converted when the run ends, still one Undo for the person.
+   */
+  async makeEditable(pages: number[], consent: { invalidateSignatures: boolean }): Promise<boolean> {
+    if (this.busy || pages.length === 0) return false;
+    this.editable = null;
+    const read = this.overview?.recognized ?? [];
+    if (pages.every((page) => read.includes(page))) return this.#convert(pages, null, this.editableMode, consent);
+    this.#editable = { mode: this.editableMode, consent };
+    await this.#read(pages);
+    return true;
+  }
+
+  async #applyEditable(job: number, choice: { mode: ScanMode; consent: { invalidateSignatures: boolean } }) {
+    this.#editable = null;
+    const status = await ocrApi.jobStatus(job).catch(() => null);
+    const worked = await this.#convert(status?.summary?.pages ?? [], job, choice.mode, choice.consent);
+    if (!worked || !status?.summary) {
+      this.#send({ type: "failed", message: "The text was read but couldn’t be made editable. Choose Make Editable Text again." });
+      return;
+    }
+    this.#send({ type: "applied", summary: status.summary });
+  }
+
+  async #convert(pages: number[], job: number | null, mode: ScanMode, consent: { invalidateSignatures: boolean }): Promise<boolean> {
+    const id = this.#host.documentId();
+    const worked = await this.#host.change(async () => {
+      const answer = await ocrApi.makeEditable(id, pages, job, mode, consent);
+      this.editable = answer.summary;
+      return answer.document;
+    });
+    if (worked && this.editable) this.#host.announce(editableSentence(this.editable));
+    return worked;
   }
 
   // ---- after a run ----

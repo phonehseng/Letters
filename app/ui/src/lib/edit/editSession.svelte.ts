@@ -2,11 +2,14 @@
 // tool (Edit Text and Images, Add Text, Add Image), the text and pictures
 // of the pages on screen, the paragraph being typed in on the page, and
 // the notice shown after an edit. the pictures have their own half,
-// `pictures` (pictureTools.svelte.ts).
+// `pictures` (pictureTools.svelte.ts), as do the shapes (`shapes`), text
+// that re-wraps and pushes the column down (`flow`, textFlow.svelte.ts)
+// and the question before changing a signed file (`consent`).
 //
 // every change goes through the viewer's change queue, so each is one
-// undo step. the engine answers the changed page's objects with fresh
-// ids, which are kept at once: ids are only valid until the next edit.
+// undo step, and through `consent` first. the engine answers the changed
+// page's objects with fresh ids, which are kept at once: ids are only
+// valid until the next edit.
 
 import type { DocumentState } from "../api";
 import type { Dispatcher } from "../commands";
@@ -16,13 +19,20 @@ import type { MarkStyle, PageTool } from "../pageTools/pageTool";
 import { pointTool, rectangleTool } from "../pageTools/tools.svelte";
 import type { ToolName } from "../tools";
 import { caretIndexFor, leadingRun, matchingBlock } from "./blocks";
+import { extensionSentence, summarySentence } from "./changeSentences";
+import { ConsentGate } from "./consent.svelte";
 import { embeddedFace, lookOf, measureMetrics, nearestStandard, standardLook, type CssFontLook } from "./cssFonts";
+import { contentApi, type ChangesSummary } from "./contentApi";
 import { editApi, type AddTextFont, type PageObjects, type Rgb, type StandardFont, type TextBlock, type TextEditAnswer, type TextStyleChange } from "./editApi";
 import { EDIT_COMMANDS, type EditCommand } from "./editCommands";
 import { editedAnnouncement, noticeSentence, overflowSentence } from "./editSentences";
 import type { FontMetrics } from "./editorGeometry";
+import { planFlow } from "./flowPlan";
 import { PageObjectsStore } from "./pageObjectsStore.svelte";
+import { PageSetup } from "./pageSetup.svelte";
 import { PictureTools } from "./pictureTools.svelte";
+import { ShapeTools } from "./shapeTools.svelte";
+import { TextFlow } from "./textFlow.svelte";
 import { clearsBlock, editorText, planTextChange, type TextChange } from "./textDiff";
 
 export type EditToolId = "none" | "edit" | "addText" | "addImage";
@@ -107,21 +117,43 @@ export class EditSession {
   tool = $state<EditToolId>("none");
   readonly objects: PageObjectsStore;
   readonly pictures: PictureTools;
+  readonly shapes: ShapeTools;
+  readonly flow: TextFlow;
+  readonly consent: ConsentGate;
+  readonly pageSetup: PageSetup;
   editor = $state<EditorDraft | null>(null);
   notice = $state<EditNotice | null>(null);
   newText = $state<NewTextStyle>({ font: { type: "standard", font: "helvetica" }, label: "Helvetica", size: 12, color: BLACK });
+  /** Add Text writes in the style of the paragraph nearby (its font, size, spacing and colour) */
+  matchNearby = $state(true);
 
   readonly pageTool: PageTool | null = $derived(this.#toolFor(this.tool));
 
   constructor(host: EditHost) {
-    this.#host = host;
+    this.consent = new ConsentGate(host.documentId);
+    // every change of the Edit tab asks first when the file is signed
+    const change = (action: () => Promise<DocumentState>) => this.consent.guarded(() => host.change(action));
+    this.#host = { ...host, change };
     this.objects = new PageObjectsStore((page) => editApi.pageObjects(host.documentId(), page));
-    this.pictures = new PictureTools({
-      ...host,
+    const shared = {
+      ...this.#host,
       objects: this.objects,
-      keep: (revision, objects, stale) => this.#keep(revision, objects, stale),
+      consent: this.consent,
+      keep: (revision: number, objects: PageObjects, stale: boolean) => this.#keep(revision, objects, stale),
       finishTyping: () => this.#finishTyping(),
+    };
+    // a picture and a shape are never selected at once
+    this.pictures = new PictureTools({
+      ...shared,
+      finishTyping: () => this.#finishTyping(this.shapes),
       useTool: (tool) => this.setTool(tool),
+    });
+    this.shapes = new ShapeTools({ ...shared, finishTyping: () => this.#finishTyping(this.pictures) });
+    this.pageSetup = new PageSetup(shared);
+    this.flow = new TextFlow({
+      ...shared,
+      showNotice: (page, rect, sentences) => (this.notice = { page, rect, sentences, overflow: null }),
+      reopen: (page, block, text) => this.#reopen(page, block, text),
     });
     this.#tools = this.#makeTools();
   }
@@ -156,7 +188,10 @@ export class EditSession {
     if (tool !== "none") this.#host.takePageTool();
     this.#closeEditorQuietly();
     this.tool = tool;
-    if (tool !== "edit") this.pictures.deselect();
+    if (tool !== "edit") {
+      this.pictures.deselect();
+      this.shapes.deselect();
+    }
   }
 
   /** another tool took over the pages. */
@@ -168,20 +203,24 @@ export class EditSession {
   #pressedOutside(): null {
     this.#finishTyping();
     this.pictures.deselect();
+    this.shapes.deselect();
     return null;
   }
 
-  /** the paragraph being typed in becomes part of the page, and the last notice goes. */
-  #finishTyping() {
+  /** the paragraph being typed in becomes part of the page, the last notice goes, and `other` lets go. */
+  #finishTyping(other?: { deselect: () => void }) {
     if (this.editor) void this.commitEditor();
     this.notice = null;
+    other?.deselect();
   }
 
   /** escape: drops the notice, the editor, the selected picture, then the tool. false when nothing was left. */
   escape(): boolean {
     if (this.notice) this.notice = null;
     else if (this.editor) this.editor = null;
+    else if (this.pictures.cropping) this.pictures.cancelCrop();
     else if (this.pictures.selected) this.pictures.deselect();
+    else if (this.shapes.selected) this.shapes.deselect();
     else if (this.tool !== "none") this.setTool("none");
     else return false;
     return true;
@@ -193,6 +232,8 @@ export class EditSession {
     // undo, redo or another tool changed the page under the editor: its ids are gone
     if (revision !== this.#ownRevision && this.editor?.block) this.editor = null;
     this.pictures.preview = null;
+    this.shapes.preview = null;
+    this.shapes.pointPreview = null;
   }
 
   /** the menu bar and the keys reach the Edit tools through the window's dispatcher. */
@@ -214,17 +255,18 @@ export class EditSession {
 
   // ---- typing in place ----
 
-  /** opens the editor over a block, with the caret where it was clicked. */
-  async openBlock(page: number, block: TextBlock, at: Point | null) {
+  /** opens the editor over a block, with the caret where it was clicked; `typed` starts it with text typed before. */
+  async openBlock(page: number, block: TextBlock, at: Point | null, typed: string | null = null) {
     if (this.editor) await this.commitEditor();
     this.pictures.deselect();
     this.notice = null;
     const look = await this.#lookOf(block);
-    const text = editorText(block);
+    const original = editorText(block);
+    const text = typed ?? original;
     const caret = at ? caretIndexFor(block, at) : text.length;
     const position = { x: block.rect.x, y: block.rect.y };
     const metrics = measureMetrics(look);
-    this.editor = { page, block, position, original: text, text, caret, selection: [caret, caret], look, metrics };
+    this.editor = { page, block, position, original, text, caret, selection: [caret, caret], look, metrics };
   }
 
   /** the page's own font when the web view can load it, else the closest; never waits long for it. */
@@ -277,18 +319,49 @@ export class EditSession {
     if (!draft) return false;
     this.editor = null;
     if (!draft.block) return this.#addNewText(draft);
-    const change = planTextChange(draft.block, draft.text);
-    if (change.kind === "none") return true;
-    return this.#applyChange(draft.page, draft.block, change, draft.text, true);
+    // a paragraph that no longer fits its lines re-wraps and moves what is below
+    const plan = planFlow(draft.block, draft.text);
+    if (plan.kind === "none") return true;
+    if (plan.kind === "reflow") return this.flow.reflow(draft.page, draft.block, plan.text);
+    return this.#applyChange(draft.page, draft.block, plan, draft.text, true);
+  }
+
+  /** the overflow sheet's Cancel: the editor opens again with what was typed. */
+  #reopen(page: number, block: TextBlock, text: string) {
+    const fresh = matchingBlock(this.objects.get(page) ?? { page, width: 0, height: 0, textBlocks: [], images: [] }, block.rect) ?? block;
+    void this.openBlock(page, fresh, null, text);
   }
 
   async #addNewText(draft: EditorDraft): Promise<boolean> {
     if (draft.text.trim() === "") return false;
+    if (this.matchNearby) return this.#addMatchingText(draft);
     const id = this.#host.documentId();
     const style = this.newText;
     const answer = await this.#runText(() => editApi.addText(id, draft.page, draft.position, draft.text, style.font, style.size, style.color));
     if (!answer) return false;
     this.#host.announce(`Text added to page ${draft.page + 1}.`);
+    return true;
+  }
+
+  /** new text in the font, size, spacing and colour of the paragraph nearby, adding letters to its font as needed. */
+  async #addMatchingText(draft: EditorDraft): Promise<boolean> {
+    const id = this.#host.documentId();
+    const added = { position: draft.position, text: draft.text.replace(/\n+/g, " "), width: null, likeBlock: null };
+    let summary: ChangesSummary | null = null;
+    const worked = await this.#host.change(async () => {
+      const answer = await contentApi.addMatchingText(id, draft.page, added, this.consent.consent);
+      summary = answer.summary;
+      this.#keep(answer.document.revision, answer.objects, answer.stale);
+      return answer.document;
+    });
+    if (!worked || !summary) return false;
+    const made: ChangesSummary = summary;
+    const sentences = made.fontsExtended.map(extensionSentence);
+    if (sentences.length > 0) this.notice = { page: draft.page, rect: { x: draft.position.x, y: draft.position.y, width: 1, height: 12 }, sentences, overflow: null };
+    // the engine's note says whose style was matched ("Matched the style of …")
+    const quiet = summarySentence(made);
+    if (quiet) this.#host.notify(quiet);
+    this.#host.announce(`Text added to page ${draft.page + 1} in the style of the text nearby.`);
     return true;
   }
 

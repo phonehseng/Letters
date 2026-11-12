@@ -7,7 +7,18 @@ import { defaultLanguage, languageAdvice, languageNames, toggleLanguage } from "
 import { suggestedPathFor } from "./newDocuments";
 import type { JobStatus, OcrSummary } from "./ocrApi";
 import { IDLE, isBusy, jobOf, nextView, type JobView } from "./ocrJob";
-import { bannerSentence, cancelledSentence, confidenceSentence, lowPagesSentence, progressSentence, recognizeEffect, summarySentence } from "./ocrSentences";
+import {
+  bannerSentence,
+  cancelledSentence,
+  confidenceSentence,
+  editableEffect,
+  editableSentence,
+  lowPagesSentence,
+  progressSentence,
+  recognizeEffect,
+  SCAN_MODES,
+  summarySentence,
+} from "./ocrSentences";
 import { availableChoices, defaultChoice, pagesFor, pagesInWords } from "./pageRange";
 
 const summary = (overrides: Partial<OcrSummary> = {}): OcrSummary => ({
@@ -183,5 +194,25 @@ describe("new from images", () => {
     );
     expect(makeSentence(0, false, "English")).toBe("Choose or drop PNG, JPEG or TIFF pictures first.");
     expect(suggestedPathFor("C:\\Photos\\IMG_0012.jpg")).toBe("C:\\Photos\\IMG_0012.pdf");
+  });
+});
+
+describe("make editable text", () => {
+  it("says what becomes of the scan in one sentence for each way", () => {
+    expect(SCAN_MODES.map((mode) => mode.label)).toEqual(["Text Over the Scan", "Text Only"]);
+    expect(SCAN_MODES.every((mode) => mode.sentence.length > 0)).toBe(true);
+  });
+
+  it("says pages not read yet are read first", () => {
+    expect(editableEffect([0], 3, 1)).toMatch(/^Reads page 1 first, then writes/);
+    expect(editableEffect([0], 3, 0)).toMatch(/^Writes the words/);
+    expect(editableEffect([], 3, 0)).toBe("Choose the pages to make editable.");
+  });
+
+  it("says how much became text and what to check", () => {
+    expect(editableSentence({ pages: 1, lines: 14, doubtfulLines: 0, figures: 0 })).toBe("14 lines on 1 page are now editable text.");
+    expect(editableSentence({ pages: 2, lines: 1, doubtfulLines: 1, figures: 2 })).toBe(
+      "1 line on 2 pages is now editable text. 2 pictures from the scan were kept. Check 1 line against the scan: the reading was unsure.",
+    );
   });
 });

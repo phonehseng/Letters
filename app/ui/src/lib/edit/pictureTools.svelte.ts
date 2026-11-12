@@ -1,8 +1,9 @@
 // the picture half of the Edit tab: the selected picture and every change
-// to it (move, resize, turn, restack, replace, delete, save out), and new
-// pictures from a file, the clipboard or a drop. the edit session holds
-// one of these as `pictures` and lends it the parts it shares (the page
-// objects, the change queue, the page tool).
+// to it (move, resize, turn, restack, replace, delete, save out, and crop
+// on the page with handles, flip and opacity), and new pictures from a
+// file, the clipboard or a drop. the edit session holds one of these as
+// `pictures` and lends it the parts it shares (the page objects, the
+// change queue, the page tool, the consent for signed files).
 
 import { pictureSize } from "../annotate/annotateApi";
 import type { DocumentState } from "../api";
@@ -10,6 +11,8 @@ import type { PageSize } from "../layout";
 import { rectAround } from "../pageTools/gestures";
 import type { PagePoint, Rect } from "../pageTools/pagePoints";
 import { isUpright, matchingImage } from "./blocks";
+import type { ConsentGate } from "./consent.svelte";
+import { contentApi, type ContentAnswer, type FlipDirection } from "./contentApi";
 import { editApi, type ImageEditAnswer, type ImageFit, type PageObjects } from "./editApi";
 import type { PageObjectsStore } from "./pageObjectsStore.svelte";
 
@@ -33,6 +36,7 @@ export interface PictureHost {
   finishTyping: () => void;
   /** makes Edit Text and Images (or Add Image) the page tool */
   useTool: (tool: "edit" | "addImage") => void;
+  consent: ConsentGate;
 }
 
 /** an image change, given the picture's current id. */
@@ -48,6 +52,8 @@ export class PictureTools {
   chosen = $state<{ path: string; aspect: number } | null>(null);
   /** how a replacement picture fills the old one's place */
   replaceFit = $state<ImageFit>("fit");
+  /** the crop rectangle on the page while Crop is on, before Done */
+  cropping = $state<Rect | null>(null);
 
   readonly image = $derived.by(() => {
     const selected = this.selected;
@@ -69,6 +75,7 @@ export class PictureTools {
   deselect() {
     this.selected = null;
     this.preview = null;
+    this.cropping = null;
   }
 
   /** one picture change through the queue; a stale id finds the picture again by place once. */
@@ -149,6 +156,64 @@ export class PictureTools {
     const worked = await this.#run(selected.page, (imageId) => call(id, selected.page, imageId), image.id, image.rect);
     if (worked) this.#host.announce(`${said} on page ${selected.page + 1}.`);
     return worked;
+  }
+
+  // ---- crop, flip and opacity (round two: they answer what else changed) ----
+
+  /** Crop: the rectangle shows on the picture, starting at what shows now. */
+  startCrop() {
+    const image = this.image;
+    if (image) this.cropping = image.cropRect ?? image.rect;
+  }
+
+  cancelCrop() {
+    this.cropping = null;
+  }
+
+  /** Done: only the rectangle shows; every pixel stays in the file. */
+  async applyCrop(): Promise<boolean> {
+    const rect = this.cropping;
+    this.cropping = null;
+    if (!rect) return false;
+    return this.#content((id, page, imageId, consent) => contentApi.cropImage(id, page, imageId, rect, consent), "Picture cropped");
+  }
+
+  flip(direction: FlipDirection): Promise<boolean> {
+    const said = direction === "horizontal" ? "Picture flipped left to right" : "Picture flipped top to bottom";
+    return this.#content((id, page, imageId, consent) => contentApi.flipImage(id, page, imageId, direction, consent), said);
+  }
+
+  /** 0 to 1. */
+  setOpacity(opacity: number): Promise<boolean> {
+    const said = `Picture opacity set to ${Math.round(opacity * 100)}%`;
+    return this.#content((id, page, imageId, consent) => contentApi.imageOpacity(id, page, imageId, opacity, consent), said);
+  }
+
+  async #content(
+    call: (id: number, page: number, imageId: string, consent: { invalidateSignatures: boolean }) => Promise<ContentAnswer>,
+    said: string,
+  ): Promise<boolean> {
+    const image = this.image;
+    const selected = this.selected;
+    if (!image || !selected) return false;
+    const id = this.#host.documentId();
+    let answer: ContentAnswer | null = null;
+    const worked = await this.#host.change(async () => {
+      const answered = await call(id, selected.page, image.id, this.#host.consent.consent);
+      answer = answered;
+      this.#host.keep(answered.document.revision, answered.objects, answered.stale);
+      if (!answered.stale) this.selected = answered.objectIds[0] ? { page: selected.page, id: answered.objectIds[0] } : this.#samePlace(answered.objects, selected.page, image.rect);
+      return answered.document;
+    });
+    if (!worked || !answer || (answer as ContentAnswer).stale) return false;
+    this.#host.announce(`${said} on page ${selected.page + 1}.`);
+    return true;
+  }
+
+  /** the picture most where the old one was, when the answer named none. */
+  #samePlace(objects: PageObjects, page: number, rect: Rect): { page: number; id: string } | null {
+    const again = matchingImage(objects, rect);
+    return again ? { page, id: again.id } : null;
   }
 
   /** Save Image As…: the picture as its own file. answers the path written. */

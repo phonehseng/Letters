@@ -3,7 +3,9 @@
 
 mod support;
 
-use letters_edit::{edit_table_cell, page_objects, PageObjects, PathShape, ReflowOptions};
+use letters_edit::{
+    edit_table_cell, page_objects, table_cell_of, PageObjects, PathShape, ReflowOptions,
+};
 use support::{load, render, save, PageSetup, PdfBuilder};
 
 /// a two-column, three-row table drawn with single line paths, a
@@ -131,6 +133,23 @@ fn a_cell_that_needs_more_lines_grows_its_row() {
     );
     // a one point rule on a whole point straddles two pixel rows: grey, not white
     assert_ne!(after_pixels.pixel(150.0, 152.0 + growth), support::WHITE);
+}
+
+#[test]
+fn a_cell_is_told_apart_from_a_paragraph_without_changing_anything() {
+    let doc = load(&table_pdf());
+    let objects = page_objects(&doc, 0).unwrap();
+    let cell = table_cell_of(&objects, &block(&objects, "Short").id).unwrap();
+    // the ruled cell on screen: rules at x 72 and 222, y 112 and 132 from the top
+    assert_eq!(
+        (cell.x, cell.y, cell.width, cell.height),
+        (72.0, 112.0, 150.0, 20.0)
+    );
+    assert_eq!(
+        table_cell_of(&objects, &block(&objects, "A paragraph").id),
+        None
+    );
+    assert_eq!(table_cell_of(&objects, &block(&objects, "A note").id), None);
 }
 
 #[test]

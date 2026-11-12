@@ -21,3 +21,23 @@ every edit.
 `balance_lines` took words until a line reached its share, which put
 three of four words on the first line; it now stops when the next word
 would take the line further past its share than it is short of it.
+
+## 2026-11-12 the font library lends its fonts to edits
+
+`DonorCache` makes letters-edit's `FontDonors` from the font library's
+index and keeps them until the index changes (a scan finishing, a font
+added). Each donor keeps its font bytes once read, so making the pool per
+edit would read the same font files again on every keystroke's commit.
+
+## 2026-11-12 shell commands for round two of editing
+
+New commands in app/shell: `edit_check`, `edit_reflow_text` (a ruled table
+cell goes to `edit_table_cell`, any other block to `reflow_paragraph`, with
+the font library lent for missing letters), `edit_add_matching_text`, eight
+shape commands, crop, flip and opacity for pictures, and page layout,
+margins, paper size, extra space and page boxes. `edit_answers.rs` runs each
+through `state.edit` and turns three engine answers into something the ui
+can act on: a stale id answers the fresh page, a reflow that needs an
+overflow choice answers `applied: false` without an undo step, and a refusal
+for a signed file has its own error kind (`signatures-would-break`) so the
+ui can ask, naming the signer, and send the change again with consent.

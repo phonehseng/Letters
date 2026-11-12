@@ -21,6 +21,8 @@ use crate::code_commands;
 use crate::organise_commands;
 // presentations (the slide editor), on its own line for the same reason
 use crate::slides_commands;
+// edit tab round two and make editable text, on their own line for the same reason
+use crate::{edit_flow_commands, edit_page_commands, edit_shape_commands, ocr_editable_commands};
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -69,6 +71,8 @@ fn features() -> Vec<Feature> {
         compare(),
         accessibility(),
         edit(),
+        // edit tab round two: its own block so the list above stays as it was
+        edit_round_two(),
         scan(),
         export(),
         ai_tools(),
@@ -311,6 +315,33 @@ fn edit() -> Feature {
         edit_commands::edit_restack_image,
         edit_commands::edit_save_image,
         edit_commands::edit_font_face,
+    ]
+}
+
+/// the Edit tab's round two: text that reflows, table cells, text in the
+/// page's style, shapes, picture crops, page setup, and scans made editable.
+fn edit_round_two() -> Feature {
+    feature![
+        edit_flow_commands::edit_check,
+        edit_flow_commands::edit_reflow_text,
+        edit_flow_commands::edit_add_matching_text,
+        edit_shape_commands::edit_move_paths,
+        edit_shape_commands::edit_resize_paths,
+        edit_shape_commands::edit_rotate_paths,
+        edit_shape_commands::edit_style_paths,
+        edit_shape_commands::edit_path_points,
+        edit_shape_commands::edit_delete_paths,
+        edit_shape_commands::edit_restack_paths,
+        edit_shape_commands::edit_duplicate_paths,
+        edit_shape_commands::edit_crop_image,
+        edit_shape_commands::edit_flip_image,
+        edit_shape_commands::edit_image_opacity,
+        edit_page_commands::edit_page_layout,
+        edit_page_commands::edit_set_margins,
+        edit_page_commands::edit_resize_page,
+        edit_page_commands::edit_add_page_space,
+        edit_page_commands::edit_set_page_boxes,
+        ocr_editable_commands::ocr_make_editable,
     ]
 }
 

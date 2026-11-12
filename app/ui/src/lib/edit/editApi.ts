@@ -80,6 +80,54 @@ export interface ImageObject {
   inline: boolean;
   /** "DCTDecode" for a jpeg */
   filter: string | null;
+  /** the part that shows, when a crop hides the rest */
+  cropRect?: Rect | null;
+  /** at the size it is placed; 0 when unknown */
+  pixelsPerInch?: number;
+  /** 0 to 1 */
+  opacity?: number;
+}
+
+export type PathShape = "rectangle" | "line" | "ellipse" | "free" | "shading";
+
+/** a fill or outline colour exactly as the file sets it */
+export interface PaintInfo {
+  /** how it looks on screen (close, for special colour spaces) */
+  color: Rgb;
+  colorSpace: string;
+  components: number[];
+}
+
+export interface StrokeInfo {
+  paint: PaintInfo;
+  /** points, as seen */
+  width: number;
+  /** points; empty for a solid line */
+  dash: number[];
+}
+
+/** one drawn shape on the page */
+export interface PathObject {
+  id: string;
+  rect: Rect;
+  shape: PathShape;
+  fill: PaintInfo | null;
+  stroke: StrokeInfo | null;
+  fillOpacity: number;
+  strokeOpacity: number;
+  clipped: boolean;
+  /** a rectangle's corners or a line's ends can be moved */
+  pointEditable: boolean;
+  /** a rectangle's corners (top left, top right, bottom left, bottom right) or a line's two ends */
+  points: Point[];
+}
+
+/** shapes that look like one object, such as a logo */
+export interface PathGroup {
+  id: string;
+  pathIds: string[];
+  rect: Rect;
+  reason: "sameBlock" | "markedContent" | "cluster";
 }
 
 export interface PageObjects {
@@ -88,6 +136,9 @@ export interface PageObjects {
   height: number;
   textBlocks: TextBlock[];
   images: ImageObject[];
+  /** vector shapes; older answers may leave them out */
+  paths?: PathObject[];
+  pathGroups?: PathGroup[];
 }
 
 export interface FontNotice {

@@ -1,16 +1,10 @@
-//! where the outline of a glyph a subset font lacks comes from.
+//! the outline of a glyph a subset font lacks, ready to be appended to it.
 //!
-//! a `GlyphSource` hands out outlines in the target font's own units, as
-//! TrueType contours (on-curve and off-curve quadratic points). two
-//! sources exist: the same font installed on this computer, and a font
-//! file the app passes in (a look-alike it chose). when core/fonts offers
-//! glyph completion (`letters_fonts::complete`, not there yet), it becomes
-//! a third source behind this same trait.
+//! the outlines come from letters-fonts' completion (see completion.rs);
+//! here they are turned into TrueType contours (on-curve and off-curve
+//! quadratic points) in the target font's own units.
 
-use ttf_parser::{GlyphId, OutlineBuilder};
-
-use crate::fonts::system;
-use crate::fonts::truetype::{Embedding, FontProgram};
+use ttf_parser::{Face, GlyphId, OutlineBuilder};
 
 /// one point of a TrueType contour, in font units.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -28,98 +22,26 @@ pub(crate) struct Outline {
     pub advance: f32,
 }
 
-/// what the target font is, so a source can draw for it.
+/// what the target font is, so an outline can be drawn for it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Target {
     pub units_per_em: u16,
-    /// the capital height in thousandths of the em, when the file says
-    pub cap_height: Option<f32>,
 }
 
-pub(crate) trait GlyphSource {
-    /// where the glyphs come from, for the person: "Arial on this computer"
-    fn describe(&self) -> String;
-    /// the outline of `character` for `target`, or none
-    fn outline(&self, character: char, target: Target) -> Option<Outline>;
-}
-
-/// a TrueType font file used as a source of glyphs.
-pub(crate) struct FontFileSource {
-    data: Vec<u8>,
-    index: u32,
-    label: String,
-    /// scale the glyphs so capitals are as tall as the target's: right for
-    /// a look-alike of another design, off for the same font
-    match_cap_height: bool,
-}
-
-impl FontFileSource {
-    /// the same font installed on this computer, if its licence allows it
-    /// to be copied into a file.
-    pub fn installed(pdf_name: &str) -> Option<FontFileSource> {
-        let found = system::find(pdf_name)?;
-        let data = std::fs::read(&found.path).ok()?;
-        let source = FontFileSource {
-            data,
-            index: found.index,
-            label: format!("{} on this computer", found.family),
-            match_cap_height: false,
-        };
-        source.embeddable().then_some(source)
-    }
-
-    /// a font file the app chose as a look-alike.
-    pub fn look_alike(data: Vec<u8>, label: String) -> Option<FontFileSource> {
-        let source = FontFileSource {
-            data,
-            index: 0,
-            label,
-            match_cap_height: true,
-        };
-        source.embeddable().then_some(source)
-    }
-
-    fn embeddable(&self) -> bool {
-        FontProgram::parse(&self.data, self.index)
-            .is_some_and(|program| program.embedding() != Embedding::Forbidden)
-    }
-}
-
-impl GlyphSource for FontFileSource {
-    fn describe(&self) -> String {
-        self.label.clone()
-    }
-
-    fn outline(&self, character: char, target: Target) -> Option<Outline> {
-        let program = FontProgram::parse(&self.data, self.index)?;
-        let glyph = program.glyph_for_char(character)?;
-        let mut scale =
-            f32::from(target.units_per_em) / f32::from(program.face.units_per_em().max(1));
-        if self.match_cap_height {
-            let donor_cap = program
-                .face
-                .capital_height()
-                .map(|height| program.scale(height));
-            if let (Some(wanted), Some(donor)) =
-                (target.cap_height, donor_cap.filter(|cap| *cap > 0.0))
-            {
-                scale *= wanted / donor;
-            }
-        }
-        let mut builder = Quadratic {
-            scale,
-            contours: Vec::new(),
-            current: Vec::new(),
-            pen: (0.0, 0.0),
-        };
-        program.face.outline_glyph(GlyphId(glyph), &mut builder);
-        builder.close();
-        let advance =
-            f32::from(program.face.glyph_hor_advance(GlyphId(glyph)).unwrap_or(0)) * scale;
-        Some(Outline {
-            contours: builder.contours,
-            advance,
-        })
+/// the outline of `glyph` in `face`, scaled by `scale` into the target's units.
+pub(crate) fn outline_of(face: &Face, glyph: u16, scale: f32) -> Outline {
+    let mut builder = Quadratic {
+        scale,
+        contours: Vec::new(),
+        current: Vec::new(),
+        pen: (0.0, 0.0),
+    };
+    face.outline_glyph(GlyphId(glyph), &mut builder);
+    builder.close();
+    let advance = f32::from(face.glyph_hor_advance(GlyphId(glyph)).unwrap_or(0)) * scale;
+    Outline {
+        contours: builder.contours,
+        advance,
     }
 }
 

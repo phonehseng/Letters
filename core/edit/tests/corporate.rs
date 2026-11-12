@@ -467,6 +467,9 @@ fn a_look_alike_donor_is_measured_against_the_true_font() {
     )
     .unwrap();
     assert_eq!(result.summary.fonts_extended.len(), 1);
+    let extension = &result.summary.fonts_extended[0];
+    println!("{}", extension.sentence);
+    assert_ne!(extension.match_method, "same font", "Tahoma isn't Arial");
     let text = format!("{}{ADDED}", paragraph.text.replace('\n', " "));
     let id = body(&result.objects).id.clone();
     let result = reflow_paragraph(&mut doc, 0, &id, &text, &ReflowOptions::default()).unwrap();
@@ -477,7 +480,7 @@ fn a_look_alike_donor_is_measured_against_the_true_font() {
     );
     let saved = save(&mut doc);
     measure_swapped(
-        "look-alike (Tahoma glyphs scaled to Arial's cap height)",
+        "near font (Tahoma fitted to Arial by letters-fonts)",
         &result.objects,
         &saved,
         &arial,

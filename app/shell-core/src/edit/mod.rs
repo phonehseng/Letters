@@ -1,11 +1,13 @@
 //! direct editing of page content (the Edit tab), the parts that need no
 //! window: the embedded font of some text for drawing an editor over it,
-//! fitting re-set text back into its paragraph, and reading pictures.
+//! fitting re-set text back into its paragraph, reading pictures, and the
+//! font library's fonts lent to edits that add letters to a font (`donors`).
 //!
 //! the editing itself is core/edit (letters-edit). the shell calls it
 //! through `AppState::edit` so every change is one undo step; these
 //! helpers sit around those calls and are tested here.
 
+pub mod donors;
 pub mod fit;
 pub mod fonts;
 pub mod pictures;

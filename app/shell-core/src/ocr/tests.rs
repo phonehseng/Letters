@@ -373,7 +373,11 @@ fn the_overlay_shows_tesseracts_words_while_they_match_the_page() {
         plain.words[0].rect
     );
     // "Hello" was read 40 points wide; the layer stretches it to that width
-    assert!((plain.words[0].rect.width - 40.0).abs() < 2.0, "{:?}", plain.words[0].rect);
+    assert!(
+        (plain.words[0].rect.width - 40.0).abs() < 2.0,
+        "{:?}",
+        plain.words[0].rect
+    );
 
     // correcting a word writes the page's layer again, as one more step
     let corrected = correct_word(&words_to_correct(Some(&read), &objects), 1, "world").unwrap();
@@ -397,4 +401,82 @@ fn a_correction_must_be_a_word() {
     assert!(correct_word(&page, 3, "Hi").is_err());
     let fixed = correct_word(&page, 0, " Hallo ").unwrap();
     assert_eq!(fixed.words[0].text, "Hallo");
+}
+
+#[test]
+fn making_text_editable_replaces_the_hidden_layer_with_visible_text() {
+    use letters_edit::{page_objects, ScanMode, ScanOptions};
+
+    let mut session = scanned_session("ocr-make-editable", 2);
+    let read = |page: u32| {
+        page_of(vec![
+            word("Hello", 72.0, 72.0, 95.0),
+            word(&format!("page{page}"), 130.0, 72.0, 40.0),
+        ])
+    };
+    let pages = vec![(0, read(0)), (1, read(1))];
+    // first the hidden layer of Recognize Text, then Make Editable Text over it
+    session
+        .apply(|doc| apply_layers(doc, &pages), show)
+        .unwrap();
+    let options = ScanOptions {
+        mode: ScanMode::TextOverCleanedImage,
+        ..ScanOptions::default()
+    };
+    let mut summary = None;
+    session
+        .apply(
+            |doc| {
+                summary = Some(super::editable::make_pages_editable(doc, &pages, &options)?);
+                Ok::<(), String>(())
+            },
+            show,
+        )
+        .unwrap();
+    let summary = summary.unwrap();
+    assert_eq!((summary.pages, summary.lines), (2, 2));
+    assert_eq!(
+        summary.doubtful_lines, 2,
+        "a 40% word makes its line doubtful"
+    );
+    let doc = session.read_document().unwrap();
+    let objects = page_objects(&doc, 1).unwrap();
+    let runs: Vec<_> = objects
+        .text_blocks
+        .iter()
+        .flat_map(|block| &block.lines)
+        .flat_map(|line| &line.runs)
+        .collect();
+    assert!(
+        runs.iter().all(|run| !run.invisible),
+        "no hidden layer is left"
+    );
+    let text: String = runs.iter().map(|run| run.text.as_str()).collect();
+    assert_eq!(
+        text.matches("Hello").count(),
+        1,
+        "the words are there once: {text}"
+    );
+    assert!(session.can_undo());
+}
+
+#[test]
+fn a_page_that_cannot_be_made_editable_changes_nothing() {
+    use letters_edit::ScanOptions;
+
+    let mut session = scanned_session("ocr-make-editable-refused", 2);
+    let revision = session.revision();
+    let pages = vec![
+        (0, page_of(vec![word("Fine", 72.0, 72.0, 90.0)])),
+        (1, page_of(Vec::new())),
+    ];
+    let result = session.apply(
+        |doc| {
+            super::editable::make_pages_editable(doc, &pages, &ScanOptions::default()).map(|_| ())
+        },
+        show,
+    );
+    let error = result.unwrap_err().to_string();
+    assert!(error.contains("Page 2"), "{error}");
+    assert_eq!(session.revision(), revision, "nothing changed");
 }

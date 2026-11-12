@@ -58,7 +58,7 @@ export function fontPromise(font: FontInfo | null): string {
   if (!font) return "Click a paragraph or line on the page to edit it.";
   const name = plainFontName(font.name);
   if (!font.embedded) return `This text uses ${name} from the reader’s computer, so any letter in its encoding keeps the font.`;
-  if (font.subset) return `This text uses part of ${name} stored in the file. Letters it doesn’t hold are drawn in the closest font, and Letters says which.`;
+  if (font.subset) return `This text uses part of ${name} stored in the file. Letters it doesn’t hold are added to it from the same or the closest font, and Letters says which.`;
   return `This text uses ${name} stored in the file, so new letters keep the font when it has them.`;
 }
 
@@ -73,9 +73,9 @@ export const ADD_TEXT_DIFFERENCE =
 
 export const KEEPING_THE_FONT = [
   "Letters keeps the original font for every letter it really holds.",
-  "Many PDFs store only the letters a page already uses. A new letter is then copied from the same font on this computer when it is installed and allows it; otherwise the closest standard font (Helvetica, Times or Courier) draws it, and Letters says so beside the text.",
-  "Text is re-set from the font’s own widths, so kerning inside the changed words isn’t kept; text after the change keeps its own.",
-  "A paragraph that grows doesn’t push the text below it down. Letters says when that happens.",
+  "Many PDFs store only the letters a page already uses. A new letter is then added to that same font: copied from the same font on this computer when it is installed and allows it, else taken from the closest font and adjusted to match. Letters says which, and how alike, beside the text. Only when nothing can lend the letter does a standard font (Helvetica, Times or Courier) draw it.",
+  "A re-wrapped paragraph keeps its alignment and spacing; kerning comes from pairs the page already uses.",
+  "A paragraph that grows pushes what is below it down by whole lines. When the column can't hold it, Letters asks what to do before changing anything.",
 ];
 
 /** the line under the Edit Text button. */

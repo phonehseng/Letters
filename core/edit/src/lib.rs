@@ -39,6 +39,7 @@ use lopdf::Document;
 pub use add_text::{add_text, NewText, NewTextFont};
 pub use colors::Color;
 pub use error::EditError;
+pub use fonts::completion::{with_font_donors, FontDonors};
 pub use fonts::pdf_font::{FontFamily, FontKind};
 pub use fonts::standard::StandardFont;
 pub use geometry::{Point, Rect};
@@ -63,8 +64,8 @@ pub use paths::{
     send_paths_to_back, set_path_points, set_path_style, NewPaint, PathStyle,
 };
 pub use reflow::{
-    add_text_matching, edit_table_cell, reflow_paragraph, LimitReason, MatchedText, OverflowChoice,
-    OverflowOption, OverflowReport, ReflowOptions, ReflowResult,
+    add_text_matching, edit_table_cell, reflow_paragraph, table_cell_of, LimitReason, MatchedText,
+    OverflowChoice, OverflowOption, OverflowReport, ReflowOptions, ReflowResult,
 };
 pub use same_font::extend_font;
 pub use scan::{

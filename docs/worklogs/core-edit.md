@@ -260,3 +260,26 @@ The README lists every operation with its exact effect on the file, the
 overflow choices and how the bottom limit is found, what keeping the
 original font and matching a scan's typeface can and can't do (with the
 measured numbers), the limits, the source files and the tests.
+
+## 2026-11-12 glyphs for missing letters come from letters-fonts' completion
+
+The small `GlyphSource` stand-in (the same font found by name, or a file
+scaled to the target's cap height) is replaced by
+`letters_fonts::complete::complete_font`, so a subset font gains missing
+letters from the same font on this computer, else a near font fitted to it,
+else letters built from its own (accents), else the closest font as it is.
+Generated glyphs are never asked for. The app lends its font library for one
+edit with `with_font_donors` (a thread-local, so parallel edits and tests
+can't see each other's donors); without it the same font installed here is
+the only donor, as before. `FontExtension` gained `matchMethod`,
+`similarity` and a one-sentence `sentence` for the person (new fields with
+defaults). Measured on the corporate test: the installed Arial still draws
+the added lines with 0 of 2131 pixels different; Tahoma alone, now fitted,
+gives 97 of 2170 (4.5%) against 101 of 2151 with cap-height scaling.
+
+## 2026-11-12 telling a table cell from a paragraph
+
+`table_cell_of(objects, block_id)` finds the ruled cell around a block from
+the page objects alone, so the app sends a cell's text to `edit_table_cell`
+and any other text to `reflow_paragraph` without trying one and reading its
+error sentence.

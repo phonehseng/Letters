@@ -1,11 +1,13 @@
 <script lang="ts">
   // the Scan tab of the inspector: reading the text of scanned pages
-  // (OCR), checking and correcting it, removing it, and making a PDF from
-  // pictures. one disclosure section open at a time, like the other tabs.
+  // (OCR), making it real editable text, checking and correcting it,
+  // removing it, and making a PDF from pictures. one disclosure section
+  // open at a time, like the other tabs.
   import { untrack, type Component } from "svelte";
   import { appCommands } from "../commands";
   import type { InspectorTabProps } from "../inspector";
   import type { ToolName } from "../tools";
+  import MakeEditableTool from "./scan/MakeEditableTool.svelte";
   import RecognizeTool from "./scan/RecognizeTool.svelte";
   import RemoveTextTool from "./scan/RemoveTextTool.svelte";
   import ShowTextTool from "./scan/ShowTextTool.svelte";
@@ -17,6 +19,7 @@
 
   const SECTIONS: { tool: ToolName; component: Component<SectionProps> }[] = [
     { tool: "recognizeText", component: RecognizeTool },
+    { tool: "makeEditableText", component: MakeEditableTool },
     { tool: "showRecognizedText", component: ShowTextTool },
     { tool: "removeRecognizedText", component: RemoveTextTool },
   ];

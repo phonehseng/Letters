@@ -3,11 +3,16 @@
   // Image) is on, a picture pasted with Ctrl V goes onto the page in view,
   // and a png or jpeg dropped from the system goes where it lands. drops
   // anywhere else (the thumbnails, the rest of the window) go on to
-  // whoever took them before.
+  // whoever took them before. the Edit tab's sheets show here too: the
+  // question before changing a signed file, what to do when re-wrapped
+  // text doesn't fit, and Page Setup.
   import { isTextField } from "../commands";
   import { fileDropTarget, setFileDropTarget } from "../fileDrop";
   import type { PagePoint } from "../pageTools/pagePoints";
+  import ConsentSheet from "./ConsentSheet.svelte";
   import type { EditSession } from "./editSession.svelte";
+  import OverflowSheet from "./OverflowSheet.svelte";
+  import PageSetupSheet from "./PageSetupSheet.svelte";
 
   interface Props {
     session: EditSession;
@@ -75,3 +80,11 @@
     session.pictures.paste(bytes, aspect);
   }
 </script>
+
+{#if session.consent.asking}
+  <ConsentSheet question={session.consent.asking} />
+{:else if session.flow.pending}
+  <OverflowSheet flow={session.flow} />
+{:else if session.pageSetup.open}
+  <PageSetupSheet setup={session.pageSetup} />
+{/if}
