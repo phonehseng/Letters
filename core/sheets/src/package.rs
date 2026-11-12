@@ -94,14 +94,19 @@ impl Package {
 /// `mimetype`, which also has to come first).
 pub fn write_zip(parts: &[Part], stored: &[&str]) -> Result<Vec<u8>, SheetError> {
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
-    // a fixed date keeps output identical from run to run
+    // a fixed date keeps output identical from run to run.
+    // a fixed system (dos, as word writes) keeps it identical from one
+    // computer to the next: left alone the zip crate records the system
+    // it runs on in every entry
     let deflated = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .last_modified_time(zip::DateTime::default())
+        .system(zip::System::Dos)
         .large_file(false);
     let plain = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Stored)
-        .last_modified_time(zip::DateTime::default());
+        .last_modified_time(zip::DateTime::default())
+        .system(zip::System::Dos);
     for part in parts {
         let options = if stored.contains(&part.name.as_str()) {
             plain
