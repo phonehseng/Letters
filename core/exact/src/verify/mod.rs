@@ -248,6 +248,24 @@ pub fn measure(
     })
 }
 
+/// replaces the glyph numbers of a verification with the fitted path's,
+/// where every piece's glyph was read as its components (`fitted::measure`),
+/// and says again whether it passes.
+pub fn use_fitted_glyphs(report: &mut VerificationReport, glyphs: GlyphStats) {
+    report.positions_pass = glyphs.glyphs > 0
+        && glyphs.max_pt <= THRESHOLD_MAX_PT
+        && glyphs.mean_pt < THRESHOLD_MEAN_PT;
+    report.pass = report.positions_pass && report.fonts_pass;
+    report.summary = summary_sentence(
+        &glyphs,
+        report.positions_pass,
+        report.fonts_pass,
+        &report.substituted_by_converter,
+        &report.substituted_by_word,
+    );
+    report.glyphs = glyphs;
+}
+
 /// a page of a pdf drawn by the caller: the render callback draws page 0,
 /// so each page is cut out into its own one-page pdf first.
 fn compare_renderings(

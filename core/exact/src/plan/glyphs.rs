@@ -38,6 +38,10 @@ pub struct LinePlan {
     /// horizontal lines: the pdf y word prints for the baseline
     pub word_y: Option<f64>,
     pub rotated: bool,
+    /// per char, the index of the line's glyph it was written for (none:
+    /// a virtual space); the fitted text path places pieces from them
+    #[serde(skip)]
+    pub sources: Vec<Option<usize>>,
 }
 
 /// how a line's glyph targets are found.
@@ -70,6 +74,8 @@ pub fn hex_color(rgb: [f64; 3]) -> String {
 }
 
 struct Item {
+    /// the line's glyph this char stands for; none for a virtual space
+    source: Option<usize>,
     char: String,
     family: String,
     half_points: i64,
@@ -116,6 +122,7 @@ pub fn plan_line(
         if line.virtual_spaces.contains(&index) {
             let previous = &line.glyphs[index - 1];
             items.push(Item {
+                source: None,
                 char: " ".into(),
                 family: family.clone(),
                 half_points,
@@ -136,6 +143,7 @@ pub fn plan_line(
         let grid = fonts.grid_font(&line.glyphs[font_index])?;
         let advance_px = grid.pixels(char.chars().next().unwrap_or(' '));
         items.push(Item {
+            source: Some(index),
             char,
             family,
             half_points,
@@ -197,6 +205,7 @@ pub fn plan_line(
         start_pixel,
         word_y,
         rotated: start_pixel.is_none(),
+        sources: items.iter().map(|item| item.source).collect(),
     };
     Ok(Some((plan, runs)))
 }

@@ -14,9 +14,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 ttf-parser = "0.25"
+# canonical decomposition of accented letters, for font completion
+unicode-normalization = "0.1"
 zip = { version = "9.5.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # tests draw pages with the pdfium library Letters ships (vendor/pdfium),
 # the way the app would pass a render callback
 [dev-dependencies]
 pdfium-render = { version = "0.9", default-features = false, features = ["pdfium_latest", "thread_safe"] }
+# shaping the fitted font's gsub rules the way word's shaper applies them (mit)
+rustybuzz = "0.20"

@@ -12,7 +12,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use letters_exact::bridge::{find_word, WordBridge};
-use letters_exact::{convert, CancelFlag, ConvertOptions, ExactError};
+use letters_exact::{convert, CancelFlag, ConvertOptions, ExactError, OutputMode};
 
 fn corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -297,6 +297,7 @@ fn the_corpus_matches_the_prototype_through_word() {
         }
         let options = ConvertOptions {
             verify: true,
+            mode: OutputMode::LockedLayout,
             cache_dir: Some(dir.join("cache")),
             work_dir: Some(dir.join(name)),
             ..ConvertOptions::default()

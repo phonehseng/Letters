@@ -2610,10 +2610,12 @@ dependencies = [
  "image",
  "lopdf",
  "pdfium-render",
+ "rustybuzz",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
  "ttf-parser",
+ "unicode-normalization",
  "zip",
 ]
 

@@ -63,6 +63,67 @@ pub fn find_word() -> Option<WordInstall> {
     Some(WordInstall { program, build })
 }
 
+/// what a person does to the open document before it is exported.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditAction {
+    /// types `text` right after `needle`
+    Insert,
+    /// deletes `needle`
+    Delete,
+    /// types `text` after `needle`, then undoes it
+    InsertAndUndo,
+}
+
+/// one in-memory edit: the first match of `needle` in the main text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Edit {
+    pub action: EditAction,
+    pub needle: String,
+    pub text: String,
+}
+
+impl Edit {
+    /// the extra fields of a job line: tab, action, needle and text in base64
+    /// (so tabs, quotes and non-english text reach the script intact).
+    fn job_fields(&self) -> String {
+        let action = match self.action {
+            EditAction::Insert => "insert",
+            EditAction::Delete => "delete",
+            EditAction::InsertAndUndo => "insert-undo",
+        };
+        format!(
+            "\t{action}\t{}\t{}",
+            base64(self.needle.as_bytes()),
+            base64(self.text.as_bytes())
+        )
+    }
+}
+
+/// a docx, its pdf and an optional edit.
+pub type EditJob = (PathBuf, PathBuf, Option<Edit>);
+
+/// standard base64 with padding (rfc 4648).
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
+        let n = u32::from(b[0]) << 16 | u32::from(b[1]) << 8 | u32::from(b[2]);
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(ALPHABET[(n >> (18 - 6 * i) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 /// what one call to word did.
 #[derive(Clone, Debug, Default)]
 pub struct ExportRun {
@@ -110,6 +171,31 @@ impl WordBridge {
         cancel: &CancelFlag,
         limit: Duration,
     ) -> Result<ExportRun, ExactError> {
+        let jobs: Vec<EditJob> = jobs
+            .iter()
+            .map(|(docx, pdf)| (docx.clone(), pdf.clone(), None))
+            .collect();
+        self.run_jobs(&jobs, cancel, limit)
+    }
+
+    /// exports each docx after word made one edit to it in memory, the way
+    /// a person would (the edit tests). nothing is saved.
+    pub fn export_edited(
+        &self,
+        jobs: &[EditJob],
+        cancel: &CancelFlag,
+    ) -> Result<ExportRun, ExactError> {
+        let limit =
+            Duration::from_secs(START_SECONDS + self.seconds_per_document * jobs.len() as u64);
+        self.run_jobs(jobs, cancel, limit)
+    }
+
+    fn run_jobs(
+        &self,
+        jobs: &[EditJob],
+        cancel: &CancelFlag,
+        limit: Duration,
+    ) -> Result<ExportRun, ExactError> {
         if cancel.is_cancelled() {
             return Err(ExactError::Cancelled);
         }
@@ -124,12 +210,13 @@ impl WordBridge {
         std::fs::write(&script, bytes).map_err(|e| ExactError::WordFailed(format!("({e})")))?;
         let jobs_file = self.work_dir.join(format!("jobs-{stamp}.txt"));
         let mut listing = String::new();
-        for (docx, pdf) in jobs {
+        for (docx, pdf, edit) in jobs {
             let _ = std::fs::remove_file(pdf);
             listing.push_str(&format!(
-                "{}\t{}\n",
+                "{}\t{}{}\n",
                 absolute(docx).display(),
-                absolute(pdf).display()
+                absolute(pdf).display(),
+                edit.as_ref().map(Edit::job_fields).unwrap_or_default()
             ));
         }
         std::fs::write(&jobs_file, listing)
@@ -215,7 +302,7 @@ impl WordBridge {
                         }
                     }
                 }
-                for (slot, (_, pdf)) in run.results.iter_mut().zip(jobs) {
+                for (slot, (_, pdf, _)) in run.results.iter_mut().zip(jobs) {
                     if slot.is_ok() && !pdf.is_file() {
                         *slot = Err("Word said it exported the file, but there is no PDF.".into());
                     }
@@ -259,4 +346,19 @@ fn unique_stamp() -> String {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::SeqCst)
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn base64_follows_rfc_4648() {
+        // the rfc's test vectors
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+    }
 }

@@ -62,68 +62,73 @@ pub fn read_text_objects(file: &PdfFile) -> Vec<TextObject> {
         };
         let fonts = two_byte_fonts(document, resources);
         let content = document.get_page_content(page_id);
-        let mut two_bytes = false;
-        let mut current: Option<TextObject> = None;
-        for operation in parse(&content) {
-            let numbers: Vec<f64> = operation
-                .operands
-                .iter()
-                .filter_map(Operand::number)
-                .collect();
-            match operation.operator.as_str() {
-                "Tf" => {
-                    if let Some(name) = operation.operands.first().and_then(Operand::name) {
-                        two_bytes = fonts.get(name).copied().unwrap_or(false);
-                    }
-                }
-                "Tm" if numbers.len() == 6 => {
-                    if let Some(done) = current.take() {
-                        objects.push(done);
-                    }
-                    current = Some(TextObject {
-                        page: page_index,
-                        tm: [
-                            numbers[0], numbers[1], numbers[2], numbers[3], numbers[4], numbers[5],
-                        ],
-                        codes: Vec::new(),
-                    });
-                }
-                "Tj" | "TJ" => {
-                    let Some(object) = current.as_mut() else {
-                        continue;
-                    };
-                    let strings: Vec<&[u8]> = match operation.operands.first() {
-                        Some(Operand::String(bytes)) => vec![bytes.as_slice()],
-                        Some(Operand::Array(items)) => {
-                            items.iter().filter_map(Operand::string).collect()
-                        }
-                        _ => Vec::new(),
-                    };
-                    for bytes in strings {
-                        if two_bytes {
-                            object.codes.extend(
-                                bytes
-                                    .as_chunks::<2>()
-                                    .0
-                                    .iter()
-                                    .map(|p| u32::from(p[0]) << 8 | u32::from(p[1])),
-                            );
-                        } else {
-                            object.codes.extend(bytes.iter().map(|&b| u32::from(b)));
-                        }
-                    }
-                }
-                "ET" => {
-                    if let Some(done) = current.take() {
-                        objects.push(done);
-                    }
-                }
-                _ => {}
-            }
-        }
-        if let Some(done) = current.take() {
-            objects.push(done);
-        }
+        objects.extend(page_text_objects(page_index, &content, &fonts));
     }
     objects
+}
+
+/// the text objects of one page's content stream.
+fn page_text_objects(
+    page_index: usize,
+    content: &[u8],
+    fonts: &HashMap<Vec<u8>, bool>,
+) -> Vec<TextObject> {
+    let mut objects = Vec::new();
+    let mut two_bytes = false;
+    let mut current: Option<TextObject> = None;
+    for operation in parse(content) {
+        let numbers: Vec<f64> = operation
+            .operands
+            .iter()
+            .filter_map(Operand::number)
+            .collect();
+        match operation.operator.as_str() {
+            "Tf" => {
+                if let Some(name) = operation.operands.first().and_then(Operand::name) {
+                    two_bytes = fonts.get(name).copied().unwrap_or(false);
+                }
+            }
+            "Tm" if numbers.len() == 6 => {
+                objects.extend(current.take());
+                current = Some(TextObject {
+                    page: page_index,
+                    tm: [
+                        numbers[0], numbers[1], numbers[2], numbers[3], numbers[4], numbers[5],
+                    ],
+                    codes: Vec::new(),
+                });
+            }
+            "Tj" | "TJ" => {
+                if let Some(object) = current.as_mut() {
+                    add_codes(object, operation.operands.first(), two_bytes);
+                }
+            }
+            "ET" => objects.extend(current.take()),
+            _ => {}
+        }
+    }
+    objects.extend(current.take());
+    objects
+}
+
+/// the char codes a `Tj` string or `TJ` array shows.
+fn add_codes(object: &mut TextObject, operand: Option<&Operand>, two_bytes: bool) {
+    let strings: Vec<&[u8]> = match operand {
+        Some(Operand::String(bytes)) => vec![bytes.as_slice()],
+        Some(Operand::Array(items)) => items.iter().filter_map(Operand::string).collect(),
+        _ => Vec::new(),
+    };
+    for bytes in strings {
+        if two_bytes {
+            object.codes.extend(
+                bytes
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|p| u32::from(p[0]) << 8 | u32::from(p[1])),
+            );
+        } else {
+            object.codes.extend(bytes.iter().map(|&b| u32::from(b)));
+        }
+    }
 }

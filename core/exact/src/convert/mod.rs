@@ -5,17 +5,20 @@
 
 mod check;
 mod drawings;
+mod hybrid_pass;
+mod notes;
 mod rotated_pass;
+mod word_steps;
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use lopdf::Object;
 
-use crate::bridge::{find_word, WordBridge, WordInstall};
+use crate::bridge::{find_word, WordBridge};
 use crate::calibration::model::is_landscape;
-use crate::calibration::{ensure_measured, Axis, CalibrationReport, WordModel, MEASURED_BUILD};
+use crate::calibration::{Axis, WordModel};
 use crate::docx::xml::{
     anchor_paragraph, frame_paragraph, page_break_paragraph, section_break_paragraph,
     section_properties,
@@ -24,22 +27,29 @@ use crate::docx::{EmbeddedFont, Package};
 use crate::fonts::embed::font_key_from;
 use crate::fonts::rebuild::fnv1a;
 use crate::fonts::FontPlan;
+use crate::hybrid;
 use crate::pdf::objects::get;
 use crate::pdf::{PageContent, PdfFile};
 use crate::plan::glyphs::{plan_line, with_spacing, CharRun, GlyphCounts, Targets};
 use crate::plan::lines::{group_lines, script_counts, Line};
 use crate::plan::placement::{place, BASELINE_SHARE};
-use crate::plan::rotated::{RotatedLine, EXTRA_WIDTH_PT, MEASURING_PASSES, START_TOLERANCE_PT};
-use crate::report::{ConversionReport, FramePosition, PageReport, RotatedReport, WordReport};
+use crate::plan::rotated::{RotatedLine, EXTRA_WIDTH_PT};
+use crate::report::{ConversionReport, FramePosition, PageReport};
 use crate::units::{pt_to_twips, TWIPS_PER_PT};
 use crate::word::sizes::line_twips_for;
 use crate::word::writer_model::{page_pixels, StepTable};
-use crate::{verify, ConvertOptions, ExactError, Progress, Stage};
+use crate::{ConvertOptions, ExactError, OutputMode, Progress, Stage};
+use hybrid_pass::{build_fitted_docx, build_hybrid_docx, HybridInputs};
+use notes::describe_fonts;
+use rotated_pass::place_rotated;
+use word_steps::{prepare_model, verify_result};
 
-const NOT_CHECKED: &str = "Not checked against Word on this computer.";
+pub(super) const NOT_CHECKED: &str = "Not checked against Word on this computer.";
 
 /// one horizontal line's frame.
 struct Frame {
+    /// the source line, for the hybrid mode's paragraph detection
+    line: Line,
     plan_index: Option<usize>,
     runs: Vec<CharRun>,
     position: FramePosition,
@@ -145,6 +155,13 @@ pub fn convert(
     report_progress(options, Stage::Fonts, 0.1)?;
     let mut fonts = FontPlan::new(&all_glyphs, fnv1a(&pdf_bytes));
     report.fonts = fonts.reports.clone();
+    if options.mode == OutputMode::EasyToEdit {
+        // text a person types must stay in the document's typeface
+        report.font_completion = fonts.complete_faces();
+        for completion in &report.font_completion {
+            report.warnings.extend(completion.warning.clone());
+        }
+    }
     let lines = group_lines(&all_glyphs);
     report.lines = lines.len();
 
@@ -289,6 +306,7 @@ pub fn convert(
         Ok(docx_path.to_path_buf())
     };
     let mut checked_pdf = None;
+    let mut kept_spacing: HashMap<usize, Vec<i64>> = HashMap::new();
     if word.is_some() && options.check_passes {
         report_progress(options, Stage::Checking, 0.7)?;
         let tables: HashMap<usize, StepTable> = pages
@@ -321,9 +339,54 @@ pub fn convert(
         }
         report.check = Some(outcome.report);
         checked_pdf = outcome.final_pdf;
+        kept_spacing = outcome.kept;
         report.word.checked = true;
     } else {
         build(&HashMap::new())?;
+    }
+    report.mode = options.mode;
+    if options.mode == OutputMode::EasyToEdit {
+        report_progress(options, Stage::Promoting, 0.75)?;
+        let outcome = build_hybrid_docx(
+            &pages,
+            &parts,
+            &mut package,
+            &kept_spacing,
+            HybridInputs {
+                model: &mut model,
+                docx: docx_path,
+                work: &work.path,
+                locked_pdf: checked_pdf.take(),
+                cache: options.cache_dir.as_ref().map(|dir| {
+                    let build = word.as_ref().map(|w| w.build.as_str()).unwrap_or("none");
+                    (dir.clone(), hybrid::cache::key(document_tag, build))
+                }),
+                bridge: word.as_ref().map(|_| &bridge),
+                cancel: &options.cancel,
+                calibration_dir: options.cache_dir.clone(),
+            },
+            if word.is_some() {
+                Some(&mut export as &mut hybrid::ExportPdf)
+            } else {
+                None
+            },
+            &mut report,
+        )?;
+        checked_pdf = outcome.final_pdf;
+        report.hybrid = Some(outcome.report);
+    }
+    if options.mode == OutputMode::FittedLayout {
+        match word.is_some() {
+            true => {
+                report_progress(options, Stage::Promoting, 0.75)?;
+                let grids = fonts.grid_fonts().into_iter().map(|g| (g.family.clone(), g.clone())).collect();
+                let outcome = build_fitted_docx(&pages, &parts, &mut package, &kept_spacing, &grids, docx_path, &work.path, &mut export, &mut report)?;
+                checked_pdf = Some(outcome.final_pdf);
+                report.fitted = Some(outcome.report);
+            }
+            // no checking export is possible: round one's recipe is kept
+            false => report.warnings.push("Word isn’t on this computer, so the fitted fonts couldn’t be checked; every line keeps its exact positioned form instead.".into()),
+        }
     }
     report.docx_bytes = std::fs::metadata(docx_path).map(|m| m.len()).unwrap_or(0);
 
@@ -341,6 +404,9 @@ pub fn convert(
             &mut export,
             &mut report,
         )?;
+        if let (Some(fitted), Some(verification)) = (&report.fitted, report.verification.as_mut()) {
+            crate::verify::use_fitted_glyphs(verification, fitted.glyphs.clone());
+        }
     }
     report.calibration.estimated_steps = model.estimated.clone();
     if !model.estimated.is_empty() {
@@ -368,87 +434,6 @@ fn page_resources(file: &PdfFile, page_id: Option<lopdf::ObjectId>) -> Option<Ob
         };
     }
     None
-}
-
-/// the model facts for this conversion, measured through word when it is
-/// there and something is missing.
-fn prepare_model(
-    word: &Option<WordInstall>,
-    pages: &[PageContent],
-    lines: &[Line],
-    bridge: &WordBridge,
-    options: &ConvertOptions,
-    work: &Path,
-    report: &mut ConversionReport,
-) -> Result<WordModel, ExactError> {
-    let Some(word) = word else {
-        report.word = WordReport {
-            available: false,
-            build: None,
-            checked: false,
-            note: NOT_CHECKED.into(),
-        };
-        report.warnings.push(NOT_CHECKED.into());
-        let model = WordModel::for_build(MEASURED_BUILD, options.cache_dir.as_deref());
-        report.calibration = CalibrationReport {
-            word_build: MEASURED_BUILD.into(),
-            built_in_tables: true,
-            ..CalibrationReport::default()
-        };
-        return Ok(model);
-    };
-    report.word = WordReport {
-        available: true,
-        build: Some(word.build.clone()),
-        checked: false,
-        note: String::new(),
-    };
-    let mut model = WordModel::for_build(&word.build, options.cache_dir.as_deref());
-    let mut sizes: Vec<(f64, f64)> = Vec::new();
-    for page in pages {
-        if !sizes.contains(&(page.width, page.height)) {
-            sizes.push((page.width, page.height));
-        }
-    }
-    let heights: Vec<i64> = lines
-        .iter()
-        .filter(|l| !l.is_rotated())
-        .map(|l| line_twips_for(l.max_size()))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    match ensure_measured(
-        &mut model,
-        &sizes,
-        &heights,
-        bridge,
-        &work.join("calibration"),
-        &options.cancel,
-    ) {
-        Ok(mut calibration) => {
-            calibration.built_in_tables = word.build == MEASURED_BUILD;
-            report.calibration = calibration;
-            if let Some(dir) = &options.cache_dir {
-                if !report.calibration.measured_steps.is_empty()
-                    || !report.calibration.measured_baselines.is_empty()
-                {
-                    let _ = model.save(dir);
-                }
-            }
-        }
-        Err(ExactError::Cancelled) => return Err(ExactError::Cancelled),
-        Err(error) => {
-            // measuring failed: convert with what is known, and say so
-            report.warnings.push(format!("Word’s positions couldn’t be measured on this computer, so the measured tables of Word {MEASURED_BUILD} were used. ({error})"));
-            model = WordModel::for_build(MEASURED_BUILD, options.cache_dir.as_deref());
-            report.calibration = CalibrationReport {
-                word_build: MEASURED_BUILD.into(),
-                built_in_tables: true,
-                ..CalibrationReport::default()
-            };
-        }
-    }
-    Ok(model)
 }
 
 /// plans one horizontal line in its frame (recipe 7.1 to 7.5).
@@ -485,6 +470,7 @@ fn plan_frame(
     report.line_plans.push(plan);
     let width = (line.width() + 40.0).min((page.width - placement.x_pt).max(line.width() + 4.0));
     Ok(Some(Frame {
+        line: line.clone(),
         plan_index: Some(report.line_plans.len() - 1),
         runs,
         position: FramePosition {
@@ -495,101 +481,6 @@ fn plan_frame(
             line_twips,
         },
     }))
-}
-
-/// rotated lines: boxes placed by measuring exports when word is there,
-/// by geometry alone otherwise (and the report says so).
-#[allow(clippy::too_many_arguments)]
-fn place_rotated(
-    rotated: &mut [(RotatedLine, Line)],
-    page_sizes: &[(f64, f64)],
-    embedded: &[EmbeddedFont],
-    word: &Option<WordInstall>,
-    work: &Path,
-    fonts: &mut FontPlan,
-    report: &mut ConversionReport,
-    export: &mut dyn FnMut(&Path, &Path) -> Result<f64, ExactError>,
-) -> Result<Vec<RotatedLine>, ExactError> {
-    report.rotated = RotatedReport {
-        lines: rotated.len(),
-        ..RotatedReport::default()
-    };
-    if rotated.is_empty() {
-        return Ok(Vec::new());
-    }
-    if word.is_none() {
-        report.warnings.push(format!(
-            "{} rotated line{} placed by geometry alone, because Word wasn’t there to measure them; they may be off by several points.",
-            rotated.len(),
-            if rotated.len() == 1 { " was" } else { "s were" }
-        ));
-        return Ok(rotated.iter().map(|(line, _)| line.clone()).collect());
-    }
-    let work = work.join("rotated");
-    std::fs::create_dir_all(&work).map_err(crate::error::write_failed)?;
-    let mut lines: Vec<RotatedLine> = rotated.iter().map(|(line, _)| line.clone()).collect();
-    let mut history = Vec::new();
-    history.push(rotated_pass::measure_offsets(
-        &mut lines,
-        page_sizes,
-        embedded,
-        &work,
-        "rotated_probe",
-        true,
-        export,
-    )?);
-    for number in 1..MEASURING_PASSES {
-        // the box moves in steps word snaps to, so a few translations may be needed
-        let settled = history.last().is_some_and(|offsets: &Vec<Option<f64>>| {
-            offsets
-                .iter()
-                .all(|o| o.is_none_or(|v| v.abs() <= START_TOLERANCE_PT))
-        });
-        if settled {
-            break;
-        }
-        history.push(rotated_pass::measure_offsets(
-            &mut lines,
-            page_sizes,
-            embedded,
-            &work,
-            &format!("rotated_move_{number}"),
-            true,
-            export,
-        )?);
-    }
-    // the last measurement is where word starts each line now: plan the glyphs against it
-    let last = rotated_pass::measure_offsets(
-        &mut lines,
-        page_sizes,
-        embedded,
-        &work,
-        "rotated_check",
-        false,
-        export,
-    )?;
-    let mut scratch = GlyphCounts::default();
-    for ((line, (_, source)), offset) in lines.iter_mut().zip(rotated.iter()).zip(&last) {
-        let Some(offset) = offset else { continue };
-        if let Some((plan, runs)) = plan_line(
-            source,
-            fonts,
-            Targets::Along { offset_pt: *offset },
-            &mut scratch,
-        )
-        .map_err(ExactError::WordFailed)?
-        {
-            line.runs = runs;
-            if let Some(index) = line.plan_index {
-                report.line_plans[index] = plan;
-            }
-        }
-    }
-    history.push(last);
-    report.rotated.measured = true;
-    report.rotated.along_offsets_pt = history;
-    report.rotated.corrections_pt = lines.iter().map(|l| l.correction).collect();
-    Ok(lines)
 }
 
 /// writes the docx, with some lines' spacing replaced.
@@ -622,106 +513,4 @@ fn write_docx(
     package.final_section = section_properties(last.0, last.1);
     let bytes = package.to_bytes().map_err(crate::error::write_failed)?;
     std::fs::write(path, bytes).map_err(crate::error::write_failed)
-}
-
-/// plain sentences about fonts that aren't the originals.
-fn describe_fonts(report: &mut ConversionReport) {
-    for font in &report.fonts {
-        if let Some(reason) = &font.not_used_because {
-            if reason.starts_with("fsType") {
-                report.warnings.push(format!(
-                    "“{}” doesn’t allow embedding, so a similar font was used.",
-                    font.pdf_font
-                ));
-            } else {
-                report.warnings.push(format!(
-                    "“{}” couldn’t be read from the PDF, so a similar font was used.",
-                    font.pdf_font
-                ));
-            }
-        } else if font.substitute.is_some() {
-            report.warnings.push(format!(
-                "“{}” isn’t included in the PDF, so a similar font was used.",
-                font.pdf_font
-            ));
-        }
-        if font.private_use_glyphs > 0 {
-            report.warnings.push(format!(
-                "{} glyph{} of “{}” {} no known text, so copying {} gives placeholder characters.",
-                font.private_use_glyphs,
-                if font.private_use_glyphs == 1 {
-                    ""
-                } else {
-                    "s"
-                },
-                font.pdf_font,
-                if font.private_use_glyphs == 1 {
-                    "has"
-                } else {
-                    "have"
-                },
-                if font.private_use_glyphs == 1 {
-                    "it"
-                } else {
-                    "them"
-                }
-            ));
-        }
-    }
-    let unshaped = report.scripts.right_to_left + report.scripts.complex_script;
-    if unshaped > 0 {
-        report.warnings.push("Some text is in a right-to-left or complex script, which this conversion doesn’t shape; check it in Word.".into());
-    }
-    if report.glyph_counts.glyphs_without_char > 0 {
-        report.warnings.push(format!(
-            "{} glyphs couldn’t be written as text and were left out.",
-            report.glyph_counts.glyphs_without_char
-        ));
-    }
-}
-
-/// exports the result through word and measures it.
-#[allow(clippy::too_many_arguments)]
-fn verify_result(
-    pages: &[PageContent],
-    docx: &Path,
-    checked_pdf: Option<PathBuf>,
-    word: &Option<WordInstall>,
-    model: &mut WordModel,
-    pdf_bytes: &[u8],
-    options: &ConvertOptions,
-    work: &Path,
-    export: &mut dyn FnMut(&Path, &Path) -> Result<f64, ExactError>,
-    report: &mut ConversionReport,
-) -> Result<(), ExactError> {
-    if word.is_none() {
-        report.warnings.push("The result couldn’t be checked, because Microsoft Word isn’t available on this computer.".into());
-        return Ok(());
-    }
-    // the last checking export is of the final docx when no line was re-planned after it
-    let (pdf, seconds) = match checked_pdf {
-        Some(pdf) => (pdf, 0.0),
-        None => {
-            let pdf = work.join("verify.word.pdf");
-            let seconds = export(docx, &pdf)?;
-            (pdf, seconds)
-        }
-    };
-    let substituted: Vec<String> = report
-        .fonts
-        .iter()
-        .filter(|f| f.substitute.is_some())
-        .map(|f| f.pdf_font.clone())
-        .collect();
-    let mut verification = verify::measure(
-        pages,
-        &pdf,
-        model,
-        substituted,
-        options.render.as_deref(),
-        Some(pdf_bytes),
-    )?;
-    verification.word_export_seconds = seconds;
-    report.verification = Some(verification);
-    Ok(())
 }

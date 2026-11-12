@@ -1,3 +1,6 @@
+//! the errors of a conversion, written as sentences the person can act on
+//! (the app shows them as they are, in the style of `core/pdf`).
+
 use thiserror::Error;
 
 /// everything that can stop a conversion.

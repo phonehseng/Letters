@@ -14,6 +14,17 @@ static TINOS_REGULAR: &[u8] = include_bytes!("../../fonts/Tinos-Regular.ttf");
 static TINOS_BOLD: &[u8] = include_bytes!("../../fonts/Tinos-Bold.ttf");
 static COUSINE_REGULAR: &[u8] = include_bytes!("../../fonts/Cousine-Regular.ttf");
 
+/// every bundled stand-in, regular and bold: (program, file name).
+pub fn bundled() -> [(&'static [u8], &'static str); 5] {
+    [
+        (ARIMO_REGULAR, "Arimo-Regular.ttf"),
+        (ARIMO_BOLD, "Arimo-Bold.ttf"),
+        (TINOS_REGULAR, "Tinos-Regular.ttf"),
+        (TINOS_BOLD, "Tinos-Bold.ttf"),
+        (COUSINE_REGULAR, "Cousine-Regular.ttf"),
+    ]
+}
+
 /// a chosen stand-in: its program, its name and how close it is.
 pub struct StandIn {
     pub bytes: &'static [u8],

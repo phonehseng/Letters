@@ -15,7 +15,11 @@
 # - only our own copy is ever quit, and letters ends that process itself
 #   if it is still there afterwards
 #
-# input: a jobs file, one "docx<tab>pdf" per line (utf-8)
+# input: a jobs file, one "docx<tab>pdf" per line (utf-8). a job may add
+# "<tab>action<tab>needle<tab>text" (needle and text base64 of utf-8) to
+# edit the open document in memory before the export, the way a person
+# would: insert text after the needle, delete the needle, or insert and
+# undo. nothing is ever saved: the document is closed without saving.
 # what it prints, one line each, for letters to read:
 #   ours=<process id>          as soon as our copy is known
 #   shared=<process id>        com gave us a copy that isn't ours: stopped
@@ -44,6 +48,38 @@ public static extern System.IntPtr FindWindow(string className, string windowNam
 
 function WordProcesses {
     return @(Get-Process -Name 'WINWORD' -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+}
+
+function FromBase64([string]$text) {
+    return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($text))
+}
+
+# finds the needle in the document's main text; the range then holds it.
+# word's find treats ^ as a special char, so it is doubled.
+function FindText($document, [string]$needle) {
+    $range = $document.Content
+    $find = $range.Find
+    $find.ClearFormatting()
+    # text, match case, whole word, wildcards, sounds like, all forms, forward, stop at the end
+    $found = $find.Execute($needle.Replace('^', '^^'), $true, $false, $false, $false, $false, $true, 0)
+    if (-not $found) { throw "the text to edit wasn't found" }
+    return $range
+}
+
+function ApplyEdit($document, [string[]]$parts) {
+    if ($parts.Count -lt 5) { return }
+    $needle = FromBase64 $parts[3]
+    $text = FromBase64 $parts[4]
+    $range = FindText $document $needle
+    switch ($parts[2]) {
+        'insert' { $range.InsertAfter($text) }
+        'delete' { $range.Delete() | Out-Null }
+        'insert-undo' {
+            $range.InsertAfter($text)
+            [void]$document.Undo(1)
+        }
+        default { throw ("unknown edit " + $parts[2]) }
+    }
 }
 
 function ProcessOfMarkedWindow([string]$title) {
@@ -102,6 +138,7 @@ try {
             # password, template password, revert, write password,
             # template write password, format, encoding, visible
             $document = $word.Documents.Open($parts[0], $false, $true, $false, $password, $password, $false, $password, $password, 0, $missing, $false)
+            ApplyEdit $document $parts
             # pagination must be final before the export
             $document.Repaginate()
             # file, pdf (17), open after, optimise for print, whole document,

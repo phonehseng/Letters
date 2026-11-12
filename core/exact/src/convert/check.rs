@@ -203,6 +203,7 @@ mod tests {
             start_pixel: Some(600),
             word_y: Some(700.0),
             rotated: false,
+            sources: vec![Some(0), Some(1)],
         };
         let object = |pixel: i64| TextObject {
             page: 0,

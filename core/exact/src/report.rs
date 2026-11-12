@@ -93,6 +93,13 @@ pub struct ConversionReport {
     pub line_plans: Vec<LinePlan>,
     /// each horizontal line's frame: x, y, width and line height in twips
     pub frames: Vec<FramePosition>,
+    pub mode: crate::OutputMode,
+    /// the easy to edit mode: what was promoted and how editable it is
+    pub hybrid: Option<crate::hybrid::HybridReport>,
+    /// the easy to edit mode: the glyphs added to each face for new text
+    pub font_completion: Vec<crate::hybrid::completion::CompletionReport>,
+    /// the fitted fonts mode: pieces, exports and the measured glyphs
+    pub fitted: Option<crate::fitted::FittedReport>,
 }
 
 /// where one line's frame was put.

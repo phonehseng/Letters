@@ -34,35 +34,35 @@ pub struct FontSpec<'a> {
 /// claims no code page with times new roman (measured, 16.0.20527, round 3).
 const CODE_PAGE_LATIN_1: u32 = 1;
 
-struct Writer(Vec<u8>);
+pub(super) struct Writer(pub(super) Vec<u8>);
 
 impl Writer {
-    fn u8(&mut self, v: u8) {
+    pub(super) fn u8(&mut self, v: u8) {
         self.0.push(v);
     }
-    fn u16(&mut self, v: u16) {
+    pub(super) fn u16(&mut self, v: u16) {
         self.0.extend_from_slice(&v.to_be_bytes());
     }
-    fn i16(&mut self, v: i16) {
+    pub(super) fn i16(&mut self, v: i16) {
         self.0.extend_from_slice(&v.to_be_bytes());
     }
-    fn u32(&mut self, v: u32) {
+    pub(super) fn u32(&mut self, v: u32) {
         self.0.extend_from_slice(&v.to_be_bytes());
     }
-    fn i64(&mut self, v: i64) {
+    pub(super) fn i64(&mut self, v: i64) {
         self.0.extend_from_slice(&v.to_be_bytes());
     }
 }
 
 #[derive(Clone, Copy, Default)]
-struct Bounds {
-    x_min: i32,
-    y_min: i32,
-    x_max: i32,
-    y_max: i32,
+pub(super) struct Bounds {
+    pub(super) x_min: i32,
+    pub(super) y_min: i32,
+    pub(super) x_max: i32,
+    pub(super) y_max: i32,
 }
 
-fn bounds_of(contours: &Contours) -> Option<Bounds> {
+pub(super) fn bounds_of(contours: &Contours) -> Option<Bounds> {
     let mut points = contours.iter().flatten();
     let first = points.next()?;
     let mut b = Bounds {
@@ -80,12 +80,12 @@ fn bounds_of(contours: &Contours) -> Option<Bounds> {
     Some(b)
 }
 
-fn clamp16(v: i32) -> i16 {
+pub(super) fn clamp16(v: i32) -> i16 {
     v.clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16
 }
 
 /// one simple glyph in the glyf format, flags and coordinates compacted.
-fn glyph_bytes(contours: &Contours) -> Vec<u8> {
+pub(super) fn glyph_bytes(contours: &Contours) -> Vec<u8> {
     let Some(bounds) = bounds_of(contours) else {
         return Vec::new();
     };
@@ -148,6 +148,15 @@ pub fn write_truetype(spec: &FontSpec) -> Vec<u8> {
         .iter()
         .map(|g| glyph_bytes(&g.contours))
         .collect();
+    write_tables(spec, glyph_data, Vec::new())
+}
+
+/// the glyf, loca and every other table, assembled.
+pub(super) fn write_tables(
+    spec: &FontSpec,
+    glyph_data: Vec<Vec<u8>>,
+    extra_tables: Vec<([u8; 4], Vec<u8>)>,
+) -> Vec<u8> {
     let mut glyf = Vec::new();
     let mut loca = Writer(Vec::new());
     for data in &glyph_data {
@@ -182,10 +191,13 @@ pub fn write_truetype(spec: &FontSpec) -> Vec<u8> {
         (*b"hhea", hhea_table(spec, &all_bounds)),
         (*b"hmtx", hmtx_table(spec, &all_bounds)),
         (*b"loca", loca.0),
-        (*b"maxp", maxp_table(spec)),
         (*b"name", name_table(spec.family)),
         (*b"post", post_table()),
     ];
+    if !extra_tables.iter().any(|(tag, _)| tag == b"maxp") {
+        tables.push((*b"maxp", maxp_table(spec)));
+    }
+    tables.extend(extra_tables);
     tables.sort_by_key(|table| table.0);
     assemble(tables)
 }
@@ -292,7 +304,7 @@ fn hmtx_table(spec: &FontSpec, bounds: &[Option<Bounds>]) -> Vec<u8> {
     w.0
 }
 
-fn maxp_table(spec: &FontSpec) -> Vec<u8> {
+pub(super) fn maxp_table(spec: &FontSpec) -> Vec<u8> {
     let max_points = spec
         .glyphs
         .iter()

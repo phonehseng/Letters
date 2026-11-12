@@ -1,8 +1,10 @@
 //! fonts: rebuild every pdf face as clean truetype, then one grid font per
 //! face and size, and embed them the way word expects (recipe 3 and 4).
 
+pub mod composite;
 pub mod embed;
 pub mod grid;
+pub mod gsub;
 pub mod outline;
 pub mod permissions;
 pub mod rebuild;
@@ -52,6 +54,10 @@ pub struct FontPlan {
     /// grid font keys in the order they were made, so the docx is stable
     grid_order: Vec<(String, i64)>,
     pub reports: Vec<FontReport>,
+    /// per face: the pdf says it is serif (for a completion donor)
+    serif: HashMap<String, bool>,
+    /// per face: the pdf's width of its space in 1/1000 em, when it drew one
+    space_widths: HashMap<String, f64>,
 }
 
 /// pdf sizes are grouped to 0.01 pt (recipe 4).
@@ -66,8 +72,14 @@ impl FontPlan {
         let mut face_order: Vec<String> = Vec::new();
         let mut face_fonts: HashMap<String, Vec<&Glyph>> = HashMap::new();
         let mut used: HashMap<String, BTreeSet<u32>> = HashMap::new();
+        let mut space_widths = HashMap::new();
         for glyph in glyphs {
             let key = face_key(&glyph.font);
+            if glyph.text == " " {
+                space_widths
+                    .entry(key.clone())
+                    .or_insert_with(|| glyph.font.width(glyph.code));
+            }
             let fonts = face_fonts.entry(key.clone()).or_insert_with(|| {
                 face_order.push(key.clone());
                 Vec::new()
@@ -81,7 +93,9 @@ impl FontPlan {
         }
         let mut faces = HashMap::new();
         let mut reports = Vec::new();
+        let mut serif = HashMap::new();
         for key in face_order {
+            serif.insert(key.clone(), face_fonts[&key][0].font.serif);
             let fonts: Vec<&crate::pdf::fonts::PdfFont> =
                 face_fonts[&key].iter().map(|g| g.font.as_ref()).collect();
             let family = unique_family(&key, document_tag);
@@ -94,7 +108,29 @@ impl FontPlan {
             grid_fonts: HashMap::new(),
             grid_order: Vec::new(),
             reports,
+            serif,
+            space_widths,
         }
+    }
+
+    /// completes every face for new text (the easy to edit mode, see
+    /// `hybrid::completion`). must run before the first grid font is made.
+    pub fn complete_faces(&mut self) -> Vec<crate::hybrid::completion::CompletionReport> {
+        use crate::hybrid::completion::{complete_face, StandInDonor};
+        assert!(
+            self.grid_fonts.is_empty(),
+            "faces are completed before grid fonts are made"
+        );
+        let mut keys: Vec<&String> = self.faces.keys().collect();
+        keys.sort();
+        let keys: Vec<String> = keys.into_iter().cloned().collect();
+        keys.iter()
+            .map(|key| {
+                let face = self.faces.get_mut(key).expect("listed above");
+                let donor = StandInDonor::most_alike(face, self.serif[key]);
+                complete_face(face, &donor, self.space_widths.get(key).copied())
+            })
+            .collect()
     }
 
     fn face(&self, glyph: &Glyph) -> &RebuiltFace {

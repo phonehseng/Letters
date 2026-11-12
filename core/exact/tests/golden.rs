@@ -11,7 +11,7 @@
 
 use std::path::{Path, PathBuf};
 
-use letters_exact::{convert, ConvertOptions};
+use letters_exact::{convert, ConvertOptions, OutputMode};
 use serde_json::Value;
 
 fn corpus() -> PathBuf {
@@ -76,6 +76,7 @@ fn compare(name: &str) -> Differences {
     ));
     let options = ConvertOptions {
         use_word: false,
+        mode: OutputMode::LockedLayout,
         cache_dir: prototype_tables_for(name),
         ..ConvertOptions::default()
     };

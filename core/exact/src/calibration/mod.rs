@@ -6,4 +6,4 @@ pub mod model;
 pub mod probe;
 
 pub use model::{Axis, WordModel, MEASURED_BUILD};
-pub use probe::{ensure_measured, CalibrationReport};
+pub use probe::{ensure_measured, measure_baselines, CalibrationReport};

@@ -345,9 +345,16 @@ fn measure_baseline(
     line_twips: i64,
     letter_y: &StepTable,
 ) -> Result<Vec<i64>, ExactError> {
+    let (docx, pdf) = write_baseline_probe(prober, line_twips)?;
+    prober.export(&[(docx, pdf.clone())])?;
+    read_baseline_probe(&pdf, line_twips, letter_y)
+}
+
+/// the probe frames of one line height: (t mod 60, frame x, frame y).
+fn baseline_probe_frames(line_twips: i64) -> Vec<(i64, i64, i64)> {
     let columns = 16;
     let rows_apart = 1 + (line_twips + 200) / TWIPS_PERIOD;
-    let frames: Vec<(i64, i64, i64)> = (0..TWIPS_PERIOD)
+    (0..TWIPS_PERIOD)
         .map(|residue| {
             (
                 residue,
@@ -355,17 +362,30 @@ fn measure_baseline(
                 1200 + residue + TWIPS_PERIOD * rows_apart * (residue / columns),
             )
         })
-        .collect();
-    let parts = frames
+        .collect()
+}
+
+fn write_baseline_probe(
+    prober: &Prober,
+    line_twips: i64,
+) -> Result<(PathBuf, PathBuf), ExactError> {
+    let parts = baseline_probe_frames(line_twips)
         .iter()
         .map(|&(_, x, y)| probe_frame(x, y, line_twips))
         .collect();
     let (docx, pdf) = prober.paths(&format!("baseline_{line_twips}"));
     prober.write(parts, 612.0, 792.0, &docx)?;
-    prober.export(&[(docx, pdf.clone())])?;
-    let objects = probe_objects(&pdf)?;
+    Ok((docx, pdf))
+}
+
+fn read_baseline_probe(
+    pdf: &Path,
+    line_twips: i64,
+    letter_y: &StepTable,
+) -> Result<Vec<i64>, ExactError> {
+    let objects = probe_objects(pdf)?;
     let mut offsets = vec![0; TWIPS_PERIOD as usize];
-    for &(residue, x, y) in &frames {
+    for (residue, x, y) in baseline_probe_frames(line_twips) {
         let top = twips_pixel(y);
         let guess = top as f64 + BASELINE_SHARE * line_twips as f64 * 5.0 / 12.0;
         let object = objects
@@ -387,6 +407,53 @@ fn measure_baseline(
     Ok(offsets)
 }
 
+/// measures the baseline tables of every line height the model lacks in
+/// one word session (one probe document per height). the easy to edit mode
+/// needs them for the line heights of real paragraphs: off the 16 heights
+/// the recipe measured, the closed rule (recipe 6.6) put 57 of 393 lines a
+/// pixel off (`tests/hybrid_probe.rs`, heights 200 to 330 twips).
+/// returns the heights measured.
+pub fn measure_baselines(
+    model: &mut WordModel,
+    line_heights: &[i64],
+    bridge: &WordBridge,
+    work_dir: &Path,
+    cancel: &CancelFlag,
+) -> Result<Vec<i64>, ExactError> {
+    std::fs::create_dir_all(work_dir).map_err(crate::error::write_failed)?;
+    let mut prober = Prober {
+        bridge,
+        cancel,
+        dir: work_dir.to_path_buf(),
+        seconds: 0.0,
+        landscape: None,
+    };
+    let missing: Vec<i64> = line_heights
+        .iter()
+        .copied()
+        .filter(|&l| !model.has_baseline(l))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    if missing.is_empty() {
+        return Ok(missing);
+    }
+    if !model.has_steps(Axis::Y, 6600, false) {
+        let steps = measure_steps(&mut prober, Axis::Y, 612.0, 792.0)?;
+        model.set_steps(Axis::Y, 6600, false, steps);
+    }
+    let letter_y = model.table(Axis::Y, 6600, false);
+    let mut documents = Vec::new();
+    for &line_twips in &missing {
+        documents.push(write_baseline_probe(&prober, line_twips)?);
+    }
+    prober.export(&documents)?;
+    for (&line_twips, (_, pdf)) in missing.iter().zip(&documents) {
+        let offsets = read_baseline_probe(pdf, line_twips, &letter_y)?;
+        model.set_baseline(line_twips, offsets);
+    }
+    Ok(missing)
+}
 /// what the calibration step did.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]

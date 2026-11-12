@@ -30,6 +30,13 @@ pub struct GridFont {
     /// char to its layout advance in pixels
     pub advance_pixels: HashMap<char, i64>,
     pub bytes: Vec<u8>,
+    /// what the font was written from, so the fitted text path can write
+    /// it again with composite glyphs added
+    pub glyphs: Vec<FontGlyph>,
+    pub cmap: std::collections::BTreeMap<u32, u16>,
+    pub ascent: i16,
+    pub descent: i16,
+    pub fs_type: u16,
 }
 
 impl GridFont {
@@ -95,14 +102,17 @@ pub fn make_grid_font(face: &RebuiltFace, pdf_size: f64) -> Result<GridFont, Str
         })
         .collect();
     advance_pixels.insert('\u{0}', i64::from(glyphs[0].advance) / GRID_UNITS_PER_PIXEL);
+    let ascent = scaled(face.ascent, factor).clamp(-32768, 32767) as i16;
+    let descent = scaled(face.descent, factor).clamp(-32768, 32767) as i16;
+    let fs_type = face.fs_type.unwrap_or(0);
     let bytes = write_truetype(&FontSpec {
         family: &family,
         units_per_em: units_per_em as u16,
         glyphs: &glyphs,
         cmap: &face.cmap,
-        ascent: scaled(face.ascent, factor).clamp(-32768, 32767) as i16,
-        descent: scaled(face.descent, factor).clamp(-32768, 32767) as i16,
-        fs_type: face.fs_type.unwrap_or(0),
+        ascent,
+        descent,
+        fs_type,
     });
     Ok(GridFont {
         family,
@@ -111,6 +121,11 @@ pub fn make_grid_font(face: &RebuiltFace, pdf_size: f64) -> Result<GridFont, Str
         units_per_em,
         advance_pixels,
         bytes,
+        glyphs,
+        cmap: face.cmap.clone(),
+        ascent,
+        descent,
+        fs_type,
     })
 }
 

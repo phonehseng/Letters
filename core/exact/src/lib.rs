@@ -16,6 +16,7 @@
 //! - `bridge`: drives a private, invisible copy of word
 //! - `calibration`: the measured facts per word build, cached
 //! - `verify`: exports the docx through word and measures every glyph
+//! - `hybrid`: real paragraphs where word is proven to place them exactly
 //! - `convert`: the pipeline, and the report it returns
 
 pub mod bridge;
@@ -23,7 +24,9 @@ pub mod calibration;
 mod convert;
 pub mod docx;
 mod error;
+pub mod fitted;
 pub mod fonts;
+pub mod hybrid;
 pub mod pdf;
 pub mod plan;
 pub mod report;
@@ -68,6 +71,8 @@ pub enum Stage {
     Planning,
     Writing,
     Checking,
+    /// proving real paragraphs through word (easy to edit mode)
+    Promoting,
     Verifying,
     Done,
 }
@@ -106,6 +111,46 @@ pub struct ConvertOptions {
     pub work_dir: Option<PathBuf>,
     /// keep the intermediate files (probe and checking exports)
     pub keep_work: bool,
+    /// how the docx is built: easy to edit, or locked to the page
+    pub mode: OutputMode,
+}
+
+/// the two exact output modes (the structure-first "easy to edit" mode
+/// lives in `letters-convert`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OutputMode {
+    /// real paragraphs wherever word is proven to place them exactly,
+    /// positioned lines everywhere else
+    EasyToEdit,
+    /// round one: one positioned frame per line, maximum fidelity
+    LockedLayout,
+    /// round one's frames with fitted document fonts: one composite glyph
+    /// per word placed in font units (`fitted`). the default text path:
+    /// every corpus glyph within 0.0066 pt through word, where round one's
+    /// lines reach 0.063 to 0.102; without word it writes round one's lines
+    #[default]
+    FittedLayout,
+}
+
+impl OutputMode {
+    /// the name in the export dialog.
+    pub fn title(self) -> &'static str {
+        match self {
+            OutputMode::EasyToEdit => "Exact, Easy to Edit",
+            OutputMode::LockedLayout => "Exact, Locked Layout",
+            OutputMode::FittedLayout => "Exact, Fitted Fonts",
+        }
+    }
+
+    /// one plain sentence for the export dialog.
+    pub fn description(self) -> &'static str {
+        match self {
+            OutputMode::EasyToEdit => "Looks exactly like the PDF in Word, with real paragraphs that re-wrap when you type; lines Word can't place exactly stay fixed in place.",
+            OutputMode::LockedLayout => "Every line is pinned exactly where the PDF has it, the closest match, but typing doesn't re-wrap the text.",
+            OutputMode::FittedLayout => "Every line is pinned in place and its words are drawn with fonts fitted to the PDF, the closest match of all; needs Microsoft Word to check it.",
+        }
+    }
 }
 
 impl Default for ConvertOptions {
@@ -121,6 +166,7 @@ impl Default for ConvertOptions {
             cancel: CancelFlag::new(),
             work_dir: None,
             keep_work: false,
+            mode: OutputMode::default(),
         }
     }
 }
