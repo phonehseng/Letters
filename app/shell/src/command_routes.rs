@@ -31,6 +31,7 @@ use crate::form_logic_commands;
 use crate::form_building_commands;
 use crate::form_data_commands;
 use crate::signing_commands;
+use crate::standards_commands;
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -128,6 +129,11 @@ fn forms_round_two() -> Feature {
         signing_commands::forms_audit_trail,
         signing_commands::forms_append_audit_entry,
         signing_commands::forms_add_audit_pages,
+        standards_commands::standards_check_pdfa,
+        standards_commands::standards_convert_pdfa,
+        standards_commands::standards_preflight,
+        standards_commands::standards_optimize,
+        standards_commands::standards_check_pdfx,
     ]
 }
 

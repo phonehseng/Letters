@@ -41,6 +41,8 @@ const GROUPS: [Command, ToolName][][] = [
   ],
   // compare: this document as the newer version (compare/CompareScreen.svelte)
   [["compare-with-version", "compareWithVersion"]],
+  // forms round two: pdf/a, preflight, smaller copies, print checks (standards/StandardsSheet.svelte)
+  [["prepare-and-check", "prepareAndCheck"]],
   // code: the document as markdown, latex..., and the code inside it (code/DocumentCodeTools.svelte)
   [
     ["export-code-file", "exportCodeFile"],

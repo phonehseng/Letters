@@ -28,6 +28,8 @@ letters-pages = { path = "../../core/pages" }
 letters-annotate = { path = "../../core/annotate" }
 # forms and signatures (Fill & Sign)
 letters-forms = { path = "../../core/forms" }
+# pdf/a, preflight, optimising and print checks (standards_commands.rs)
+letters-standards = { path = "../../core/standards" }
 # redaction, hidden information and passwords (Protect)
 letters-redact = { path = "../../core/redact" }
 # the font library (fonts_commands.rs)

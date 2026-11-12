@@ -72,6 +72,8 @@ mod form_data_commands;
 mod form_logic_commands;
 // forms round two: signing options, Verify and the audit trail
 mod signing_commands;
+// forms round two: Prepare & Check (pdf/a, preflight, optimise, pdf/x)
+mod standards_commands;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 

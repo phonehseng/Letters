@@ -45,8 +45,11 @@ const FIELDS: [Item; 4] = [
 const SIGN: [Item; 3] = [
     item("sign-with-picture", "Sign with a Picture…", None),
     item("sign-with-certificate", "Sign with a Certificate…", None),
-    item("show-signatures", "Show Signatures", None),
+    item("show-signatures", "Verify Signatures", None),
 ];
+
+// forms round two: the whole-document checks (the ui's standards/StandardsSheet.svelte)
+const CHECK: [Item; 1] = [item("prepare-and-check", "Prepare & Check…", None)];
 
 fn items(app: &AppHandle, list: &[Item]) -> tauri::Result<Vec<MenuItem<Wry>>> {
     list.iter()
@@ -74,12 +77,14 @@ pub fn forms_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
         .items(&refs(&items(app, &FIELDS)?))
         .separator()
         .items(&refs(&items(app, &SIGN)?))
+        .separator()
+        .items(&refs(&items(app, &CHECK)?))
         .build()
 }
 
 /// true for ids of the Forms menu's items, which go to the focused window.
 pub fn is_forms_command(id: &str) -> bool {
-    [&FILL[..], &FIELDS, &SIGN]
+    [&FILL[..], &FIELDS, &SIGN, &CHECK]
         .iter()
         .flat_map(|list| list.iter())
         .any(|entry| entry.id == id)

@@ -24,6 +24,8 @@ import { codeTools } from "./code/codeTools";
 import { slidesTools } from "./slides/slidesTools";
 // spreadsheets: the sheets screen's tools (sheets/sheetsTools.ts)
 import { sheetsTools } from "./sheets/sheetsTools";
+// forms round two: Prepare & Check (standards/standardsTools.ts)
+import { standardsTools } from "./standards/standardsTools";
 
 export interface ToolHelp {
   label: string;
@@ -449,6 +451,8 @@ export const tools = {
   ...slidesTools,
   // spreadsheets: listed in sheets/sheetsTools.ts
   ...sheetsTools,
+  // forms round two: Prepare & Check, listed in standards/standardsTools.ts
+  ...standardsTools,
 } satisfies Record<string, ToolHelp>;
 
 export type ToolName = keyof typeof tools;

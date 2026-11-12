@@ -56,6 +56,8 @@ letters-sheets = { path = "../../core/sheets" }
 # forms and signatures: every save of a signed document is an incremental
 # update (see src/forms/signed.rs)
 letters-forms = { path = "../../core/forms" }
+# pdf/a, preflight and optimising (see src/standards)
+letters-standards = { path = "../../core/standards" }
 
 [dev-dependencies]
 # the annotation engine, run through an edit session in the tests

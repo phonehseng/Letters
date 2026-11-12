@@ -31,14 +31,15 @@ the code so source folders hold only what is built or read with it.
 - [`shell-core-settings_store.md`](shell-core-settings_store.md): `app/shell-core/src/settings_store/`
 - [`shell-core-slides.md`](shell-core-slides.md): `app/shell-core/src/slides/`
 - [`shell-core-sheets.md`](shell-core-sheets.md): `app/shell-core/src/sheets/`
+- [`shell-core-standards.md`](shell-core-standards.md): `app/shell-core/src/standards/`
 - [`shell-core-writer.md`](shell-core-writer.md): `app/shell-core/src/writer/`
 - [`ui-a11y.md`](ui-a11y.md): `app/ui/src/lib/a11y/`
 - [`ui-ai.md`](ui-ai.md): `app/ui/src/lib/ai/`
 - [`ui-code.md`](ui-code.md): `app/ui/src/lib/code/`
 - [`ui-compare.md`](ui-compare.md): `app/ui/src/lib/compare/`
 - [`ui-edit.md`](ui-edit.md): `app/ui/src/lib/edit/`
-- [`ui-forms.md`](ui-forms.md): `app/ui/src/lib/forms/`
 - [`ui-export.md`](ui-export.md): `app/ui/src/lib/export/`
+- [`ui-forms.md`](ui-forms.md): `app/ui/src/lib/forms/`
 - [`ui-library.md`](ui-library.md): `app/ui/src/lib/library/`
 - [`ui-longform.md`](ui-longform.md): `app/ui/src/lib/longform/`
 - [`ui-ocr.md`](ui-ocr.md): `app/ui/src/lib/ocr/`
@@ -47,4 +48,5 @@ the code so source folders hold only what is built or read with it.
 - [`ui-settings.md`](ui-settings.md): `app/ui/src/lib/settings/`
 - [`ui-slides.md`](ui-slides.md): `app/ui/src/lib/slides/`
 - [`ui-sheets.md`](ui-sheets.md): `app/ui/src/lib/sheets/`
+- [`ui-standards.md`](ui-standards.md): `app/ui/src/lib/standards/`
 - [`ui-writer.md`](ui-writer.md): `app/ui/src/lib/writer/`

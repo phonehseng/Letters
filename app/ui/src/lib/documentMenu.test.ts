@@ -26,6 +26,9 @@ describe("documentMenuEntries", () => {
       "rotate-right",
       "—",
       "compare-with-version",
+      // forms round two: Prepare & Check (standards/StandardsSheet.svelte)
+      "—",
+      "prepare-and-check",
       // code (code/DocumentCodeTools.svelte)
       "—",
       "export-code-file",
