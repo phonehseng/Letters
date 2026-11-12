@@ -1,6 +1,6 @@
 // tests for the page finder; the same cases as core/search/src/jump.rs.
 import { describe, expect, it } from "vitest";
-import { resolveJump, type JumpDocument, type JumpEntry } from "./jump";
+import { noPlaceSentence, resolveJump, type JumpDocument, type JumpEntry } from "./jump";
 
 // the same book and cases as core/search/src/jump.rs, so both stay in step
 function book(): JumpDocument {
@@ -72,5 +72,14 @@ describe("the page finder", () => {
     const doc: JumpDocument = { ...book(), pageCount: 10, pageLabels: [], outline: [], bookmarks: [], wordStarts: [[0, 0], [4, 120], [9, 4000], [15, 6000]] };
     expect(resolveJump(doc, "w 5000")[0].block).toBe(9);
     expect(resolveJump(doc, "word 1")[0].block).toBe(0);
+  });
+
+  it("says why nothing matches instead of showing an empty list", () => {
+    const doc = book();
+    for (const typed of ["0", "301", "p 400"]) expect(resolveJump(doc, typed)).toEqual([]);
+    expect(noPlaceSentence(doc, "301")).toBe("Page 301 doesn't exist. This document has 300 pages.");
+    expect(noPlaceSentence(doc, "p 400")).toBe("Page 400 doesn't exist. This document has 300 pages.");
+    expect(noPlaceSentence(doc, "150%")).toBe("Type a share from 0% to 100%, such as 50%.");
+    expect(noPlaceSentence(doc, "zebra")).toContain("Nothing here matches “zebra”");
   });
 });
