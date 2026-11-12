@@ -6,4 +6,11 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+# today() and now() need the local clock and time zone, which std does not give
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+# deflate in pure rust, the same backend letters-office uses
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 thiserror = "2"
+zip = { version = "9.5.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
