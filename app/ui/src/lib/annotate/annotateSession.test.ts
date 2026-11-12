@@ -123,6 +123,31 @@ describe("the annotate session", () => {
     expect(calls[0].command).toBe("addNote");
   });
 
+  it("keeps a note's typed words when a click elsewhere closes it", async () => {
+    const { session } = makeSession();
+    await session.placeFromKeyboard("note");
+    session.noteTyped = "Ask about the control group";
+    // what a click on empty page does: keep the words, then close the note
+    session.keepTypedNote();
+    session.note = null;
+    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].command).toBe("addNote");
+    expect((calls[0].args[2] as { contents: string }).contents).toBe("Ask about the control group");
+    // the closed note doesn't open again once it is saved
+    await Promise.resolve();
+    expect(session.note).toBeNull();
+  });
+
+  it("leaves no note behind when a new one is closed empty", async () => {
+    const { session } = makeSession();
+    await session.placeFromKeyboard("note");
+    session.noteTyped = "   ";
+    session.keepTypedNote();
+    session.note = null;
+    await Promise.resolve();
+    expect(calls).toHaveLength(0);
+  });
+
   it("adds a shape from the keyboard, selects it and says so", async () => {
     const { session, announced } = makeSession();
     await session.placeFromKeyboard("shape");
