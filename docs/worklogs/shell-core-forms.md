@@ -37,3 +37,16 @@ a chosen data file within 16 MB (answers are small; a bigger file is the
 wrong one), and merges filled copies, each read within 256 MB so one huge
 scan can't stall a merge. A copy that can't be read joins the engine's
 `skipped` list with the reason, so the person sees every file accounted for.
+
+## 2026-11-12: audit entries on files lopdf saved
+
+Measured in the app: a trail started on a saved form read as broken at
+once ("Entry 1 records a version of the file that isn't the one in the
+file's history"). lopdf ends a file right after %%EOF; core/forms'
+incremental writer adds the missing line break before appending, so the
+revision the file keeps ends one byte later than the bytes the audit entry
+hashed. `sign_saved_document` now adds that line break first, as the
+writer would, so the entry, the signature and the file agree; a reader
+ignores it. The root is in core/forms (the entry hashes the bytes before
+the writer's line break) and is reported there; `audit_tests` fails
+without this change and passes with it.

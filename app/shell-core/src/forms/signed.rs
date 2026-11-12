@@ -118,15 +118,31 @@ pub fn sign_saved_document<T, E>(
     } else {
         session.working_copy()
     };
-    let saved = fs::read(source).map_err(|error| SignError::CannotRead(error.to_string()))?;
+    let mut saved = fs::read(source).map_err(|error| SignError::CannotRead(error.to_string()))?;
     // a locked file on disk (however it got there) is never signed or rewritten
     if matches!(inspect_lock(&saved), Ok(Some(_))) {
         return Err(SignError::PasswordProtected);
     }
+    end_with_line_break(&mut saved);
     let signed = sign(&saved).map_err(SignError::Sign)?;
     session
         .adopt_exact_bytes(&signed, reload)
         .map_err(SignError::Session)
+}
+
+/// lopdf ends a file right after "%%EOF". an incremental update begins
+/// with the line break that file lacks, so the revision the file keeps is
+/// the bytes with it, while a change shown the bytes without it records
+/// those: the audit trail's hash of "the file as it was" then names a
+/// version that isn't in the file's history, and the trail reads as broken
+/// (measured in the app: an entry appended to a saved form). adding the
+/// line break first, as the update would, makes the two the same; a pdf
+/// reader ignores it.
+fn end_with_line_break(bytes: &mut Vec<u8>) {
+    // the same test core/forms' incremental writer makes before appending
+    if !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
+    }
 }
 
 /// every signature dictionary has a /ByteRange (iso 32000-1 12.8.1), so a

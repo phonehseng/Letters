@@ -24,6 +24,8 @@ pub use signature_pictures::{PictureKind, SavedSignature, SignaturePictures};
 pub use signed::{password_blocks_signing, sign_saved_document, SignError, PASSWORD_MESSAGE};
 
 #[cfg(test)]
+mod audit_tests;
+#[cfg(test)]
 mod incremental_tests;
 #[cfg(test)]
 mod tests;
