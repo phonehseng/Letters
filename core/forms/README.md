@@ -1,16 +1,21 @@
 # letters-forms
 
 Form fields and signatures for Letters: reading, filling, adding, finding,
-flattening, signature pictures and certificate-based digital signatures.
-Everything runs on this computer. Nothing here uses the network.
+flattening, form logic (calculations, formats, checks), building forms,
+form data in and out, signature pictures, certificate signatures with time
+stamps, certification and field locks, and an audit trail kept inside the
+PDF. Everything runs on this computer. The only network use is a time
+stamp request, and only to a time stamp authority the person configured,
+sending only a hash.
 
 ## How to call it
 
 Form operations take a `lopdf::Document` (lopdf 0.47) already in memory and
-change it in place; the shell saves it afterwards. Signing and checking
-signatures take the file's bytes instead, because a signature covers exact
-bytes. Every parameter and result type is serde with camelCase names, so the
-shell can pass them straight to the interface as JSON.
+change it in place; the shell saves it afterwards. Signing, time stamps,
+the audit trail and checking signatures take the file's bytes instead,
+because a signature covers exact bytes. Every parameter and result type is
+serde with camelCase names, so the shell can pass them straight to the
+interface as JSON.
 
 - Pages are counted from 0.
 - Positions (`VisibleRect { x, y, width, height }`) are in points from the
@@ -21,193 +26,297 @@ shell can pass them straight to the interface as JSON.
   using the app.
 - Encrypted documents are refused with "This PDF is locked with a password.
   Unlock it first, then fill or sign it." XFA forms are refused too.
+- Round one's API is unchanged; everything below marked *(new)* was added
+  beside it. New error cases are new `FormError` variants.
 
 ## Operations
 
+### Fields (round one)
+
 | Call | What it does to the file |
 |---|---|
-| `fields(&doc)` | Reads nothing into the file. Returns every field: full name, kind, widgets (page and rect), value, default, options, flags, max length, comb, tooltip, date format, alignment, font size, signed. |
-| `set_value(&mut doc, name, &FieldValue)` | Checks the answer, writes `/V` (and `/I` for lists, `/AS` for buttons) and draws new appearance streams for the field's widgets. |
-| `add_field(&mut doc, &NewField)` | Adds a field and its widget(s), creating `/AcroForm` with Helvetica (`/Helv`) in `/DR` if needed, and draws them. Returns the name used. |
-| `update_field(&mut doc, name, &FieldChanges)` | Renames, moves, resizes, moves to another page, changes options, flags, tooltip, font size, alignment or date format, then redraws. Returns the new full name. |
-| `remove_field(&mut doc, name)` | Removes the field, its widgets from the pages, and parents left empty. |
-| `detect_fields(&doc, page)` | Reads the page's drawing and returns `DetectedField` proposals. Changes nothing. The interface confirms each one and calls `add_field`. |
-| `flatten(&mut doc, &FlattenOptions)` | Paints each field's appearance into its page's content and removes the fields (and an empty `/AcroForm`). Returns the names flattened. `FLATTEN_EXPLANATION` is the one sentence for the interface: *Flattening makes your answers a permanent part of the page: they look exactly the same, but can no longer be changed as form fields.* |
-| `redraw_fields(&mut doc, only_missing)` | Draws appearance streams again from the values, for files that leave drawing to the reader (`/NeedAppearances`). |
-| `place_signature_image(&mut doc, &SignatureImage)` | Puts a PNG (typed or drawn signature, made by the interface) on a page, keeping its transparency through a soft mask: as page content, or as a stamp annotation. Not a digital signature. |
-| `create_self_signed_certificate(&CertificateRequest)` | Makes an RSA 2048 or P-256 key and a self-signed certificate (subject includes `OU=Self-signed`), packed as a password-protected PKCS#12 (.p12). |
-| `sign(&bytes, &SignRequest) -> Vec<u8>` | Signs with a PKCS#12 certificate into an existing empty signature field, a new one, or invisibly. Appends an incremental update; the original bytes are unchanged. |
-| `verify(&bytes) -> Vec<SignatureReport>` | Checks every signature: who, when, digest, signature, changes after signing, certificate details. Changes nothing. |
+| `fields(&doc)` | Reads every field: full name, kind, widgets, value, default, options, flags, max length, comb, tooltip, date format, alignment, font size, signed. |
+| `set_value(&mut doc, name, &FieldValue)` | Checks the answer, writes `/V` (and `/I`, `/AS`) and draws new appearance streams. Doesn't run form logic. |
+| `add_field`, `update_field`, `remove_field` | Add, change and remove fields. |
+| `detect_fields(&doc, page)` | Proposes fields on flat forms (`DetectedField`). Changes nothing. |
+| `flatten(&mut doc, &FlattenOptions)` | Paints fields into the page and removes them. |
+| `redraw_fields(&mut doc, only_missing)` | Draws appearance streams from the values. |
+| `place_signature_image(&mut doc, &SignatureImage)` | A PNG signature picture (not a digital signature). |
 
-`FieldValue` in JSON: `{"kind":"text","value":"Ada"}`,
-`{"kind":"checked","value":true}`, `{"kind":"selected","value":["Art"]}`.
-Text also chooses a radio button or dropdown option (by value or label), and
-`checked: false` clears a radio group.
+### Form logic *(new)*
+
+| Call | What it does |
+|---|---|
+| `form_logic(&doc) -> FormLogic` | Reads every field's calculation, format and checks into the declarative model (`FieldLogic`), the calculation order, problems (`CalculationIssue`: circles, unknown fields, out of order), and `customScriptNote` naming fields whose scripts Letters leaves alone. Changes nothing. |
+| `fill_field(&mut doc, name, &FieldValue) -> FillReport` | Fills a field the way a form app does: the answer is read in the field's format, checked by its validations (refused with the form's own message or a plain sentence, as `FormError::AnswerRefused`), stored raw, shown formatted, then every calculated field is worked out again in order. `changed` lists the field and each calculated field that changed, with its raw `value` and formatted `shown` text. Nothing changes when refused. |
+| `recalculate(&mut doc) -> FillReport` | Works out every calculation again and redraws formatted fields. |
+| `set_field_logic(&mut doc, name, &FieldLogicChanges) -> FieldLogic` | Sets a field's calculation, format and checks (replacing what it had), writes them as standard actions, keeps `/CO` in step, recalculates, and returns the logic as read back from the file. |
+| `set_calculation_order(&mut doc, &[name])` | Sets `/CO`. |
+
+The model, in JSON:
+
+- `Calculation`: `{"type":"aggregate","function":"sum"|"product"|"average"|"minimum"|"maximum","fields":[...]}`,
+  `{"type":"formula","formula":"price * qty"}` (letters notation, below), or
+  `{"type":"script","source":"..."}` (a script in the safe subset that is
+  more than one formula).
+- `FieldFormat`: `number {decimals, separator, negative, currency, currencyBefore}`,
+  `percent {decimals, separator}`, `date {pattern}`, `time {pattern}`,
+  `special {kind: zipCode|zipPlus4|phone|socialSecurity}`, `mask {mask}`.
+  `separator` is `commaDot` (1,234.56), `dot`, `dotComma` (1.234,56),
+  `comma`, `apostropheDot`; `negative` is `minusSign`, `red`,
+  `parentheses`, `redParentheses`.
+- `Validation`: `range {min, max}`, `required`, `maxLength {max}`,
+  `condition {condition, message}` (letters notation, `value` is the
+  field's own answer: `value <= budget`), `script {source}`.
+
+Letters notation: field names, numbers, `+ - * /`, brackets, percentages
+(`15%` is 0.15), comparisons (`< <= > >= = !=`), `and`, `or`, `not`,
+`? :`, and `round floor ceil min max abs number`. Names with spaces or dots
+in odd places go in double quotes: `"Line 1" * 2`. Fields are read as
+numbers (an empty field is 0), as the javascript it is written as does.
+
+### Building forms *(new)*
+
+| Call | What it does |
+|---|---|
+| `set_tab_order(&mut doc, page, &TabOrder)` / `tab_order(&doc, page)` | `rows`, `columns`, `structure` (`/Tabs /R /C /S`) or `manual {fields}`; the page's `/Annots` is put in the same order, because readers that ignore `/Tabs` follow it. A manual order removes `/Tabs`. |
+| `group_fields(&mut doc, group, &[names])` | Puts top-level fields under one parent: `street` becomes `address.street`. |
+| `duplicate_across_pages(&mut doc, name, &[pages])` | One field (one answer) with a widget at the same place on each page. |
+| `set_export_value(&mut doc, name, button, value)` | The value a checkbox or radio button stands for. |
+| `set_default_value(&mut doc, name, Option<&FieldValue>)` / `reset_form(&mut doc, Option<&[names]>)` | `/DV`, and putting fields back to it. |
+| `add_button(&mut doc, &NewButton)` | Reset (`/ResetForm`) and print (`/Named /Print`) buttons: standard actions, no scripts. |
+| `set_field_appearance(&mut doc, name, &FieldAppearance)` | Border colour, width and style, fill, font (Helvetica, Helvetica Bold, Times, Courier), size, text colour, alignment, multiline, password, comb, rich text off. |
+
+`NO_SUBMIT_NOTE`: there is no submit button. Sending answers needs a
+server or a mail program; people save the filled form and send the file.
+
+### Form data *(new)*
+
+| Call | What it does |
+|---|---|
+| `export_data(&doc, DataFormat) -> bytes` | `fdf`, `xfdf`, `csv` (header row and one row) or `json` (one object; lists for multi-select). Hierarchical names become trees in FDF and XFDF. Checkboxes and radio groups give their export value or `Off`. |
+| `import_data(&mut doc, bytes, DataFormat) -> ImportReport` | Fills the form; every answer goes through its field's format and checks. Unknown names, calculated fields and refused answers are listed in `skipped` with a sentence; the calculations run once at the end. Empty answers for empty fields change nothing. |
+| `merge_form_data(&[FilledCopy]) -> MergedData` | Many filled PDFs into one table: a `File` column, then every field seen. `csv` is the table; files that can't be read are in `skipped`. A row of the merged CSV imports back (the `File` column is ignored). |
+
+### Signatures
+
+| Call | What it does |
+|---|---|
+| `create_self_signed_certificate(&CertificateRequest)` | RSA 2048 or P-256 key and a self-signed certificate in a PKCS#12. |
+| `sign(&bytes, &SignRequest)` | As round one: signs as an incremental update. |
+| `sign_with_options(&bytes, &SignRequest, &SigningOptions)` *(new)* | `timestamp` (a `TimestampAuthority { url, username, password }`), `certify` (`noChanges`, `formFillingAndSigning`, `formFillingSigningAndComments`), `lock` (`FieldLock`: `{"action":"all"}`, `{"action":"include","fields":[...]}`, `{"action":"exclude",...}`), `validation` (`ValidationData` the caller already has), `followSigningOrder`, `auditActor` (records the signature in the audit trail). |
+| `add_document_timestamp(&bytes, &TimestampAuthority)` *(new)* | A `/DocTimeStamp` (`/SubFilter /ETSI.RFC3161`) over the whole file so far, as an incremental update. |
+| `add_validation_data(&bytes, &ValidationData)` *(new)* | A document security store (`/DSS`): every certificate the signatures and their time stamps carry, plus the CRLs and OCSP responses given, with a `/VRI` entry per signature. Nothing is fetched. |
+| `set_signature_lock(&mut doc, field, Option<&FieldLock>)` / `signature_lock` *(new)* | Which fields a signature field locks once signed (`/Lock`). |
+| `set_signing_order(&mut doc, &[fields])` / `signing_workflow(&doc)` *(new)* | The order signature fields are signed in (the order of `/AcroForm /Fields`), and who has signed and who is next. |
+| `save_incremental(&original, &doc)` *(new)* | Saves a changed document by appending only what changed. **Use it for every save of a signed document**; a normal save rewrites the file and breaks every signature. |
+| `verify(&bytes)` | As round one, and now also checks document time stamps. |
+| `verify_document(&bytes) -> DocumentVerification` *(new)* | Every signature's report, plus per signature: its kind (`approval`, `certification`, `documentTimestamp`), its time stamp (`TimestampInfo`), `timeSource` (`timestampAuthority` or `signerClock`) and `timeNote`; the certification level; every revision of the file with what it changed (`RevisionReport`, `Change` of kind `fieldValue`, `signature`, `documentTimestamp`, `formDefinition`, `annotation`, `pageContent`, `validationData`, `auditTrail`, `metadata`, `other`); and per signature `SignatureChanges` with a `verdict` (`unchanged`, `asIntended`, `notAllowed`, `noLimits`) and a sentence: "Filled in and signed as intended: …" or "Changed in ways the author did not allow: …". |
+| `revisions(&bytes)` *(new)* | The revisions and their changes on their own. |
+
+`TIMESTAMP_DISCLOSURE`, word for word in the interface before anything is
+sent: *To add a trusted time, Letters sends the time stamp server you
+chose a fingerprint (a SHA-256 hash) of the signature, or of the document
+for a document time stamp. The document itself never leaves this computer,
+and a fingerprint can't be turned back into it.* `CLOCK_TIME_NOTE`: *The
+time comes from the signer's computer clock.*
+
+### Audit trail *(new)*
+
+| Call | What it does |
+|---|---|
+| `append_audit_entry(&bytes, actor, &AuditEvent)` | Adds an entry as an incremental update. Events: `created`, `prepared {note}`, `signed {field, signer, certificateSubject, certificateFingerprint, signingTime, timeSource, reason, location}`, `saved`, `timestamped {authority}`, `note {text}`. `actor` is the name the person set in Letters. |
+| `audit_trail(&bytes) -> AuditTrailReport` | The entries, each checked (`hashMatches`, `chainIntact`, `documentMatches`, `sealed`), a `verdict` (`noTrail`, `intact`, `broken`), problems in sentences, a summary, and the note below. |
+| `add_audit_page(&bytes)` | Adds readable pages listing the entries (a copy for reading; the embedded file is the record). Pages are page content, which a certification forbids: add them before certifying or signing. |
+
+**`AUDIT_TRAIL_NOTE`, shown wherever the trail is:** *Letters records what
+happens to this document in Letters on this computer: who prepared, signed
+and saved it, and when. It can't know who opened or viewed the file
+anywhere else, and it doesn't use a tracking service.* There is no
+tracking of opening or viewing, by design: the brief rules out servers and
+response tracking, and a PDF can't report its own opening without one.
 
 ## What is guaranteed
 
-- Appearance streams are always drawn by Letters. `/NeedAppearances` is never
-  relied on (and never set). Fonts come from the field's `/DA`, looked up in
-  `/AcroForm /DR`; when that font can't draw the text, Helvetica is used.
-- Text: the `/DA` size, or a size that fits when it is 0 (single line: fits
-  height and width, 4 to 24 pt; multiline: shrinks from 12 pt until the text
-  fits, down to 4 pt). Alignment from `/Q`. Multiline text wraps at spaces,
-  at typed line breaks, and inside words that are too long for a line. Line
-  breaks typed into a multiline field (`\n`, `\r\n` or `\r`) are kept and
-  stored as `\n` in `/V`; in a one line field each becomes a space. Comb
-  fields put one character in each of `/MaxLen` cells. Text is clipped to the
-  box. Password fields show asterisks.
-- Checkboxes and radio buttons: `/V` holds the on-state name and every
-  widget's `/AS` is set to match, using the export values of `/Opt` when the
-  field has them. Their existing drawings are kept; missing ones are drawn
-  (as vector shapes, so they look the same everywhere) in the `/MK /CA` style.
-- Lists and dropdowns store the export value and show the label.
-- Date fields are text fields with Acrobat's `AFDate_FormatEx("pattern")`
-  script. Letters reads the pattern, never runs the script, and accepts
-  `2026-11-11` or a date already in the field's pattern. Patterns: `yyyy yy
-  mmmm mmm mm m dd d` and literal characters.
-- Validation before anything changes: read-only, required (empty text, no
-  choice, unticked), max length, choice not offered (unless the dropdown is
-  editable), more than one choice where only one is allowed, characters
-  outside WinAnsi.
-- Field trees: `/Kids`, merged field-widget dictionaries, inherited `/FT /Ff
-  /V /DV /DA /Q /MaxLen /Opt`, and `/DA /Q` from the form.
-- New fields: unique names (`name`, `name_2`...), dots refused (they join name
-  parts), `/MK /R` set to the page's turn so the drawing reads upright, and the
-  widget put into `/Annots` in reading order with `/Tabs /R`.
-- Flattening keeps the page looking the same: the tests render before and
-  after and allow at most 20 differing pixels (anti-aliasing) on a letter page,
-  upright and turned.
-- Signatures: tests check sign then verify; one changed byte is caught;
-  appended updates are reported; two signatures in a row both verify; RSA
-  (PKCS#1 v1.5), RSA-PSS (when the key's algorithm is id-RSASSA-PSS) and
-  ECDSA P-256 keys; files with cross-reference streams; certificate files made
-  by OpenSSL; `openssl cms -verify` accepts the signatures; PDFium opens and
-  draws the signed files.
+Round one's guarantees all still hold (appearance streams always drawn by
+Letters; text, checkbox, list and date behaviour; validation before
+changes; field trees; flattening keeps the look; signatures verify, catch
+one changed byte, survive further signatures, and are accepted by
+`openssl cms -verify`).
 
-## The digital signature format
+Form logic
+- The standard actions are recognised by their arguments:
+  `AFSimple_Calculate` (array or comma string of names; a name standing for
+  a group counts every field under it), `AFNumber_Format/_Keystroke`,
+  `AFPercent_Format/_Keystroke`, `AFDate_FormatEx/_KeystrokeEx/_Format(n)`,
+  `AFTime_Format/_Keystroke(n)` and `_FormatEx`, `AFSpecial_Format/_Keystroke(0-3)`,
+  `AFSpecial_KeystrokeEx(mask)`, `AFRange_Validate`.
+- Other scripts are read by a hand-written parser of a small subset:
+  `event.value =`, `event.rc =`, `var`, `if/else`, `app.alert(...)`,
+  `this.getField("x").value` (and `.valueAsString`), numbers, text,
+  `+ - * / %`, comparisons, `&& || !`, `? :`, `Math.round/floor/ceil/min/max/abs`,
+  `Number()`, `AFMakeNumber()`, `parseFloat()`. No loops, no functions of its
+  own, no other property access. Limits: 8,192 characters, 600 tokens, 48
+  levels of nesting, 20,000 steps. Anything else is left untouched and
+  reported with the field names: "This form has a custom script Letters
+  doesn't run: …".
+- Calculations run in `/CO` order (then any calculated field `/CO` forgot),
+  as other apps do; a field that reads a later one is reported
+  `outOfOrder`. Circles (including a field reading itself) are found with
+  Tarjan's algorithm, reported, and those fields are left alone. A result
+  that isn't a number (dividing by zero) leaves the field empty and is
+  reported. Calculated fields are written even when read-only.
+- `/V` keeps the raw value (`1234.5`, a percentage as `0.125`, phone digits
+  `0215551234`); the drawing shows it formatted (`1.234,50 EUR`,
+  `12.5%`, `(021) 555-1234`); red negative styles draw red. Dates, times
+  and masks are stored the way they are shown, as acrobat stores them.
+- Typed numbers are read in the field's own separator style or plainly,
+  with the currency and spaces ignored and brackets meaning negative.
+  Percentages accept `12.5%` (0.125) or a fraction. Times accept `14:30`,
+  `2:30 pm`, `2 pm`, with seconds.
+- Authoring writes exactly those standard calls (formulas as `event.value =
+  AFMakeNumber(this.getField("a").value) * …` with acrobat's simplified
+  field notation comment `/** BVCALC a * b EVCALC **/`), and conditions as
+  `if (!(…)) { app.alert("…"); event.rc = false; }`. Tests author every kind,
+  save, reload and compare the model field by field.
 
-- `/Filter /Adobe.PPKLite`, `/SubFilter /adbe.pkcs7.detached`, a CMS
-  SignedData (RFC 5652) over the two `/ByteRange` parts of the file, SHA-256.
-- Signed attributes: content type, message digest, signing time, and ESS
-  signing-certificate-v2 (RFC 5035).
-- Why not `ETSI.CAdES.detached`: PAdES baseline signatures may not carry the
-  signing-time attribute, and without a time stamp authority Letters can't
-  reach the PAdES levels above B-B anyway. `adbe.pkcs7.detached` is accepted by
-  every reader and still names the exact certificate through ESS.
-- The signer's certificate and the rest of the chain in the PKCS#12 are
-  embedded. `/M`, `/Name`, `/Reason`, `/Location`, `/ContactInfo` are written
-  in the signature dictionary. `/AcroForm /SigFlags` is set to 3.
-- Each signature is an incremental update: new and changed objects, a new
-  cross-reference section (a table, or a stream when the file's last section
-  was a stream) and a trailer with `/Prev`. Earlier signatures stay valid.
-- A visible signature shows the optional picture and "Digitally signed by …",
-  the date (UTC), reason and location.
+Signing extras
+- Time stamps: the request asks for the authority's certificate and a
+  random nonce; the answer must have status granted, the same nonce, a
+  message imprint matching the hash sent, a correct signature by a
+  certificate marked for time stamping, and the ESS signing-certificate
+  attribute (rfc 3161 2.4.2). Anything else refuses the signature with a
+  sentence (`FormError::TimestampFailed`), and nothing is signed. HTTP
+  basic auth is supported; a refused password says so.
+- Certification: only the first signature may certify (`CertifyFirst`);
+  a level 1 document refuses further signatures (`CertifiedNoChanges`).
+  Locked fields become read-only in the signing update; signature fields
+  are never locked, so later signers can sign.
+- Changes are judged per revision: a change in revision *t* is not allowed
+  when a certification made before *t* doesn't allow its kind (level 1:
+  nothing but evidence; level 2: answers, signatures, metadata; level 3:
+  also annotations), or a signature made before *t* locked its field. The
+  security store, document time stamps and Letters' own audit trail are
+  always allowed (etsi en 319 142-1 5.4 allows the first two even at
+  level 1).
+
+Audit trail
+- Each entry holds the SHA-256 of the whole file as it was just before the
+  entry was added and the hash of the entry before; its own hash covers all
+  of it (JSON in a fixed field order). The checker also compares every
+  revision's copy of the trail with the next, so removing or rewriting
+  older entries in a later save shows ("A later save changed or removed
+  audit entries…"), and reports which entries a valid signature or document
+  time stamp made later seals. Entries after the last seal are named as
+  unsealed: until the next signature they could be rewritten consistently
+  without it showing.
+
+## How it is tested
+
+`cargo test -p letters-forms` (set `CARGO_TARGET_DIR`). 167 tests: 73 unit
+tests and 94 integration tests in `tests/`.
+
+- `logic.rs`: hand-built forms using each standard action; SUM, PRD, AVG,
+  MIN, MAX; field arithmetic, ternaries and `if`/`var` scripts; the wrong and
+  right `/CO` order (and fixing it); circles; every format with comma and
+  apostrophe separators, currency before and after, red negatives; refused
+  answers with the form's own message; scripts outside the subset kept in
+  the file and reported; every kind of rule authored, saved, reloaded and
+  compared; bad rules refused with sentences.
+- `build.rs`: tab orders, groups, duplicate across pages, export and
+  default values and reset, reset and print buttons, field looks, and form
+  data round trips in FDF, XFDF, CSV and JSON, imports passing checks, and
+  merging copies.
+- `timestamp.rs`: a fake time stamp authority run inside the tests on
+  127.0.0.1 (std `TcpListener`, a P-256 key and a certificate made in the
+  test). Signature and document time stamps verify; `openssl ts -verify`
+  accepts both kinds of token (`-digest` for signature time stamps,
+  `-data` for document time stamps) and `openssl ts -reply -text` reads
+  them; tokens made by `openssl ts -reply` (a second, independent
+  authority) are accepted by Letters; wrong imprint, wrong nonce, refusal,
+  missing ESS attribute, unreachable server and wrong password are each
+  refused; one changed byte breaks a document time stamp. No test contacts
+  the internet.
+- `certify.rs`: each certification level with allowed and forbidden later
+  changes (filling, countersigning, comments, page drawing, validation
+  data); certification only first; no limits without certification; a two
+  signer workflow in order, locked fields refusing changes, and tampering
+  with a locked answer reported against both signatures; the security
+  store's contents and VRI key.
+- `audit.rs`: a full history intact and sealed; changing any entry breaks
+  the trail and the seal; taking an entry out in a later save shows;
+  entries after the seal are marked; audit entries are allowed after a
+  certification; the readable page.
+- The round one tests (`fill`, `add`, `detect`, `flatten`, `sign`, `stamp`)
+  all still pass, including the OpenSSL cross-check of signatures.
+
+The render tests use PDFium from `vendor/pdfium`. The OpenSSL cross-checks
+run when `openssl` is on the path or at `C:\msys64\ucrt64\bin\openssl.exe`
+and are skipped with a message otherwise.
 
 ## Known limits
 
-Fonts and text
-- Widths are known for Helvetica, Helvetica-Bold, Times-Roman and Courier
-  (from Adobe's Core 14 AFM files). Oblique, italic and Times-Bold use the
-  nearest of these. Other simple fonts are measured with their `/Widths`.
-- Text outside WinAnsi (Western European letters) is refused with a clear
-  message; there is no font embedding yet.
-- A field whose `/DA` font is a Type0 (two-byte) font is drawn in Helvetica.
-- Rich text (`/RV`) is dropped when a value is set and never drawn.
-- Field-level `/DR` is ignored; only `/AcroForm /DR` is read.
-- Comb fields ignore `/Q`. List boxes draw from `/TI` and do not scroll to
-  the chosen option.
+Form logic
+- Not a JavaScript engine. Format and keystroke scripts other than the
+  standard ones aren't run. Conditional visibility (showing or hiding
+  fields from a script) is out of scope (`CONDITIONAL_VISIBILITY_NOTE`).
+- No PDF app that runs form scripts was reachable on this machine through
+  automation (no Acrobat or Foxit is installed; Edge's viewer runs some
+  scripts but can't be driven headless), so authored forms were checked by
+  reading their actions back, not by running them in another app.
+- A recognised formula runs as numbers (`AFMakeNumber`); a hand-written
+  script without `AFMakeNumber` that joins text with `+` on empty fields
+  would show "3" where acrobat shows "3" as text: the same on screen.
+- `set_field_logic` replaces a field's logic; leaving out max length
+  removes it (and so a comb). Calculations of non-text fields are skipped.
+- `redraw_fields` (round one) draws raw values; `recalculate` draws the
+  formatted ones.
 
-Fields
-- JavaScript never runs: no calculations, no formats other than dates, no
-  validation scripts. Date patterns with times (`HH:MM`) are not supported.
-- Push buttons are read (kind `button`) but can't be filled or added.
-- `remove_field` leaves the removed widgets' drawings in the file, because
-  other widgets may share them. They are unused and harmless.
-- `update_field` can't change a radio group's buttons or a field's kind.
-
-Finding fields (`detect_fields`)
-- It reads vector drawing and text only. A scanned form (a picture of a page)
-  gives no proposals; that needs OCR.
-- Tested on synthetic layouts, upright and turned: lines to write on (stroked
-  or drawn as thin filled rectangles), typed underscores, boxes and table
-  cells (from rectangles or loose lines, with labels inside or beside them),
-  small squares, small circles, combs (touching boxes, one box with
-  dividers, or separate boxes with even gaps up to about a box width), and
-  rules after a label ending in a colon, also when the rule runs under the
-  label. On those, every proposal is within 2 points of the expected
-  rectangle and carries the expected label; a page of plain text gives none.
-- Rows of separate boxes stay checkboxes when there is text between them,
-  right above or below them (a rating scale), or right after the last one. A
-  comb of separate boxes is proposed half a gap wider on each side, so that
-  its equal cells line up with the boxes.
-- A rule counts as underlining (no field) when text covers half of it or
-  more, unless that text starts the rule and ends in a colon (with 24 points
-  of rule left) or leaves at least 36 points (and a third of the rule) empty.
-- Real forms will do worse. Dashed or dotted lines (gaps over 1 point) and
-  dot leaders are not found. Rounded boxes count as curves, not boxes. Merged
-  table cells may be missed or split. Decorative rules may be proposed as
-  lines to write on (with confidence 0.5). Clipping is ignored, so hidden
-  drawing can produce proposals. Labels come from text with WinAnsi codes or a
-  `/ToUnicode` map; text in other two-byte fonts gives no label.
-- Places that already have a widget are not proposed again.
-
-Flattening
-- Signature fields are kept unless `includeSignatures` is set.
-- Hidden widgets are removed without being painted.
-- Flattening (like any edit saved by rewriting the file) breaks existing
-  digital signatures. Only `sign` writes incrementally.
+Building and data
+- No submit buttons (needs a server), no barcode fields.
+- Fonts for field looks are the four standard fonts; no font embedding.
+- `group_fields` only groups top-level fields. XFDF reading understands
+  `<field>` and `<value>` only (no annotations or rich values). FDF with
+  a name tree of `/Kids` for the attachment list isn't read. CSV joins
+  multi-select answers with "; ".
 
 Signatures
-- Signing uses SHA-256 only; checking also reads SHA-384 and SHA-512.
-- Keys: RSA (any size) and ECDSA on P-256. Other curves and Ed25519 are refused.
-- No time stamps from a time stamp authority, no long-term validation
-  (PAdES LT/LTA) and no revocation or trust-list checks: all need a server.
-  The signing time is this computer's clock.
-- No certification (DocMDP) signatures and no field locking (`/Lock`).
-- Invisible signatures sit on the first page.
-- `/ByteRange` has room for files up to 9,999,999,999 bytes.
+- Signing with SHA-256 only; RSA and P-256 keys only.
+- Revocation data is never fetched; Letters checks no trust lists,
+  revocation or chains, and every report says so (`TRUST_NOTE`). The DSS
+  `/VRI` key is the SHA-1 of the stored `/Contents` bytes, padding
+  included, as iText and pyHanko write it.
+- Revision analysis sorts changed objects by what they are and what refers
+  to them. It is tested on the kinds of change Letters and common tools
+  make; unusual files may be described as "other parts of the file were
+  changed". A change to a field's /Ff alone is read as a signature's lock.
+- Signature appearance options beyond round one's (custom layouts, logo
+  placement), several signers in one field, PKCS#11 tokens and the OS
+  certificate store are out of scope for now. A pure-Rust route to the
+  Windows certificate store exists on this GNU toolchain: the `windows`
+  crate (MIT or Apache-2.0, already in the workspace through Tauri, with
+  `windows_x86_64_gnu` import libraries, so no MSVC) exposes
+  `CertOpenSystemStoreW`, `CertEnumCertificatesInStore`,
+  `CryptAcquireCertificatePrivateKey` and `NCryptSignHash`, which is enough
+  to sign with a key that never leaves Windows. It isn't built.
+- The audit trail records only what happens in Letters on this computer.
+  Its names are the ones the person typed; Letters can't confirm them.
+  Converting a document with a trail to PDF/A-1 or PDF/A-2 removes the
+  attachment (only PDF/A-3 keeps it). Other readers may describe the
+  trail's update after a certification as an attachment change.
 
-Checking signatures (`verify`)
-- Letters checks that the signature is correct and the signed bytes
-  unchanged. It does not check certificate authorities, trust lists or
-  revocation, so it can't confirm who the signer is. Every report says so
-  (`trust` is `selfSigned` or `notChecked`, never trusted).
-- "Changed after signing" means bytes follow the signed range, or the byte
-  range no longer fits the file at all (it was rewritten, for example saved
-  by a program that doesn't append). In the rewritten case the signer, time
-  and certificate are still read from the signature and the signature over
-  its own attributes is still checked, but the document can't be compared,
-  so `valid` is false. Letters says whether each later update ends with
-  another signature, but does not compare what those updates changed.
-- `summary` is plain sentences for the interface, such as "Signed by Ada
-  Lovelace on 3 March 2026. The document was changed after signing, so this
-  signature no longer covers it." followed by what Letters can't check.
-- Only signatures reachable from `/AcroForm /Fields` are found. Only the first
-  signer in a CMS structure is checked. BER-encoded (indefinite length)
-  signatures from other tools can't be read. Certificate chains are listed but
-  not checked, apart from whether a certificate signed itself.
-
-Certificates (`create_self_signed_certificate`)
-- RSA 2048 (default) or P-256. The PKCS#12 is protected with AES-256 and
-  PBKDF2 with an HMAC-SHA-256 check (the modern default). Very old software
-  that only reads RC2 or 3DES protected files can't open it.
-- Self-signed means nobody vouches for the name: the result says so in
-  `selfSigned` and `note`.
+Fonts and text, fields, finding fields, flattening: as round one (Western
+European text only, rich text dropped, push buttons only as reset/print,
+`detect_fields` on vector drawing only).
 
 ## Libraries and licenses
 
 All direct dependencies are MIT or Apache-2.0 (most both): lopdf, serde,
-thiserror, png, rsa, p256, sha2, der, spki, x509-cert, cms, const-oid, rand
-(the RustCrypto project) and p12-keystore (which brings x509-parser). Their
-own dependencies add BSD-3-Clause (subtle, alloc-no-stdlib, encoding_rs in
-part), 0BSD, Zlib, Unlicense and Unicode-3.0 (unicode-ident) options, all
-permissive. Nothing restricts distributing the app.
-
-## Tests
-
-`cargo test -p letters-forms` (with `CARGO_TARGET_DIR` set to your own
-folder). The render tests use PDFium from `vendor/pdfium` (run
-`tools/fetch-pdfium` first). The OpenSSL cross-checks run when `openssl` is on
-the path or in the usual Windows places, and are skipped with a message
-otherwise.
+serde_json, thiserror, png, rsa, p256, sha2, sha1, der, spki, x509-cert,
+cms, const-oid, rand (the RustCrypto project), p12-keystore, and ureq with
+rustls (already used by letters-fonts, so the same TLS stack and licences:
+rustls is Apache-2.0/MIT/ISC, ring is Apache-2.0 and ISC with OpenSSL-style
+parts, webpki-roots CDLA-Permissive-2.0 data). Their own dependencies add
+BSD-3-Clause, 0BSD, Zlib, Unlicense and Unicode-3.0 options, all permissive.
+Nothing restricts distributing the app. OpenSSL is used by tests only, when
+installed, and is never linked.

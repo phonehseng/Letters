@@ -92,6 +92,20 @@ pub fn write_update(
     Ok(Update { bytes, offsets })
 }
 
+/// saves a changed document by appending only what changed to the bytes
+/// it was opened from, so signatures already in the file stay valid. use
+/// this for every save of a signed document (filling it in after a
+/// signature, adding a comment): a normal save rewrites the whole file and
+/// breaks every signature.
+pub fn save_incremental(original: &[u8], changed: &Document) -> FormResult<Vec<u8>> {
+    let before = Document::load_mem(original)?;
+    let unchanged = before.objects == changed.objects;
+    if unchanged {
+        return Ok(original.to_vec());
+    }
+    Ok(write_update(original, &before, changed, &[])?.bytes)
+}
+
 fn write_object(bytes: &mut Vec<u8>, object: &Object) -> FormResult<()> {
     let mut object = object.clone();
     // the length must match the bytes actually written

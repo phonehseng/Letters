@@ -13,22 +13,22 @@ use cms::signed_data::{SignedData, SignerIdentifier, SignerInfo};
 use der::asn1::OctetString;
 use der::{Decode, Encode};
 use lopdf::{Document, Object};
-use p256::ecdsa::signature::hazmat::PrehashVerifier;
-use rsa::pkcs1::DecodeRsaPublicKey;
-use rsa::{Pkcs1v15Sign, PublicKey as RsaPublicKey};
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Sha384, Sha512};
-use spki::{AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
 use x509_cert::Certificate;
 
 use super::cms::{digest, parse_signed_data};
-use super::keys::{common_name, PssParameters};
+use super::keys::common_name;
 use super::oids;
 use super::sign::readable_date;
 use crate::error::FormResult;
 use crate::objects::{check_document, get, get_text};
 use crate::read::{kind_of, FieldKind};
 use crate::tree::collect_fields;
+
+use super::algorithms::verify_signature;
+use super::cms::trim_to_der_length;
+use super::report_text::{readable_pdf_date, summarise_certificate, summary};
+use super::timestamp::check_token;
 
 /// said with every result, because a correct signature is not the same as
 /// a trusted signer.
@@ -131,6 +131,38 @@ pub fn verify(doc_bytes: &[u8]) -> FormResult<Vec<SignatureReport>> {
     Ok(reports)
 }
 
+/// the /SubFilter of a document time stamp (iso 32000-2 12.8.5).
+pub(crate) const DOCUMENT_TIMESTAMP: &str = "ETSI.RFC3161";
+
+/// a document time stamp holds a time stamp token, not a signature: its
+/// hash must match the covered bytes and the authority's signature the
+/// token. the "signer" is the authority.
+fn check_document_timestamp(
+    report: &mut SignatureReport,
+    contents: &[u8],
+    covered: Option<&[&[u8]; 2]>,
+) -> Option<SystemTime> {
+    let Some(token) = trim_to_der_length(contents) else {
+        report
+            .problems
+            .push("The time stamp isn’t stored in a form Letters can read.".into());
+        return None;
+    };
+    let parts: Vec<&[u8]> = covered.map(|parts| parts.to_vec()).unwrap_or_default();
+    let checked = check_token(token, &parts);
+    report.digest_matches = covered.is_some() && checked.info.imprint_matches;
+    report.signature_correct =
+        checked.info.signature_correct && checked.info.certificate_for_timestamping;
+    report.signer = checked.info.authority.as_deref().and_then(common_name);
+    if let Some(time) = &checked.info.time {
+        report.signed_at = Some(time.clone());
+    }
+    report
+        .problems
+        .extend(checked.info.problems.iter().cloned());
+    checked.moment
+}
+
 /// the four numbers of /ByteRange, if they make sense for this file.
 fn byte_range(doc: &Document, dict: &lopdf::Dictionary) -> Option<[usize; 4]> {
     let values = get(doc, dict, b"ByteRange")?.as_array().ok()?;
@@ -145,7 +177,7 @@ fn byte_range(doc: &Document, dict: &lopdf::Dictionary) -> Option<[usize; 4]> {
 }
 
 /// where each revision of the file ends (just after each %%EOF).
-fn revision_ends(bytes: &[u8]) -> Vec<usize> {
+pub(crate) fn revision_ends(bytes: &[u8]) -> Vec<usize> {
     let mut ends = Vec::new();
     let mut from = 0;
     while let Some(position) = bytes[from..]
@@ -212,7 +244,11 @@ fn check_one(
                         .push("The signature has no byte range.".into());
                 }
             }
-            signing_moment = check_cms(&mut report, contents, covered.as_ref());
+            signing_moment = if report.sub_filter.as_deref() == Some(DOCUMENT_TIMESTAMP) {
+                check_document_timestamp(&mut report, contents, covered.as_ref())
+            } else {
+                check_cms(&mut report, contents, covered.as_ref())
+            };
         }
         _ => report
             .problems
@@ -393,7 +429,7 @@ fn signed_message(
     }
 }
 
-fn certificates_of(signed_data: &SignedData) -> Vec<Certificate> {
+pub(crate) fn certificates_of(signed_data: &SignedData) -> Vec<Certificate> {
     signed_data
         .certificates
         .iter()
@@ -405,7 +441,7 @@ fn certificates_of(signed_data: &SignedData) -> Vec<Certificate> {
         .collect()
 }
 
-fn find_signer_certificate<'a>(
+pub(crate) fn find_signer_certificate<'a>(
     certificates: &'a [Certificate],
     sid: &SignerIdentifier,
 ) -> Option<&'a Certificate> {
@@ -425,98 +461,6 @@ fn find_signer_certificate<'a>(
     })
 }
 
-/// checks a signature over `message` with a public key, for rsa (pkcs#1
-/// v1.5 and pss) and ecdsa p-256.
-pub(crate) fn verify_signature(
-    key: &SubjectPublicKeyInfoOwned,
-    algorithm: &AlgorithmIdentifierOwned,
-    digest_algorithm: &der::asn1::ObjectIdentifier,
-    message: &[u8],
-    signature: &[u8],
-) -> Result<(), String> {
-    let wrong = || "The signature doesn’t match the signer’s certificate.".to_owned();
-    let unsupported = || format!("The signature algorithm {} isn’t supported.", algorithm.oid);
-    let key_bytes = key.subject_public_key.raw_bytes();
-    match algorithm.oid {
-        oids::RSA_ENCRYPTION
-        | oids::SHA256_WITH_RSA
-        | oids::SHA384_WITH_RSA
-        | oids::SHA512_WITH_RSA => {
-            let public = RsaPublicKey::from_pkcs1_der(key_bytes)
-                .map_err(|_| "The certificate’s RSA key can’t be read.".to_owned())?;
-            let hash_oid = match algorithm.oid {
-                oids::SHA256_WITH_RSA => oids::SHA256,
-                oids::SHA384_WITH_RSA => oids::SHA384,
-                oids::SHA512_WITH_RSA => oids::SHA512,
-                _ => *digest_algorithm,
-            };
-            let hashed = digest(&hash_oid, &[message]).ok_or_else(unsupported)?;
-            let scheme = match hash_oid {
-                oids::SHA256 => Pkcs1v15Sign::new::<Sha256>(),
-                oids::SHA384 => Pkcs1v15Sign::new::<Sha384>(),
-                _ => Pkcs1v15Sign::new::<Sha512>(),
-            };
-            public
-                .verify(scheme, &hashed, signature)
-                .map_err(|_| wrong())
-        }
-        oids::RSASSA_PSS => {
-            let public = RsaPublicKey::from_pkcs1_der(key_bytes)
-                .map_err(|_| "The certificate’s RSA key can’t be read.".to_owned())?;
-            let parameters = algorithm
-                .parameters
-                .as_ref()
-                .and_then(|any| any.decode_as::<PssParameters>().ok())
-                .ok_or_else(unsupported)?;
-            let hash_oid = parameters
-                .hash
-                .map(|hash| hash.oid)
-                .ok_or_else(unsupported)?;
-            let salt = parameters.salt_length.unwrap_or(20) as usize;
-            let hashed = digest(&hash_oid, &[message]).ok_or_else(unsupported)?;
-            let result = match hash_oid {
-                oids::SHA256 => public.verify(
-                    rsa::pss::Pss::<Sha256>::new_with_salt(salt),
-                    &hashed,
-                    signature,
-                ),
-                oids::SHA384 => public.verify(
-                    rsa::pss::Pss::<Sha384>::new_with_salt(salt),
-                    &hashed,
-                    signature,
-                ),
-                _ => public.verify(
-                    rsa::pss::Pss::<Sha512>::new_with_salt(salt),
-                    &hashed,
-                    signature,
-                ),
-            };
-            result.map_err(|_| wrong())
-        }
-        oids::ECDSA_WITH_SHA256 | oids::ECDSA_WITH_SHA384 | oids::ECDSA_WITH_SHA512 => {
-            let curve = key
-                .algorithm
-                .parameters
-                .as_ref()
-                .and_then(|any| any.decode_as::<der::asn1::ObjectIdentifier>().ok());
-            if curve != Some(oids::P256) {
-                return Err("Only ECDSA keys on the P-256 curve are supported.".into());
-            }
-            let public = p256::ecdsa::VerifyingKey::from_sec1_bytes(key_bytes)
-                .map_err(|_| "The certificate’s ECDSA key can’t be read.".to_owned())?;
-            let hash_oid = match algorithm.oid {
-                oids::ECDSA_WITH_SHA384 => oids::SHA384,
-                oids::ECDSA_WITH_SHA512 => oids::SHA512,
-                _ => oids::SHA256,
-            };
-            let hashed = digest(&hash_oid, &[message]).ok_or_else(unsupported)?;
-            let parsed = p256::ecdsa::Signature::from_der(signature).map_err(|_| wrong())?;
-            public.verify_prehash(&hashed, &parsed).map_err(|_| wrong())
-        }
-        _ => Err(unsupported()),
-    }
-}
-
 fn signing_time(signer_info: &SignerInfo) -> Option<SystemTime> {
     let attributes = signer_info.signed_attrs.as_ref()?;
     let value = attributes
@@ -529,127 +473,9 @@ fn signing_time(signer_info: &SignerInfo) -> Option<SystemTime> {
     Some(time.to_system_time())
 }
 
-fn summarise_certificate(
-    certificate: &Certificate,
-    all: &[Certificate],
-    signing_time: Option<SystemTime>,
-) -> CertificateSummary {
-    let tbs = certificate.tbs_certificate();
-    let validity = tbs.validity();
-    let (from, until) = (
-        validity.not_before.to_system_time(),
-        validity.not_after.to_system_time(),
-    );
-    let self_signed = tbs.subject() == tbs.issuer() && signs_itself(certificate);
-    CertificateSummary {
-        subject: tbs.subject().to_string(),
-        issuer: tbs.issuer().to_string(),
-        common_name: common_name(&tbs.subject().to_string()),
-        self_signed,
-        valid_from: readable_date(from),
-        valid_until: readable_date(until),
-        valid_when_signed: signing_time.map(|time| time >= from && time <= until),
-        chain: all
-            .iter()
-            .filter(|other| *other != certificate)
-            .map(|other| other.tbs_certificate().subject().to_string())
-            .collect(),
-    }
-}
-
-/// whether a certificate's own key verifies its signature.
-fn signs_itself(certificate: &Certificate) -> bool {
-    let Ok(tbs) = certificate.tbs_certificate().to_der() else {
-        return false;
-    };
-    let key = certificate.tbs_certificate().subject_public_key_info();
-    let algorithm = certificate.signature_algorithm();
-    let Some(signature) = certificate.signature().as_bytes() else {
-        return false;
-    };
-    verify_signature(key, algorithm, &oids::SHA256, &tbs, signature).is_ok()
-}
-
-/// a pdf date like D:20261111120506Z (or with +01'00') made readable.
-fn readable_pdf_date(date: &str) -> String {
-    let digits: String = date.trim_start_matches("D:").chars().take(14).collect();
-    if digits.len() < 12 || !digits.chars().all(|c| c.is_ascii_digit()) {
-        return date.to_owned();
-    }
-    let rest = &date.trim_start_matches("D:")[digits.len().min(date.len() - 2)..];
-    let zone = if rest.starts_with('Z') || rest.is_empty() {
-        "UTC".to_owned()
-    } else {
-        rest.replace('\'', "")
-    };
-    format!(
-        "{}-{}-{} {}:{} {zone}",
-        &digits[0..4],
-        &digits[4..6],
-        &digits[6..8],
-        &digits[8..10],
-        &digits[10..12]
-    )
-}
-
-/// "3 March 2026": the kind of date people say, for the summary sentence.
-fn spoken_date(time: SystemTime) -> String {
-    const MONTHS: [&str; 12] = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ];
-    let (year, month, day, _, _, _) = super::sign::utc_parts(time);
-    format!("{day} {} {year}", MONTHS[(month as usize).clamp(1, 12) - 1])
-}
-
-/// the plain sentences the ui shows for one signature, such as "Signed by
-/// Ada Lovelace on 3 March 2026. The document was changed after signing."
-fn summary(report: &SignatureReport, signing_time: Option<SystemTime>) -> String {
-    let who = report
-        .signer
-        .clone()
-        .or(report.name.clone())
-        .unwrap_or_else(|| "an unknown signer".into());
-    let when = signing_time
-        .map(spoken_date)
-        .or_else(|| report.signed_at.clone())
-        .map(|time| format!(" on {time}"))
-        .unwrap_or_default();
-    let state = if !report.digest_matches
-        && (report.signer.is_some() || report.changed_after_signing)
-    {
-        "The document was changed after signing, so this signature no longer covers it.".to_owned()
-    } else if !report.valid {
-        "This signature couldn’t be confirmed.".to_owned()
-    } else if report.changed_after_signing && report.later_updates_are_signatures {
-        "The signed part is unchanged; later additions are further signatures.".to_owned()
-    } else if report.changed_after_signing {
-        "The signed part is unchanged, but the document was changed after signing.".to_owned()
-    } else {
-        "The document hasn’t changed since it was signed.".to_owned()
-    };
-    let trust = match report.trust {
-        TrustStatus::SelfSigned => format!(
-            "The certificate is self-signed, so Letters can’t confirm that {who} is who they say."
-        ),
-        TrustStatus::NotChecked => {
-            "Letters doesn’t check who issued the certificate or whether it was revoked.".to_owned()
-        }
-    };
-    format!("Signed by {who}{when}. {state} {trust}")
-}
 #[cfg(test)]
 mod tests {
+    use super::super::report_text::spoken_date;
     use super::*;
 
     #[test]

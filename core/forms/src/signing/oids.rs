@@ -12,6 +12,9 @@ pub const SIGNED_DATA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.
 pub const CONTENT_TYPE: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.3");
 pub const MESSAGE_DIGEST: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.4");
 pub const SIGNING_TIME: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.5");
+/// ess signing-certificate (rfc 2634), the older sha-1 version
+pub const SIGNING_CERTIFICATE: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.2.12");
 /// ess signing-certificate-v2 (rfc 5035): ties the signature to one certificate
 pub const SIGNING_CERTIFICATE_V2: ObjectIdentifier =
     ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.2.47");
@@ -42,3 +45,12 @@ pub const EXTENDED_KEY_USAGE: ObjectIdentifier = ObjectIdentifier::new_unwrap("2
 /// extended key usages: protecting email, and signing documents (rfc 9336)
 pub const EMAIL_PROTECTION: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.6.1.5.5.7.3.4");
 pub const DOCUMENT_SIGNING: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.6.1.5.5.7.3.36");
+
+// time stamps (rfc 3161)
+/// the content type of a time stamp token's signed information
+pub const TST_INFO: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.1.4");
+/// the unsigned attribute that carries a signature's time stamp token
+pub const SIGNATURE_TIMESTAMP_TOKEN: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.2.14");
+/// the extended key usage a time stamp authority's certificate must have
+pub const TIME_STAMPING: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.6.1.5.5.7.3.8");

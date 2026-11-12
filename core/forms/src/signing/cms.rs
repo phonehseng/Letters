@@ -173,7 +173,7 @@ pub fn parse_signed_data(contents: &[u8]) -> Result<SignedData, String> {
 }
 
 /// the bytes of the first der value, using the length in its header.
-fn trim_to_der_length(bytes: &[u8]) -> Option<&[u8]> {
+pub(crate) fn trim_to_der_length(bytes: &[u8]) -> Option<&[u8]> {
     let first_length = *bytes.get(1)?;
     let (header, length) = if first_length < 0x80 {
         (2, first_length as usize)
@@ -206,4 +206,34 @@ pub fn digest(algorithm: &der::asn1::ObjectIdentifier, parts: &[&[u8]]) -> Optio
         oids::SHA512 => Some(run::<Sha512>(parts)),
         _ => None,
     }
+}
+
+/// adds an unsigned attribute (such as a signature time stamp) to the
+/// first signer of an encoded signature. unsigned attributes are outside
+/// what the signer signed, so the signature stays valid.
+pub fn add_unsigned_attribute(
+    cms_der: &[u8],
+    oid: der::asn1::ObjectIdentifier,
+    value_der: &[u8],
+) -> FormResult<Vec<u8>> {
+    let info = ContentInfo::from_der(cms_der).map_err(failed)?;
+    let mut signed: SignedData = info.content.decode_as().map_err(failed)?;
+    let mut signers: Vec<SignerInfo> = signed.signer_infos.0.into_vec();
+    let first = signers
+        .first_mut()
+        .ok_or_else(|| FormError::SigningFailed("the signature has no signer".into()))?;
+    let value = Any::from_der(value_der).map_err(failed)?;
+    let mut attributes: Vec<Attribute> = first
+        .unsigned_attrs
+        .take()
+        .map(SetOfVec::into_vec)
+        .unwrap_or_default();
+    attributes.push(attribute(oid, value)?);
+    first.unsigned_attrs = Some(SetOfVec::try_from(attributes).map_err(failed)?);
+    signed.signer_infos = SignerInfos(SetOfVec::try_from(signers).map_err(failed)?);
+    let content_info = ContentInfo {
+        content_type: oids::SIGNED_DATA,
+        content: Any::encode_from(&signed).map_err(failed)?,
+    };
+    content_info.to_der().map_err(failed)
 }

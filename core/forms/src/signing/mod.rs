@@ -26,16 +26,47 @@
 //! stamp authority, long term validation (lt / lta), and checking
 //! certificates against revocation lists or trust lists.
 
+mod algorithms;
 mod certificate;
 mod cms;
+mod dates;
+mod doc_timestamp;
+mod document;
+mod dss;
 mod incremental;
 mod keys;
+mod look;
+mod mdp;
 mod oids;
+mod permissions;
+mod placeholder;
+mod report_text;
+mod revisions;
 mod sign;
+mod timestamp;
+mod tsp;
 mod verify;
+mod workflow;
 
 pub use certificate::{
     create_self_signed_certificate, CertificateRequest, CreatedCertificate, KeyKind,
 };
-pub use sign::{sign, SignRequest, SignatureAppearance, SignaturePlacement};
+pub use doc_timestamp::add_document_timestamp;
+pub use document::{
+    verify_document, DocumentVerification, SignatureDetails, SignatureKind, TimeSource,
+};
+pub use dss::{add_validation_data, ValidationData};
+pub use incremental::save_incremental;
+pub(crate) use incremental::write_update;
+pub use mdp::{set_signature_lock, signature_lock, CertificationLevel, FieldLock};
+pub use permissions::{ChangeVerdict, SignatureChanges};
+pub(crate) use revisions::AUDIT_TRAIL_FILE;
+pub use revisions::{revisions, Change, ChangeKind, RevisionReport};
+pub(crate) use sign::readable_date;
+pub use sign::{
+    sign, sign_with_options, SignRequest, SignatureAppearance, SignaturePlacement, SigningOptions,
+};
+pub use timestamp::{TimestampAuthority, TimestampInfo, CLOCK_TIME_NOTE, TIMESTAMP_DISCLOSURE};
+pub(crate) use verify::revision_ends;
 pub use verify::{verify, CertificateSummary, SignatureReport, TrustStatus, TRUST_NOTE};
+pub use workflow::{set_signing_order, signing_workflow, WorkflowStep};

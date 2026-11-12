@@ -2651,9 +2651,11 @@ dependencies = [
  "rsa",
  "serde",
  "serde_json",
+ "sha1 0.11.0",
  "sha2 0.11.1",
  "spki",
  "thiserror 2.0.21",
+ "ureq",
  "x509-cert",
 ]
 

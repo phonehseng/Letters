@@ -1,3 +1,6 @@
+//! the errors of forms and signing, each worded as a sentence the app
+//! shows to the person as it is.
+
 use thiserror::Error;
 
 /// everything that can go wrong with forms and signatures.
@@ -88,6 +91,38 @@ pub enum FormError {
 
     #[error("The certificate couldn’t be made. ({0})")]
     CertificateFailed(String),
+
+    /// an answer the field's format or checks refuse. the message is the
+    /// form's own (from its script) or a plain sentence from Letters.
+    #[error("{message}")]
+    AnswerRefused { field: String, message: String },
+
+    #[error("Letters can’t read this formula: {0}.")]
+    BadFormula(String),
+
+    #[error("A field can have one check of its own (a range, a condition or a script) besides being required and a length limit.")]
+    TooManyChecks,
+
+    #[error("The time stamp couldn’t be added. {0}")]
+    TimestampFailed(String),
+
+    #[error("This document is certified so that no further changes are allowed, so it can’t be signed again.")]
+    CertifiedNoChanges,
+
+    #[error("Only the first signature can certify a document, and this one already has a signature.")]
+    CertifyFirst,
+
+    #[error("“{field}” is to be signed after “{before}”.")]
+    SignOutOfOrder { field: String, before: String },
+
+    #[error("The field “{0}” is locked by an earlier signature, so it can’t be changed.")]
+    LockedBySignature(String),
+
+    #[error("The audit trail couldn’t be added. ({0})")]
+    AuditFailed(String),
+
+    #[error("Letters can’t read this form data file. ({0})")]
+    BadFormData(String),
 }
 
 /// a shorter way to write results in this crate.

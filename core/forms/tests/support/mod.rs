@@ -4,6 +4,8 @@
 // each test file uses only some of these helpers
 #![allow(dead_code)]
 
+pub mod tsa;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
