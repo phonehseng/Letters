@@ -102,13 +102,14 @@ export function editorFontSize(field: FieldInfo, rect: Rect): number {
 }
 
 /**
- * the answer as the engine takes it. the engine refuses line breaks
- * (they aren't in winansi, the standard fonts' encoding), even in a
- * field with several lines, so they are sent as spaces: the engine
- * wraps the words to the box anyway.
+ * the answer as the engine takes it. a field with several lines keeps
+ * the line breaks the person typed (as plain "\n", whatever the system
+ * uses). a one-line field has no room for them, so there they become
+ * spaces, which is also what the engine would do.
  */
 export function textForEngine(field: FieldInfo, text: string): string {
-  return field.kind === "multilineText" ? text.replace(/\r\n|\r|\n/g, " ") : text;
+  const unified = text.replace(/\r\n|\r/g, "\n");
+  return field.kind === "multilineText" ? unified : unified.replace(/\n/g, " ");
 }
 
 /** how a comb field's characters sit one per box: a monospaced font spaced to the box width. */

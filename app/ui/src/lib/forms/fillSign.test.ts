@@ -203,8 +203,9 @@ describe("editing a field", () => {
     expect(editorFontSize(field("a", 0, 0, 0, { comb: true, maxLength: 10 }), { ...rect, height: 30 })).toBeCloseTo(14, 5);
   });
 
-  it("sends line breaks of a field with several lines as spaces, which the engine takes", () => {
-    expect(textForEngine(field("a", 0, 0, 0, { kind: "multilineText" }), "one\ntwo\r\nthree")).toBe("one two three");
+  it("keeps line breaks in a field with several lines, and turns them into spaces in a one-line field", () => {
+    expect(textForEngine(field("a", 0, 0, 0, { kind: "multilineText" }), "one\ntwo\r\nthree")).toBe("one\ntwo\nthree");
+    expect(textForEngine(field("a", 0, 0, 0), "one\ntwo")).toBe("one two");
     expect(textForEngine(field("a", 0, 0, 0), "one")).toBe("one");
   });
 
