@@ -38,10 +38,15 @@ export function documentKind(path: string): string {
   if (extension === "odt") return "OpenDocument text";
   if (extension === "rtf") return "Rich Text document";
   if (extension === "doc") return "Word 97–2003 document";
+  // presentations (lib/slides)
+  if (extension === "pptx") return "PowerPoint presentation";
+  if (extension === "odp") return "OpenDocument presentation";
   return "PDF";
 }
 
 /** the line under a recent file: "12 pages", or "Word document" for documents without a page count. */
 export function recentDetails(path: string, pageCount: number, pages: (count: number) => string): string {
+  // presentations: Recents keeps their slide count (lib/slides)
+  if (["pptx", "odp"].includes(extensionOf(path))) return pageCount === 1 ? "1 slide" : `${pageCount} slides`;
   return routeForPath(path) === "writer" ? documentKind(path) : pages(pageCount);
 }
