@@ -103,6 +103,33 @@ export interface ViewCell {
   hasNote?: boolean;
   hasLink?: boolean;
   merge?: Range;
+  /** what matching conditional format rules draw over the cell's own look */
+  conditional?: ConditionalLook;
+}
+
+/** a conditional format's result for one cell; a missing field leaves the cell's own */
+export interface ConditionalLook {
+  fill?: string;
+  color?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  bar?: DataBarLook;
+}
+
+export interface DataBarLook {
+  /** the bar's length as a share of the cell's width, 0 to 1 */
+  fraction: number;
+  color: string;
+  /** fades to white at its end */
+  gradient?: boolean;
+  /** a negative number's bar, drawn leftwards from the axis */
+  negative?: boolean;
+  /** where the axis sits as a share of the width; bars grow from it */
+  axis?: number;
+  /** the rule shows the bar without the cell's text */
+  hideValue?: boolean;
 }
 
 export interface BorderLook {

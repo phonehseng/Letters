@@ -1,12 +1,14 @@
 // draws the cells of the grid on its canvas: fills, grid lines, text with
 // excel's overflow into empty neighbours and "###" for numbers too wide,
-// borders, merged cells and note marks. the sheet is paper, white in dark
-// mode too, as the writer's pages are. headers and the selection are
-// drawn on top by overlays.ts.
+// borders, merged cells and note marks, with what conditional formats
+// change (fills, text, data bars) on top of each cell's own look. the
+// sheet is paper, white in dark mode too, as the writer's pages are.
+// headers and the selection are drawn on top by overlays.ts.
 
 import { BLOCK_COLS, type CellCache } from "./cellCache";
+import { barShape, fillOf, showsText, styleOf, textColorOf, type Rect } from "./conditionalLook";
 import type { GridLayout, Region } from "./gridLayout";
-import type { Range, StyleLook, ViewCell } from "./sheetsApi";
+import type { DataBarLook, Range, StyleLook, ViewCell } from "./sheetsApi";
 
 export const PAPER = "#ffffff";
 // excel's grid lines and default text
@@ -77,12 +79,47 @@ function eachCell(region: Region, sheet: PaintSheet, visit: (cell: ViewCell) => 
 
 function paintFills(ctx: CanvasRenderingContext2D, layout: GridLayout, region: Region, sheet: PaintSheet) {
   eachCell(region, sheet, (cell) => {
-    if (!cell.background) return;
+    const fill = fillOf(cell);
+    const bar = cell.conditional?.bar;
+    if (!fill && !bar) return;
     const x = layout.xOf(cell.col);
     const y = layout.yOf(cell.row);
-    ctx.fillStyle = cell.background;
-    ctx.fillRect(x, y, layout.rightOf(cell.col) - x, layout.bottomOf(cell.row) - y);
+    const rect = { x, y, width: layout.rightOf(cell.col) - x, height: layout.bottomOf(cell.row) - y };
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+    }
+    // a data bar sits on the fill and under the text, which is drawn later
+    if (bar) paintDataBar(ctx, bar, rect, sheet.zoom);
   });
+}
+
+function paintDataBar(ctx: CanvasRenderingContext2D, look: DataBarLook, cell: Rect, zoom: number) {
+  const { bar, axisX } = barShape(look, cell, zoom);
+  if (bar.width > 0 && bar.height > 0) {
+    if (look.gradient) {
+      // excel's gradient bars fade from their colour at the start to white at the end
+      const start = look.negative ? bar.x + bar.width : bar.x;
+      const end = look.negative ? bar.x : bar.x + bar.width;
+      const gradient = ctx.createLinearGradient(start, 0, end, 0);
+      gradient.addColorStop(0, look.color);
+      gradient.addColorStop(1, "#ffffff");
+      ctx.fillStyle = gradient;
+    } else ctx.fillStyle = look.color;
+    ctx.fillRect(bar.x, bar.y, bar.width, bar.height);
+  }
+  if (axisX !== undefined && axisX > cell.x && axisX < cell.x + cell.width) {
+    // the axis between negative and positive bars, dashed as excel draws it
+    ctx.save();
+    ctx.strokeStyle = TEXT;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath();
+    ctx.moveTo(Math.round(axisX) + 0.5, cell.y);
+    ctx.lineTo(Math.round(axisX) + 0.5, cell.y + cell.height);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function paintGridLines(ctx: CanvasRenderingContext2D, layout: GridLayout, region: Region) {
@@ -112,9 +149,9 @@ function paintMerged(ctx: CanvasRenderingContext2D, layout: GridLayout, region: 
     if (!intersects(merge, region)) continue;
     const rect = layout.rectOf(merge);
     const first = sheet.cache.get(sheet.sheet, merge.start.row, merge.start.col);
-    ctx.fillStyle = first?.background ?? PAPER;
+    ctx.fillStyle = (first && fillOf(first)) ?? PAPER;
     ctx.fillRect(rect.x, rect.y, rect.width - 1, rect.height - 1);
-    if (first) paintText(ctx, first, rect, sheet, rect.width);
+    if (first && showsText(first)) paintText(ctx, first, rect, sheet, rect.width);
   }
 }
 
@@ -125,7 +162,7 @@ function intersects(range: Range, region: Region): boolean {
 function paintTexts(ctx: CanvasRenderingContext2D, layout: GridLayout, region: Region, sheet: PaintSheet) {
   eachCell(region, sheet, (cell) => {
     // a merged range's first cell is drawn over the whole range by paintMerged
-    if (!cell.text || cell.merge) return;
+    if (!cell.text || cell.merge || !showsText(cell)) return;
     const x = layout.xOf(cell.col);
     const y = layout.yOf(cell.row);
     const rect = { x, y, width: layout.rightOf(cell.col) - x, height: layout.bottomOf(cell.row) - y };
@@ -145,13 +182,11 @@ function overflowWidth(layout: GridLayout, region: Region, sheet: PaintSheet, ce
   return layout.xOf(col) - layout.xOf(cell.col);
 }
 
-type Rect = { x: number; y: number; width: number; height: number };
-
 function paintText(ctx: CanvasRenderingContext2D, cell: ViewCell, rect: Rect, sheet: PaintSheet, room: number) {
-  const style = sheet.styles[cell.style];
+  const style = styleOf(cell, sheet.styles);
   const font = fontOf(style, sheet.zoom);
   ctx.font = font;
-  ctx.fillStyle = cell.color ?? TEXT;
+  ctx.fillStyle = textColorOf(cell) ?? TEXT;
   ctx.textBaseline = "alphabetic";
   const fontPixels = (style?.size ?? DEFAULT_POINTS) * PIXELS_PER_POINT * sheet.zoom;
   const padding = CELL_PADDING * sheet.zoom;
