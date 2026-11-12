@@ -112,8 +112,9 @@ All results are serde camelCase.
 | `help::presets::friendly_formats()`, `style_presets()`, `template(name)` | `[{ name, code, example }]`, `[{ name, style }]`, starter workbooks `budget`, `grades`, `lab`, `schedule`, `invoice` |
 | `help::compat::compatibility(&book, Target::Xlsx\|Ods)` | `[{ text, cells }]` — excel 365 functions saved to ods, google sheets functions (QUERY, ARRAYFORMULA, IMPORTRANGE...) and DUMMYFUNCTION wrappers, features a format can't hold |
 
-The shortcut table cites microsoft's and google's shortcut pages but was
-not compared with them line by line yet (`checked: false`).
+The shortcut table was compared line by line with microsoft's and google's
+shortcut pages on 12 November 2026; 13 rows stay `checked: false` because a
+page doesn't name one of their keys (`UNCONFIRMED` in help/shortcuts.rs says why).
 
 ## What is modelled, preserved or lost
 

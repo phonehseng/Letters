@@ -156,3 +156,16 @@ the tip detectors into data and formula groups, the starter workbooks into
 one function each, and the harness cases in two. The long functions left
 are `match` dispatchers with one short arm per function or operation, and
 test data builders. clippy is clean.
+
+## 2026-11-12 the shortcut table compared with the published lists
+
+Every row of help/shortcuts.rs was compared with Microsoft's "Keyboard
+shortcuts in Excel" (Windows and macOS tables) and Google's "Keyboard
+shortcuts for Google Sheets" (PC list). Corrected: Excel for Mac edits a
+cell with F2, enters the date with Ctrl ; and the time with Cmd ;, starts a
+line with Ctrl Option Return, inserts cells with Ctrl Shift =, hides rows and
+columns with Ctrl 9 and Ctrl 0 and finds with Ctrl F; Excel for Windows
+inserts cells with Ctrl Shift +; Google Sheets changes sheet with Alt Down
+and Alt Up and shows formulas with Ctrl ~. The claim that Ctrl U edits a
+cell in Excel for Mac was not on the page and is gone. Rows a page doesn't
+confirm in full stay unchecked, with the reason beside the list.
