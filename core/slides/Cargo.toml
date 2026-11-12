@@ -1,9 +1,33 @@
 [package]
 name = "letters-slides"
-description = "reads and writes presentations (pptx and odp) through one shared model"
+description = "reads, renders and writes presentations (pptx and odp) through one shared model"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+# every dependency is MIT or Apache-2.0 licensed (or both). the xml
+# reader, the zip helpers and the font lookup are this repository's own
+# code, copied from letters-office and letters-layout (see WORKLOG), so
+# nothing here restricts distribution.
 [dependencies]
+lopdf = "0.47"
+png = "0.18"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 thiserror = "2"
+ttf-parser = "0.25"
+unicode-linebreak = "0.1.5"
+# only deflate is needed: pptx and odp packages use stored or deflated
+# entries, and zlib-rs is pure rust, so no c compiler is involved
+zip = { version = "9.5.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+# the bridge to word-processor documents (outline import, canvas pages);
+# a feature so this crate builds while letters-office is being changed
+letters-office = { path = "../office", optional = true }
+
+[features]
+office = ["dep:letters-office"]
+
+[dev-dependencies]
+letters-pdf = { path = "../pdf" }
+pdfium-render = { version = "0.9", default-features = false, features = ["pdfium_latest"] }

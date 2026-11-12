@@ -2815,7 +2815,17 @@ dependencies = [
 name = "letters-slides"
 version = "0.1.0"
 dependencies = [
+ "letters-office",
+ "letters-pdf",
+ "lopdf",
+ "pdfium-render",
+ "png",
+ "serde",
+ "serde_json",
  "thiserror 2.0.21",
+ "ttf-parser",
+ "unicode-linebreak",
+ "zip",
 ]
 
 [[package]]
