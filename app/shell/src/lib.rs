@@ -60,6 +60,8 @@ mod search_commands;
 mod organise_commands;
 // code and text files (the code editor screen)
 mod code_commands;
+// in-app updates from github releases (updates.rs)
+mod updates;
 // presentations: the slide editor and the slide show (.pptx and .odp)
 mod slides_commands;
 // spreadsheets (the sheets screen) and their formula help
@@ -89,6 +91,8 @@ pub fn run() {
             },
         ))
         .plugin(tauri_plugin_dialog::init())
+        // in-app updates, signed and served from github releases (updates.rs)
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("tile", tile_protocol::handle)
         // every feature's commands, listed per feature in command_routes.rs
         .invoke_handler(command_routes::handler());
@@ -137,10 +141,14 @@ fn manage_feature_states(app: &tauri::App) {
     app.manage(slides_commands::SlidesState::start(handle));
     // spreadsheets: the open workbooks and dismissed tips
     app.manage(sheets_commands::SheetsState::start(handle));
+    // in-app updates: the update found and its downloaded installer
+    app.manage(updates::UpdateState::start(handle));
 }
 
 fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
     if let RunEvent::Exit = &event {
+        // an update waiting for the windows to close is installed now
+        updates::install_on_exit(handle);
         // ai tools: a model server Letters started stops with the app
         handle.state::<ai_commands::AiState>().stop_server();
         // search: the index writes a last checkpoint before the app ends
@@ -167,7 +175,12 @@ fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
 fn close_window_parts(handle: &tauri::AppHandle, label: &str) {
     handle.state::<AppState>().close_documents_of_window(label);
     // a closed window no longer holds its file (see windows.rs)
-    handle.state::<AppState>().window_files.lock().unwrap().forget(label);
+    handle
+        .state::<AppState>()
+        .window_files
+        .lock()
+        .unwrap()
+        .forget(label);
     writer_commands::close_window(handle, label);
     // compare: the window's comparisons close with it
     compare_commands::close_window(handle, label);
