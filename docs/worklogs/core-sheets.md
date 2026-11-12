@@ -169,3 +169,50 @@ inserts cells with Ctrl Shift +; Google Sheets changes sheet with Alt Down
 and Alt Up and shows formulas with Ctrl ~. The claim that Ctrl U edits a
 cell in Excel for Mac was not on the page and is gone. Rows a page doesn't
 confirm in full stay unchecked, with the reason beside the list.
+
+## 2026-11-12 conditional formats drawn
+
+Rules were read and saved but never evaluated, so the grid showed none of
+them. `src/conditional` now works them out for the cells a view asks for,
+and `view::cells_in` sends the result with each cell (`conditional`: fill,
+font colour, bold, italic, underline, strike, or a data bar's fraction,
+colour, axis and gradient), nothing when no rule changes the cell. Empty
+cells a rule marks come too: Excel counts an empty cell as 0, so "less than
+the pass mark" colours it. `view::own_cells_in` keeps the old answer for
+copying and filter lists.
+
+Each rule is prepared once per request (formulas parsed, constants worked
+out, range statistics found) and then asked about each cell. Expression and
+cellIs formulas are moved from the first range's top-left cell to the cell
+and calculated by the engine with implicit intersection, as in Excel.
+Statistics read the range's numbers once: min and max in the same pass, a
+sort only when a percentile asks, a selection for top and bottom n, and
+duplicates counted by exact value first (the 15-digit rounding goes through
+text, so it is done once per distinct value, not per cell). Measured in
+release on a 200,000-row column, one 64 by 32 block: cellIs 2 ms,
+expression 1 ms, top 10% 7 ms, average 7 ms, 3-colour scale with a
+percentile 8 ms, data bar 7 ms, duplicates 23 ms; the tester's
+big200000.xlsx with a whole-column colour scale 9 ms. A screen asks for one
+to four blocks. The used rows now come from the grid's first and last row,
+which saved 3 ms against the sheet's used range.
+
+Differential formats are kept as xml, so `conditional/differential.rs`
+reads the font and fill a screen needs; a dxf's fill is its pattern's
+background colour (Excel's way), then the foreground (LibreOffice writes
+both). Data bars from Excel 2010 on keep their gradient, negative colour and
+axis in the sheet's kept `extLst`, found through the rule's `x14:id`; a
+2007 bar runs from 10% to 90% of the cell. Average rules with standard
+deviations use the population deviation; Excel's documentation does not say
+which it uses.
+
+LibreOffice's `calcext:conditional-formats` are now read too (still kept
+as xml for ods saving): conditions with their cell style made a dxf, colour
+scales and bars as Excel's elements, formulas moved from the base cell. The
+markup follows LibreOffice's export code; no LibreOffice-made file with
+conditional formats was at hand to check it against.
+
+Not drawn: icon sets, a rule's number format and borders, rules that live
+only in `extLst`, LibreOffice's date conditions and its axis and solid bars.
+The tester's cf.xlsx (B greater than 50, C two colours, D bars) is rebuilt
+cell for cell in `conditional/tests.rs`; the real file was also read once
+and gave the same looks, and its rules survived a save.

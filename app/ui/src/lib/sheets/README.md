@@ -33,6 +33,7 @@ it is: docs/worklogs/ui-sheets.md.
 | `gridLayout.ts` | rows and columns to pixels and back, with frozen panes |
 | `geometry.ts` | row and column sizes, cell names |
 | `painter.ts` | drawing the cells |
+| `conditionalLook.ts` | what conditional formats change in a cell's drawing: fill, text, data bars |
 | `overlays.ts` | drawing the selection, references, placeholders and headers |
 | `selection.ts` | selection rules |
 | `formulaEntry.ts` | formula-typing rules that run on every key |
@@ -41,4 +42,4 @@ it is: docs/worklogs/ui-sheets.md.
 | `sheetsTips.svelte.ts` | when a tip is offered |
 | `sheetsTools.ts` | the plain-English words for every tool |
 | `sheetsCommands.ts` | the new-spreadsheet command and the starter workbooks |
-| `grid.test.ts`, `entry.test.ts` | tests of the rules above |
+| `grid.test.ts`, `entry.test.ts`, `conditionalLook.test.ts` | tests of the rules above |

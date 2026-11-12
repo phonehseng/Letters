@@ -172,3 +172,111 @@ fn two_hundred_thousand_rows() {
         cache.stats(&reopened.sheets[0], &[Range::parse("A1000:A2000").unwrap()])
     });
 }
+
+/// one whole-column rule of each costly kind over column A of the large
+/// workbook, timed for one block of the grid (64 rows by 32 columns)
+#[test]
+#[ignore = "timing; run in a release build"]
+fn conditional_formats_over_a_whole_column() {
+    let mut book = large_workbook();
+    // the pass mark the "less than" rule compares with
+    book.sheets[0]
+        .cells
+        .set(0, 7, Cell::value(Value::Number(500.0)));
+    let red = book
+        .styles
+        .add_differential(Some("9C0006"), Some("FFC7CE"), false);
+    let rule = |kind: &str, details: Option<&str>, attributes: &[(&str, &str)]| ConditionalRule {
+        kind: kind.into(),
+        format: Some(red),
+        priority: 1,
+        details_xml: details.map(str::to_string),
+        attributes: attributes
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        operator: (kind == "cellIs").then(|| "lessThan".into()),
+        formulas: match kind {
+            "cellIs" => vec!["$H$1".into()],
+            "expression" => vec!["A1<AVERAGE($A$1:$A$1000)".into()],
+            _ => Vec::new(),
+        },
+        ..ConditionalRule::default()
+    };
+    // rows 150,961 to 151,024 hold both the column's highest and lowest
+    // values, so every rule finds something to mark
+    let block = Range::parse("A150961:AF151024").unwrap();
+    let cases = [
+        ("cellIs less than a pass mark", rule("cellIs", None, &[])),
+        ("expression per cell", rule("expression", None, &[])),
+        (
+            "top 10%",
+            rule("top10", None, &[("rank", "10"), ("percent", "1")]),
+        ),
+        ("above average", rule("aboveAverage", None, &[])),
+        ("duplicate values", rule("duplicateValues", None, &[])),
+        (
+            "3-colour scale with a percentile",
+            rule(
+                "colorScale",
+                Some(
+                    r#"<colorScale><cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/><color rgb="FFF8696B"/><color rgb="FFFFEB84"/><color rgb="FF63BE7B"/></colorScale>"#,
+                ),
+                &[],
+            ),
+        ),
+        (
+            "data bar",
+            rule(
+                "dataBar",
+                Some(
+                    r#"<dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF638EC6"/></dataBar>"#,
+                ),
+                &[],
+            ),
+        ),
+    ];
+    for (label, rule) in cases {
+        book.sheets[0].conditional_formats = vec![ConditionalFormat {
+            ranges: vec![Range::parse("A:A").unwrap()],
+            rules: vec![rule],
+        }];
+        let cells = timed(&format!("one 64x32 block, whole-column {label}"), || {
+            cells_in(&book, 0, block, &Locale::default())
+        });
+        assert!(
+            cells.iter().any(|cell| cell.conditional.is_some()),
+            "{label}"
+        );
+    }
+    // a real file, when one is named (`LETTERS_LARGE_XLSX=...\big200000.xlsx`):
+    // a colour scale over its whole first numeric column
+    if let Ok(path) = std::env::var("LETTERS_LARGE_XLSX") {
+        let bytes = std::fs::read(&path).expect("the named workbook");
+        let mut file = timed("read the named workbook", || read_xlsx(&bytes).unwrap());
+        let column = (0..16)
+            .find(|col| matches!(file.sheets[0].cells.value(1, *col), Value::Number(_)))
+            .expect("a numeric column");
+        let letter = letters_sheets::address::column_name(column);
+        file.sheets[0].conditional_formats = vec![ConditionalFormat {
+            ranges: vec![Range::parse(&format!("{letter}:{letter}")).unwrap()],
+            rules: vec![rule(
+                "colorScale",
+                Some(
+                    r#"<colorScale><cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/><color rgb="FFF8696B"/><color rgb="FFFFEB84"/><color rgb="FF63BE7B"/></colorScale>"#,
+                ),
+                &[],
+            )],
+        }];
+        let cells = timed(
+            &format!("{path}: one block, whole-column {letter} colour scale"),
+            || cells_in(&file, 0, block, &Locale::default()),
+        );
+        assert!(cells.iter().any(|cell| cell.conditional.is_some()));
+    }
+    let plain = timed("the same block with no rules", || {
+        book.sheets[0].conditional_formats.clear();
+        cells_in(&book, 0, block, &Locale::default())
+    });
+    assert!(plain.iter().all(|cell| cell.conditional.is_none()));
+}

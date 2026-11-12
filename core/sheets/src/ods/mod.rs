@@ -3,6 +3,7 @@
 //! the styles part are carried when the file came from ods.
 
 mod read;
+mod read_conditional;
 mod read_table;
 mod styles;
 mod units;
