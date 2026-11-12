@@ -74,11 +74,21 @@ pub fn forms_duplicate_across_pages(
     id: u64,
     name: String,
     pages: Vec<u32>,
-) -> Result<DocumentState, CommandError> {
-    state.edit(DocumentId(id), |document| {
-        forms::duplicate_across_pages(document, &name, &pages)?;
+) -> Result<PagesEdit, CommandError> {
+    let mut added = Vec::new();
+    let document = state.edit(DocumentId(id), |document| {
+        added = forms::duplicate_across_pages(document, &name, &pages)?;
         Ok::<(), FormError>(())
-    })
+    })?;
+    Ok(PagesEdit { document, added })
+}
+
+/// a change and the pages it really added: pages already showing the
+/// field are skipped, so "on 3 more pages" counted the one it was on
+#[derive(Serialize)]
+pub struct PagesEdit {
+    document: DocumentState,
+    added: Vec<u32>,
 }
 
 /// the value a checkbox, or one radio button, stands for when chosen.
