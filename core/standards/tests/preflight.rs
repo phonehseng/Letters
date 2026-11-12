@@ -262,3 +262,15 @@ fn pdfx_checks_pass_a_print_ready_file_and_name_each_problem() {
         "x-4 needs a profile"
     );
 }
+
+#[test]
+fn an_encrypted_document_is_refused_rather_than_optimised_empty() {
+    let mut doc = wasteful();
+    let encrypt = doc.add_object(dictionary! { "Filter" => "Standard", "V" => 4, "R" => 4 });
+    doc.trailer.set("Encrypt", Object::Reference(encrypt));
+    let refused = optimize(&mut doc, &OptimizeOptions::default());
+    assert_eq!(
+        refused.unwrap_err(),
+        letters_standards::StandardsError::Locked
+    );
+}

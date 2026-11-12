@@ -67,6 +67,10 @@ const NOT_DONE: [&str; 3] = [
 
 /// optimises a document and returns the new file with what each measure saved.
 pub fn optimize(doc: &mut Document, options: &OptimizeOptions) -> StandardsResult<OptimizeReport> {
+    // a still-encrypted document came out as a 416 byte file with no pages
+    if doc.trailer.has(b"Encrypt") {
+        return Err(StandardsError::Locked);
+    }
     let before = size(doc)?;
     let mut measures = Vec::new();
     let mut current = before;
