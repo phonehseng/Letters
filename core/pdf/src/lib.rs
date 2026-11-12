@@ -7,14 +7,15 @@
 //! - one worker thread owns the pdf library, so every window shares
 //!   the same engine and the same cache
 //!
-//! it also reads a document's outline (its table of contents) and
-//! searches its text.
+//! it also reads a document's outline (its table of contents), searches
+//! its text, and says where each character of a page is drawn.
 
 mod cache;
 mod engine;
 mod error;
 mod geometry;
 mod outline;
+mod page_text;
 mod queue;
 mod search;
 mod worker;
@@ -23,6 +24,7 @@ pub use cache::TileCache;
 pub use error::PdfError;
 pub use geometry::{page_pixel_size, tile_rect, PageSize, PixelRect, TileKey, TILE_SIZE};
 pub use outline::OutlineItem;
+pub use page_text::{PageText, TextChar, PAGE_TEXT_CACHE_PAGES};
 pub use search::{SearchMatch, SearchResults, TextRect, MAX_SEARCH_MATCHES};
 pub use worker::{DocumentInfo, RenderWorker, WorkerStats};
 

@@ -13,6 +13,7 @@ use crate::cache::{TileBytes, TileCache};
 use crate::engine::PdfEngine;
 use crate::geometry::{PageSize, TileKey};
 use crate::outline::OutlineItem;
+use crate::page_text::{PageText, PageTextCache};
 use crate::queue::NewestFirstQueue;
 use crate::search::{SearchMatch, SearchQuery, SearchResults, MAX_SEARCH_MATCHES};
 use crate::{DocumentId, PdfError};
@@ -72,6 +73,11 @@ enum Request {
         id: DocumentId,
         reply: Reply<Vec<OutlineItem>>,
     },
+    PageText {
+        id: DocumentId,
+        page: u32,
+        reply: Reply<Arc<PageText>>,
+    },
     /// searches one slice of pages (see `RenderWorker::search`)
     SearchSlice {
         id: DocumentId,
@@ -121,7 +127,11 @@ impl RenderWorker {
             .spawn(move || match load_engine(&library_dir) {
                 Ok(engine) => {
                     let _ = ready.send(Ok(()));
-                    serve_requests(engine, TileCache::new(cache_budget_bytes), inbox);
+                    let caches = Caches {
+                        tiles: TileCache::new(cache_budget_bytes),
+                        text: PageTextCache::default(),
+                    };
+                    serve_requests(engine, caches, inbox);
                 }
                 Err(error) => {
                     let _ = ready.send(Err(error));
@@ -183,6 +193,14 @@ impl RenderWorker {
         self.ask(|reply| Request::Outline { id, reply })
     }
 
+    /// every character of one page (counted from 0) with its box, in
+    /// points from the top left of the page as shown, grouped into lines.
+    /// what selecting text on screen is built on.
+    pub fn page_text(&self, id: DocumentId, page: u32) -> Result<PageText, PdfError> {
+        let text = self.ask(|reply| Request::PageText { id, page, reply })?;
+        Ok(PageText::clone(&text))
+    }
+
     /// finds every place `text` appears, ignoring case, page by page.
     ///
     /// the search is sent to the worker in slices of pages, waiting for
@@ -240,30 +258,43 @@ struct WaitingTile {
     reply: Reply<TileBytes>,
 }
 
+/// what the worker keeps between requests: finished tiles, and the text
+/// of the last few pages asked about.
+struct Caches {
+    tiles: TileCache,
+    text: PageTextCache,
+}
+
 /// the worker thread's loop. it ends when every handle has been dropped.
 ///
-/// opening, reloading, closing, stats, the outline and one slice of a
-/// search are quick and handled as they arrive.
+/// opening, reloading, closing, stats, the outline, a page's text and one
+/// slice of a search are quick and handled as they arrive.
 /// tiles are slow, so they wait in a newest-first queue (see queue.rs)
 /// and are drawn one at a time between checks of the inbox.
-fn serve_requests(mut engine: PdfEngine, mut cache: TileCache, inbox: Receiver<Request>) {
+fn serve_requests(mut engine: PdfEngine, mut caches: Caches, inbox: Receiver<Request>) {
     let mut waiting_tiles = NewestFirstQueue::new(MAX_WAITING_TILES);
     loop {
         if waiting_tiles.is_empty() {
             // nothing to draw: sleep until a request arrives
             match inbox.recv() {
-                Ok(request) => accept(request, &mut engine, &mut cache, &mut waiting_tiles),
-                Err(_) => return,
+                Ok(request) => accept(request, &mut engine, &mut caches, &mut waiting_tiles),
+                Err(_) => {
+                    // closing the open documents calls into pdfium too, so
+                    // it must not run while another worker is inside it
+                    let _pdfium = lock_pdfium();
+                    drop(engine);
+                    return;
+                }
             }
         }
         while let Ok(request) = inbox.try_recv() {
-            accept(request, &mut engine, &mut cache, &mut waiting_tiles);
+            accept(request, &mut engine, &mut caches, &mut waiting_tiles);
         }
         if let Some(tile) = waiting_tiles.pop_newest() {
             let _pdfium = lock_pdfium();
             let _ = tile
                 .reply
-                .send(cached_or_rendered(&engine, &mut cache, tile.key));
+                .send(cached_or_rendered(&engine, &mut caches.tiles, tile.key));
         }
     }
 }
@@ -272,7 +303,7 @@ fn serve_requests(mut engine: PdfEngine, mut cache: TileCache, inbox: Receiver<R
 fn accept(
     request: Request,
     engine: &mut PdfEngine,
-    cache: &mut TileCache,
+    caches: &mut Caches,
     waiting_tiles: &mut NewestFirstQueue<WaitingTile>,
 ) {
     let _pdfium = lock_pdfium();
@@ -289,15 +320,18 @@ fn accept(
         }
         Request::Reload { id, path, reply } => {
             let result = engine.reload(id, &path).map(|page_sizes| {
-                // the cached tiles show the old file, so none of them may be shown again
-                cache.remove_where(|key| key.document == id);
+                // the cached tiles and text show the old file, so none of
+                // them may be used again
+                caches.tiles.remove_where(|key| key.document == id);
+                caches.text.remove_document(id);
                 DocumentInfo { id, page_sizes }
             });
             let _ = reply.send(result);
         }
         Request::Close { id, done } => {
             engine.close(id);
-            cache.remove_where(|key| key.document == id);
+            caches.tiles.remove_where(|key| key.document == id);
+            caches.text.remove_document(id);
             let _ = done.send(());
         }
         Request::Tile { key, reply } => {
@@ -308,12 +342,15 @@ fn accept(
         Request::Stats { reply } => {
             let _ = reply.send(Ok(WorkerStats {
                 open_documents: engine.open_document_count(),
-                cached_tiles: cache.len(),
-                cached_bytes: cache.used_bytes(),
+                cached_tiles: caches.tiles.len(),
+                cached_bytes: caches.tiles.used_bytes(),
             }));
         }
         Request::Outline { id, reply } => {
             let _ = reply.send(engine.outline(id));
+        }
+        Request::PageText { id, page, reply } => {
+            let _ = reply.send(cached_page_text(engine, &mut caches.text, id, page));
         }
         Request::SearchSlice {
             id,
@@ -341,6 +378,20 @@ fn search_slice(
     let matches = engine.search_pages(id, query, first_page..end, limit)?;
     let next_page = (end < page_count).then_some(end);
     Ok(SearchSlice { matches, next_page })
+}
+
+fn cached_page_text(
+    engine: &PdfEngine,
+    cache: &mut PageTextCache,
+    id: DocumentId,
+    page: u32,
+) -> Result<Arc<PageText>, PdfError> {
+    if let Some(text) = cache.get(id, page) {
+        return Ok(text);
+    }
+    let text = Arc::new(engine.page_text(id, page)?);
+    cache.insert(id, page, text.clone());
+    Ok(text)
 }
 
 fn cached_or_rendered(

@@ -12,6 +12,7 @@ use pdfium_render::prelude::*;
 
 use crate::geometry::{page_pixel_size, tile_rect, PageSize, PixelRect, TileKey};
 use crate::outline::{OutlineItem, MAX_OUTLINE_DEPTH, MAX_OUTLINE_ITEMS};
+use crate::page_text::{build_page_text, PageText, RawChar};
 use crate::search::{find_matches, snippet, CharRange, SearchMatch, SearchQuery, TextRect};
 use crate::{DocumentId, PdfError};
 
@@ -172,6 +173,44 @@ impl PdfEngine {
         Ok(matches)
     }
 
+    /// every character of one page with its box, grouped into lines.
+    ///
+    /// the page's text is loaded for this call and dropped at the end of
+    /// it, so asking about one page never keeps others in memory (the
+    /// worker keeps a few recent answers, see page_text.rs).
+    pub fn page_text(&self, id: DocumentId, page_number: u32) -> Result<PageText, PdfError> {
+        let open = self.document(id)?;
+        let page_size = *open
+            .page_sizes
+            .get(page_number as usize)
+            .ok_or(PdfError::UnknownPage(page_number))?;
+        let page = open
+            .document
+            .pages()
+            .get(page_number as PdfPageIndex)
+            .map_err(|_| PdfError::UnknownPage(page_number))?;
+        // a page whose text can't be read just has none to select
+        let Ok(text) = page.text() else {
+            return Ok(PageText::default());
+        };
+        let converter = PositionConverter::new(&page, page_size);
+        let raw: Vec<RawChar> = text
+            .chars()
+            .iter()
+            .filter_map(|letter| {
+                let ch = letter.unicode_char()?;
+                // loose bounds cover the font's full height, not just the
+                // ink, so a selection is one even band along the line
+                let rect = letter
+                    .loose_bounds()
+                    .ok()
+                    .and_then(|bounds| converter.to_top_left(bounds));
+                Some(RawChar { ch, rect })
+            })
+            .collect();
+        Ok(build_page_text(&raw))
+    }
+
     fn document(&self, id: DocumentId) -> Result<&OpenDocument, PdfError> {
         self.documents.get(&id).ok_or(PdfError::UnknownDocument)
     }
@@ -290,46 +329,60 @@ fn match_rects(
     page_size: PageSize,
     range: CharRange,
 ) -> Vec<TextRect> {
+    let converter = PositionConverter::new(page, page_size);
     text.segments_subset(range.start, range.count)
         .iter()
-        .filter_map(|segment| to_top_left(page, page_size, segment.bounds()))
+        .filter_map(|segment| converter.to_top_left(segment.bounds()))
         .collect()
 }
 
 /// how finely positions are measured when converting them: 1/64 point.
 const POSITION_STEPS_PER_POINT: f32 = 64.0;
 
-/// turns a rectangle in pdf coordinates (origin at the bottom left, and
+/// turns rectangles in pdf coordinates (origin at the bottom left, and
 /// shifted or rotated however the file says) into the viewer's
 /// coordinates: points from the top left of the page as it is shown.
 ///
 /// pdfium's own page-to-screen conversion is used, the same one it uses
-/// when drawing tiles, so highlights land on the drawn text even on
-/// rotated pages or pages whose box does not start at zero. that
-/// conversion answers in whole pixels, so it is asked about a page 64
-/// times larger than life and the answer is divided back down.
-fn to_top_left(page: &PdfPage, page_size: PageSize, rect: PdfRect) -> Option<TextRect> {
-    let config = PdfRenderConfig::new().set_fixed_size(
-        (page_size.width_pt * POSITION_STEPS_PER_POINT).round() as Pixels,
-        (page_size.height_pt * POSITION_STEPS_PER_POINT).round() as Pixels,
-    );
-    let corner_a = page
-        .points_to_pixels(rect.left(), rect.top(), &config)
-        .ok()?;
-    let corner_b = page
-        .points_to_pixels(rect.right(), rect.bottom(), &config)
-        .ok()?;
-    // after a rotation either corner may be the top left one
-    let left = corner_a.0.min(corner_b.0) as f32;
-    let top = corner_a.1.min(corner_b.1) as f32;
-    let right = corner_a.0.max(corner_b.0) as f32;
-    let bottom = corner_a.1.max(corner_b.1) as f32;
-    Some(TextRect {
-        x: left / POSITION_STEPS_PER_POINT,
-        y: top / POSITION_STEPS_PER_POINT,
-        width: (right - left) / POSITION_STEPS_PER_POINT,
-        height: (bottom - top) / POSITION_STEPS_PER_POINT,
-    })
+/// when drawing tiles, so boxes land on the drawn text even on rotated
+/// pages or pages whose box does not start at zero. that conversion
+/// answers in whole pixels, so it is asked about a page 64 times larger
+/// than life and the answer is divided back down.
+struct PositionConverter<'a> {
+    page: &'a PdfPage<'a>,
+    config: PdfRenderConfig,
+}
+
+impl<'a> PositionConverter<'a> {
+    fn new(page: &'a PdfPage<'a>, page_size: PageSize) -> Self {
+        let config = PdfRenderConfig::new().set_fixed_size(
+            (page_size.width_pt * POSITION_STEPS_PER_POINT).round() as Pixels,
+            (page_size.height_pt * POSITION_STEPS_PER_POINT).round() as Pixels,
+        );
+        Self { page, config }
+    }
+
+    fn to_top_left(&self, rect: PdfRect) -> Option<TextRect> {
+        let corner_a = self
+            .page
+            .points_to_pixels(rect.left(), rect.top(), &self.config)
+            .ok()?;
+        let corner_b = self
+            .page
+            .points_to_pixels(rect.right(), rect.bottom(), &self.config)
+            .ok()?;
+        // after a rotation either corner may be the top left one
+        let left = corner_a.0.min(corner_b.0) as f32;
+        let top = corner_a.1.min(corner_b.1) as f32;
+        let right = corner_a.0.max(corner_b.0) as f32;
+        let bottom = corner_a.1.max(corner_b.1) as f32;
+        Some(TextRect {
+            x: left / POSITION_STEPS_PER_POINT,
+            y: top / POSITION_STEPS_PER_POINT,
+            width: (right - left) / POSITION_STEPS_PER_POINT,
+            height: (bottom - top) / POSITION_STEPS_PER_POINT,
+        })
+    }
 }
 
 fn describe_open_error(error: PdfiumError) -> PdfError {
