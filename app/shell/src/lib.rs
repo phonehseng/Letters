@@ -53,6 +53,8 @@ mod search_commands;
 mod organise_commands;
 // code and text files (the code editor screen)
 mod code_commands;
+// presentations: the slide editor and the slide show (.pptx and .odp)
+mod slides_commands;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
@@ -110,6 +112,8 @@ fn manage_feature_states(app: &tauri::App) {
     // search all documents: the index and its background job
     app.manage(search_commands::SearchState::start(handle));
     app.manage(reading_commands::ReadingState::start(handle));
+    // presentations: the decks open in each window
+    app.manage(slides_commands::SlidesState::start(handle));
 }
 
 fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
@@ -142,4 +146,6 @@ fn close_window_parts(handle: &tauri::AppHandle, label: &str) {
     writer_commands::close_window(handle, label);
     // compare: the window's comparisons close with it
     compare_commands::close_window(handle, label);
+    // presentations: the window's decks and their slide pictures close with it
+    slides_commands::close_window(handle, label);
 }

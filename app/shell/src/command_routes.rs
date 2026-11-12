@@ -19,6 +19,8 @@ use crate::{
 use crate::code_commands;
 // moving, copying and renaming documents, on its own line for the same reason
 use crate::organise_commands;
+// presentations (the slide editor), on its own line for the same reason
+use crate::slides_commands;
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -75,6 +77,8 @@ fn features() -> Vec<Feature> {
         reading_and_writing(),
         code_files(),
         organising(),
+        // presentations: the slide editor and the slide show
+        presentations(),
     ]
 }
 
@@ -437,5 +441,31 @@ fn organising() -> Feature {
         organise_commands::organise_recycle,
         organise_commands::organise_reveal,
         organise_commands::organise_new_folder,
+    ]
+}
+/// presentations: the slide editor, its saves and exports, the slide show.
+fn presentations() -> Feature {
+    feature![
+        slides_commands::slides_open,
+        slides_commands::slides_close,
+        slides_commands::slides_deck,
+        slides_commands::slides_slide,
+        slides_commands::slides_apply,
+        slides_commands::slides_undo,
+        slides_commands::slides_redo,
+        slides_commands::slides_insert,
+        slides_commands::slides_insert_picture,
+        slides_commands::slides_pictures,
+        slides_commands::slides_picture_without,
+        slides_commands::slides_find,
+        slides_commands::slides_replace,
+        slides_commands::slides_save,
+        slides_commands::slides_autosave,
+        slides_commands::slides_discard_recovery,
+        slides_commands::slides_export_pdf,
+        slides_commands::slides_screens,
+        slides_commands::slides_full_screen,
+        slides_commands::slides_open_audience,
+        slides_commands::slides_close_audience,
     ]
 }

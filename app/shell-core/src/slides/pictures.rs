@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use letters_slides::fonts::{FontLibrary, FontSubstitution, SubstitutionReason};
 use letters_slides::model::{GraphicKind, Object, Presentation, TextBody, TextParagraph};
 use letters_slides::render::render_pdf;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::view::points;
 
@@ -46,7 +46,8 @@ pub struct SlidePicture {
 
 /// what to leave out of a picture while it is being typed into, so the
 /// typing field's words are the only ones on screen.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum LeftOut {
     Text {
         object: u32,
