@@ -93,6 +93,11 @@ function findLast(stack: Opened[], char: string): number {
   return -1;
 }
 
+function startsComment(text: string, index: number, syntax: Syntax): boolean {
+  if (syntax.lineComment && text.startsWith(syntax.lineComment, index)) return true;
+  return syntax.blockComment !== null && text.startsWith(syntax.blockComment[0], index);
+}
+
 /** the offset after a comment or string starting at `index`, or `index` itself. */
 function skipCommentOrString(text: string, index: number, syntax: Syntax, problems: Problem[]): number {
   if (syntax.lineComment && text.startsWith(syntax.lineComment, index)) {
@@ -145,44 +150,87 @@ interface PythonLine {
 
 const BLOCK_KEYWORD = /^(if|elif|else|for|while|def|class|try|except|finally|with|async|match|case)\b/;
 
+/** `code` has its strings and comments blanked already, so only real brackets and colons count. */
 function pythonLine(code: string, offset: number, indent: number): PythonLine {
-  const withoutComment = code.replace(/\s+#.*$/, "");
-  const opens = (withoutComment.match(/[([{]/g) ?? []).length;
-  const closes = (withoutComment.match(/[)\]}]/g) ?? []).length;
+  const opens = (code.match(/[([{]/g) ?? []).length;
+  const closes = (code.match(/[)\]}]/g) ?? []).length;
   return {
     offset,
     indent,
-    opensBlock: BLOCK_KEYWORD.test(code) && withoutComment.endsWith(":"),
-    continues: /[,\\([{]$/.test(withoutComment) || opens > closes,
+    opensBlock: BLOCK_KEYWORD.test(code) && code.endsWith(":"),
+    continues: /[,\\([{]$/.test(code) || opens > closes,
   };
+}
+
+/** the text with its comments turned into spaces and its strings into "_", and where each one was. */
+interface BlankedText {
+  code: string;
+  /** [start, end) of every comment and string */
+  spans: [number, number][];
+}
+
+/**
+ * blanks comments and strings, keeping newlines so every offset and line
+ * number still match. a string becomes "_" rather than spaces because a
+ * line holding only a docstring is still a statement in its block.
+ */
+function blankCommentsAndStrings(text: string, syntax: Syntax): BlankedText {
+  // unclosed strings are reported by checkBalance; here they only need skipping
+  const ignored: Problem[] = [];
+  const spans: [number, number][] = [];
+  let code = "";
+  let index = 0;
+  while (index < text.length) {
+    const skipped = skipCommentOrString(text, index, syntax, ignored);
+    if (skipped === index) {
+      code += text[index];
+      index++;
+      continue;
+    }
+    spans.push([index, skipped]);
+    const filler = startsComment(text, index, syntax) ? " " : "_";
+    code += text.slice(index, skipped).replace(/[^\n]/g, filler);
+    index = skipped;
+  }
+  return { code, spans };
+}
+
+/** true when the line starting at `offset` begins inside a string that started on an earlier line. */
+function startsInsideString(spans: [number, number][], offset: number): boolean {
+  return spans.some(([start, end]) => start < offset && offset < end);
 }
 
 /**
  * tabs mixed with spaces, a line ending in ":" with nothing indented under
  * it, and a line indented deeper than the one before for no reason (often
- * the sign of a ":" lost on the line before).
+ * the sign of a ":" lost on the line before). the lines inside a """ string
+ * are text, not code, so their indent never counts.
  */
 export function checkPythonIndentation(text: string): Problem[] {
   const problems: Problem[] = [];
+  const blanked = blankCommentsAndStrings(text, SYNTAX.python);
   let offset = 0;
   let previous: PythonLine | null = null;
-  for (const line of text.split("\n")) {
+  for (const line of blanked.code.split("\n")) {
+    const lineOffset = offset;
+    offset += line.length + 1;
+    // python reads a line that starts inside a string as the rest of the line before it
+    if (startsInsideString(blanked.spans, lineOffset)) continue;
     const indent = /^[ \t]*/.exec(line)?.[0] ?? "";
     const code = line.trim();
     if (indent.includes(" ") && indent.includes("\t")) {
-      problems.push(problemAt(text, offset, indent.length, "error", "This line mixes tabs and spaces in its indent. Use only spaces.", BASIC_SOURCE));
+      problems.push(problemAt(text, lineOffset, indent.length, "error", "This line mixes tabs and spaces in its indent. Use only spaces.", BASIC_SOURCE));
     }
-    if (code !== "" && !code.startsWith("#")) {
-      const current = pythonLine(code, offset, indent.length);
+    if (code !== "") {
+      const current = pythonLine(code, lineOffset, indent.length);
       if (previous?.opensBlock && current.indent <= previous.indent) {
         problems.push(problemAt(text, previous.offset, 1, "error", "The line after this one should be indented: a line ending in “:” starts a block.", BASIC_SOURCE));
       }
       if (previous && !previous.opensBlock && !previous.continues && current.indent > previous.indent) {
-        problems.push(problemAt(text, offset, indent.length, "error", "Unexpected indent. If the line before starts a block (if, for, def…), it needs a “:” at its end.", BASIC_SOURCE));
+        problems.push(problemAt(text, lineOffset, indent.length, "error", "Unexpected indent. If the line before starts a block (if, for, def…), it needs a “:” at its end.", BASIC_SOURCE));
       }
       previous = current;
     }
-    offset += line.length + 1;
   }
   return problems;
 }

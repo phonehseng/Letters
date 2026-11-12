@@ -154,4 +154,18 @@ describe("the basic check", () => {
     expect(lost.map((problem) => [problem.line, problem.message.startsWith("Unexpected indent")])).toEqual([[2, true]]);
     expect(checkPythonIndentation("total = add(1,\n            2)\n")).toEqual([]);
   });
+
+  it("reads the lines of a python \"\"\" string as text, not as indented code", () => {
+    const helpText = 'def help_text():\n    s = """\nUsage: tool [options]\n  -h   show help\n"""\n    return s\n\nprint(help_text())\n';
+    expect(checkBalance(helpText, "python")).toEqual([]);
+    expect(checkPythonIndentation("def f():\n    '''doc'''\nx = 1\n")).toEqual([]);
+    // the same kind of string, but the line after it really is indented too deep
+    const indented = checkPythonIndentation('s = """\n  text\n"""\nx = 1\n    y = 2\n');
+    expect(indented.map((problem) => [problem.line, problem.message.startsWith("Unexpected indent")])).toEqual([[5, true]]);
+  });
+
+  it("ignores brackets and colons inside python strings and comments when reading indentation", () => {
+    expect(checkPythonIndentation('x = "(" # [\ny = 1\n')).toEqual([]);
+    expect(checkPythonIndentation('if x == ":"\n    y = 1\n')[0].message).toContain("Unexpected indent");
+  });
 });
