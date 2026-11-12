@@ -11,14 +11,13 @@
   import { remInPixels } from "../dom";
   import { zoomIn, zoomOut } from "../layout";
   import { closePanel, fitPanels, inspectorFloats, togglePanel, openPanel, type SidePanel } from "../sidePanels";
-  import { tools } from "../tools";
   import { modelToDoc } from "./convert";
   import * as edit from "./editing";
   import { writerExplainGroups, type WriterTab } from "./explainList";
   import FindReplace from "./FindReplace.svelte";
   import type { DocumentMeta } from "./model";
   import PageSurface from "./PageSurface.svelte";
-  import PromptSheet from "./PromptSheet.svelte";
+  import WriterNotices from "./WriterNotices.svelte";
   import Ruler from "./Ruler.svelte";
   import { writerCommandForKey } from "./shortcuts";
   import StatusBar from "./StatusBar.svelte";
@@ -33,12 +32,16 @@
   import { WriterSession, errorText } from "./writerSession.svelte";
   import WriterToolbar from "./WriterToolbar.svelte";
   import DriveSheet from "./DriveSheet.svelte";
-  import ImageFrame from "./ImageFrame.svelte";
-  import { formatForPath, saveFilters } from "./formats";
-  import { chooseProvider, providerExplanation, providerLabel, type EditingMode, type WordLayout } from "./layoutSource";
-  import { printPdfFile } from "./print";
-  import { documentFonts, missingFonts } from "./fonts";
-  import { compatibilityIssues, compatibilityLine } from "./strictMode";
+  import ObjectFrame from "./ObjectFrame.svelte";
+  import CompatibilitySheet from "./CompatibilitySheet.svelte";
+  import { exportPdf as exportDocumentPdf, printDocument, saveAs as saveDocumentAs } from "./fileActions";
+  import { chooseProvider, providerExplanation, providerLabel, type EditingMode } from "./layoutSource";
+  import { LayoutCheck } from "./layoutCheck.svelte";
+  import { arriveAt, followMoves } from "./neighbours";
+  import { WritingGoals } from "./writingGoals.svelte";
+  import { documentFonts, fontsInText, missingFonts, replaceFont } from "./fonts";
+  import { openFontLibrary, setDocumentFonts, useFontInDocument } from "../fonts";
+  import { compatibilityLine, switchQuestion } from "./strictMode";
 
   interface Props {
     opened: api.WriterOpened;
@@ -70,6 +73,13 @@
   let windowWidth = $state(window.innerWidth);
   let remPx = $state(remInPixels());
   let rulerSentences = $state<string[]>([]);
+  let objectFrame = $state<ObjectFrame>();
+  /** words a search result asked Find to start with */
+  let findQuery = $state("");
+  /** Focus Mode: the page alone, the controls faded until pointed at */
+  let focusMode = $state(false);
+  // the goals line in the status bar (writingGoals.svelte.ts)
+  const goals = new WritingGoals();
 
   const unit = unitForLocale(navigator.language || "en-US");
   const editor = $derived(session.editor);
@@ -114,72 +124,66 @@
 
   // --- saving
 
-  async function saveAs(): Promise<boolean> {
-    const path = await api.chooseSaveLocationWithFilters(session.path, saveFilters(session.kind));
-    if (!path) return false;
-    const format = formatForPath(path);
-    if (!format) {
-      onError("Letters can’t save in that format yet. Choose Word, OpenDocument, PDF, Web Page or Plain Text.");
-      return false;
-    }
-    if (format.id === "pdf") {
-      await session.exportPdf(path);
-      return true;
-    }
-    if (format.becomes === "copy") {
-      try {
-        await api.exportCopy(session.id, session.model(), path);
-        session.say(`Saved a copy as ${format.label}. ${format.note} This document is still “${session.name}”.`);
-        return true;
-      } catch (problem) {
-        onError(errorText(problem));
-        return false;
-      }
-    }
-    if (/\.odt$/i.test(path)) {
-      const losses = await api.odtLosses(session.id, session.model()).catch(() => null);
-      if (losses) {
-        odtQuestion = { text: losses, path };
-        return false;
-      }
-    }
-    return session.save(path);
-  }
-
-  async function exportPdf() {
-    const path = await api.chooseSaveLocationFor(api.withExtension(session.path, "pdf"), "pdf");
-    if (path) await session.exportPdf(path);
-  }
-
-  /** prints Word's (or LibreOffice's) print-ready pdf, or the surface itself without them. */
-  async function print() {
-    session.say("Preparing to print…");
-    try {
-      const pdf = await api.printReadyPdf(session.id, session.model());
-      session.notice = null;
-      await printPdfFile(pdf);
-    } catch {
-      session.say("Word and LibreOffice aren’t installed, so Letters prints its own pages. Page breaks may differ from Word’s.");
-      setTimeout(() => window.print(), 300);
-    }
-  }
+  // Save As, Export as PDF and Print (fileActions.ts)
+  const saveAs = () => saveDocumentAs(session, onError, (question) => (odtQuestion = question));
+  const exportPdf = () => exportDocumentPdf(session);
+  const print = () => printDocument(session);
 
   // --- editing mode and where page breaks come from (layoutSource.ts)
 
   let wordInstalled = $state(false);
-  let wordLayoutResult = $state<WordLayout | null>(null);
-  let layoutChecking = $state(false);
-  let layoutCheckedAt = $state<number | null>(null);
+  // Word's and the engine's lines and pages (layoutCheck.svelte.ts)
+  const layoutCheck = new LayoutCheck(() => session);
   let clock = $state(Date.now());
+  let compatibilityOpen = $state(false);
   const mode = $derived<EditingMode>(session.settings.mode === "strict" ? "strict" : "free");
-  const provider = $derived(chooseProvider(mode, { word: wordInstalled, engine: false }));
-  const missing = $derived(missingFonts(documentFonts(meta)));
-  const issues = $derived(mode === "strict" ? compatibilityIssues(session.model(), opened.kind === "odt") : []);
+  const provider = $derived(chooseProvider(mode, { word: wordInstalled, engine: !!session.settings.layoutEngine }));
+  const usedFonts = $derived(documentFonts(meta, fontsInText(editor.doc)));
+  const missing = $derived(missingFonts(usedFonts));
 
-  function setMode(next: EditingMode) {
-    session.setSettings({ ...session.settings, mode: next });
-    session.announce(next === "strict" ? "Strict Word mode: only what Word keeps exactly." : "Free mode: every Letters feature.");
+  // fonts the library has but the system doesn't (added, bundled, downloaded)
+  // are loaded into the editor from their bytes, so the text shows in them
+  let loadedFonts = new Set<string>();
+  $effect(() => {
+    for (const name of usedFonts) {
+      if (loadedFonts.has(name)) continue;
+      loadedFonts.add(name);
+      useFontInDocument(name).catch(() => false);
+    }
+  });
+
+  /** Replace in the Missing Fonts view: one font for another everywhere, one undo step. */
+  function onReplaceFont(from: string, to: string) {
+    session.run((state) => replaceFont(state, from, to), false);
+    session.announce(`“${from}” replaced with “${to}”.`);
   }
+
+  // what Ctrl T's Font Library knows about this document
+  $effect(() => setDocumentFonts({ documentFonts: usedFonts, onReplaceFont }));
+  const issues = $derived(mode === "strict" ? session.issues : []);
+
+  /** Strict Word mode asks first to fix whatever isn't Word-exact. */
+  async function setMode(next: EditingMode) {
+    session.setSettings({ ...session.settings, mode: next });
+    if (next === "free") {
+      session.announce("Free mode: every Letters feature.");
+      return;
+    }
+    const found = await session.checkCompatibility();
+    const question = switchQuestion(found);
+    if (!question) session.announce("Strict Word mode: only what Word keeps exactly.");
+    else if (found.some((issue) => issue.fix)) session.say(question, { label: "Fix All", run: () => session.fixIssues() });
+    else session.say(question, { label: "Show", run: () => (compatibilityOpen = true) });
+  }
+
+  // what Word would show differently is asked again when edits settle (Strict mode)
+  let compatibilityTimer: ReturnType<typeof setTimeout> | null = null;
+  $effect(() => {
+    void editor.doc;
+    if (mode !== "strict") return;
+    if (compatibilityTimer) clearTimeout(compatibilityTimer);
+    compatibilityTimer = setTimeout(() => session.checkCompatibility(), 800);
+  });
 
   onMount(() => {
     api.wordAvailable().then((available) => (wordInstalled = available));
@@ -187,25 +191,24 @@
     return () => clearInterval(ticking);
   });
 
-  // in Strict Word mode Word lays the document out after edits settle, in the background
-  let layoutTimer: ReturnType<typeof setTimeout> | null = null;
-  let laidOutDoc: unknown = null;
+  // Word (Strict mode) or the engine (a setting) lay the document out in the
+  // background after edits pause; typing never waits for them
   $effect(() => {
-    const doc = editor.doc;
-    if (provider !== "word" || doc === laidOutDoc) return;
-    if (layoutTimer) clearTimeout(layoutTimer);
-    layoutTimer = setTimeout(async () => {
-      laidOutDoc = doc;
-      layoutChecking = true;
-      try {
-        wordLayoutResult = await api.wordLayout(session.id, session.model());
-        layoutCheckedAt = Date.now();
-      } catch {
-        wordLayoutResult = null;
-      } finally {
-        layoutChecking = false;
-      }
-    }, 2500);
+    layoutCheck.documentChanged(provider, editor.doc);
+  });
+
+  async function checkLayout() {
+    if (provider === "word") await layoutCheck.checkWord();
+  }
+
+  const shownLayout = $derived(layoutCheck.shown(provider));
+  const layoutStale = $derived(layoutCheck.isStale(provider, editor.doc));
+
+  // read by the end-to-end scripts (nothing in the app reads it)
+  onMount(() => {
+    const handle = { session: () => session, wordLayout: () => layoutCheck.word, lastCheckMs: () => layoutCheck.lastCheckMs };
+    (window as unknown as { __lettersWriter?: typeof handle }).__lettersWriter = handle;
+    if (opened.convertedFrom) session.say(`Opened “${opened.convertedFrom}” by converting it. Save writes “${session.name}” beside it and leaves the original as it was.`);
   });
 
   // the session turns screen sizes into page sizes with the zoom
@@ -255,10 +258,36 @@
         setMode(mode === "strict" ? "free" : "strict");
         break;
       case "image-inline":
-        session.setImageFree(false);
+        session.objects.setImageFree(false);
         break;
       case "image-free":
-        session.setImageFree(true);
+        session.objects.setImageFree(true);
+        break;
+      case "image-crop":
+        objectFrame?.toggleCrop();
+        break;
+      case "text-block-split":
+        session.objects.split();
+        break;
+      case "text-block-make":
+        session.objects.make();
+        break;
+      case "text-block-dissolve":
+        session.objects.dissolve();
+        break;
+      case "object-front":
+        session.objects.stack(true);
+        break;
+      case "object-back":
+        session.objects.stack(false);
+        break;
+      case "toggle-focus-mode":
+        focusMode = !focusMode;
+        session.announce(focusMode ? "Focus Mode: only the page. Press Ctrl Shift Enter to leave." : "Focus Mode is off.");
+        break;
+      case "check-layout":
+        if (provider === "word") checkLayout();
+        else session.say(wordInstalled ? "Turn on Strict Word mode to have Word lay out the pages." : "Word isn’t installed on this computer, so pages are estimated.");
         break;
     }
   }
@@ -271,8 +300,14 @@
     }
   }
 
+  /** Save: a document converted from another file has no place of its own yet, so it asks where. */
+  async function saveNow(): Promise<boolean> {
+    if (session.neverSaved) return saveAs();
+    return session.save();
+  }
+
   function onToolbarCommand(command: WriterCommand | "save" | "save-as" | "undo" | "redo") {
-    if (command === "save") session.save();
+    if (command === "save") saveNow();
     else if (command === "save-as") saveAs();
     else if (command === "undo") session.undo();
     else if (command === "redo") session.redo();
@@ -281,7 +316,7 @@
 
   $effect(() => {
     const handlers: [Command, () => void][] = [
-      ["save", () => session.dirty && session.save()],
+      ["save", () => session.dirty && saveNow()],
       ["save-as", saveAs],
       ["undo", () => session.undo()],
       ["redo", () => session.redo()],
@@ -321,13 +356,19 @@
 
   onMount(() => {
     writerGuard.mayLeave = (ask) =>
-      writerMayLeave({ name: session.name, dirty: session.dirty }, ask, () => session.save(), () => session.discardRecovery());
+      writerMayLeave({ name: session.name, dirty: session.dirty }, ask, saveNow, () => session.discardRecovery());
     window.addEventListener("keydown", onKeyCapture, true);
     const timer = setInterval(() => session.autosave(), 5000);
     tick().then(fitWidth);
+    // a search hit lands on its paragraph with its words in Find; a moved file is followed (neighbours.ts)
+    tick().then(() => arriveAt(session, (query) => ((findQuery = query), openFind(false))));
+    const stopFollowing = followMoves(session);
+    goals.start(session.path, () => session.counts().words);
     return () => {
       clearInterval(timer);
       window.removeEventListener("keydown", onKeyCapture, true);
+      stopFollowing();
+      goals.stop(session.counts().words);
     };
   });
 
@@ -410,16 +451,17 @@
 
 <svelte:window bind:innerWidth={windowWidth} onkeydown={onWindowKey} onresize={() => (remPx = remInPixels())} />
 
-<div class="writer">
+<div class="writer" class:focus-mode={focusMode}>
   {#if showSidebar}
     <WriterOutline {session} />
   {/if}
 
-  <div class="stage">
+  <!-- the document and its controls are the page's main landmark -->
+  <main class="stage" aria-label={session.name}>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="scroller" bind:clientWidth={viewportWidth} style:padding-top="{toolbarHeight}px" onclick={onPageClick}>
       {#key session.id}
-        {#if rulerShown && current}
+        {#if rulerShown && current && !focusMode}
           <div class="ruler-band">
             <Ruler
               frame={{ pageWidth: page.width, marginLeft: page.margins.left, marginRight: page.margins.right }}
@@ -432,8 +474,8 @@
             />
           </div>
         {/if}
-        <PageSurface {session} {zoom} {nightMode} layout={{ provider, word: wordLayoutResult }} bind:pageCount bind:currentPage />
-        <ImageFrame {session} {zoom} {unit} />
+        <PageSurface {session} {zoom} {nightMode} {focusMode} layout={{ provider, word: shownLayout }} bind:pageCount bind:currentPage />
+        <ObjectFrame bind:this={objectFrame} {session} {zoom} {unit} />
       {/key}
     </div>
 
@@ -470,80 +512,13 @@
     />
 
     {#if findOpen}
-      <FindReplace bind:this={findBar} {session} top={toolbarHeight} bind:replaceShown onClose={closeFind} />
+      <FindReplace bind:this={findBar} {session} top={toolbarHeight} initialQuery={findQuery} bind:replaceShown onClose={closeFind} />
     {/if}
 
-    {#if recovery}
-      <div class="glass notice" role="alertdialog" aria-label="Recovered version" style:top="{toolbarHeight + 8}px">
-        <span>Letters kept unsaved changes to this document from {new Date(recovery.savedAt * 1000).toLocaleString()}, when it last closed without saving.</span>
-        <button class="button" onclick={dismissRecovery}>Discard</button>
-        <button class="button primary" onclick={recover}>Recover</button>
-      </div>
-    {:else if session.notice}
-      <div class="glass notice" role="status" style:top="{toolbarHeight + 8}px">
-        <span>{session.notice.text}</span>
-        {#if session.notice.action}
-          <button
-            class="button"
-            onclick={() => {
-              const action = session.notice?.action;
-              session.notice = null;
-              action?.run();
-            }}>{session.notice.action.label}</button
-          >
-        {/if}
-        <button class="button" onclick={() => (session.notice = null)}>OK</button>
-      </div>
-    {/if}
-
-    {#if odtQuestion}
-      <div class="glass notice" role="alertdialog" aria-label="Save as OpenDocument" style:top="{toolbarHeight + 8}px">
-        <span>{odtQuestion.text}</span>
-        <button class="button" onclick={() => (odtQuestion = null)}>Cancel</button>
-        <button
-          class="button primary"
-          onclick={() => {
-            const path = odtQuestion?.path;
-            odtQuestion = null;
-            if (path) session.save(path);
-          }}>Save as ODT</button
-        >
-      </div>
-    {/if}
-
-    {#if prompt === "link"}
-      <PromptSheet
-        title={tools.wInsertLink.label.replace("…", "")}
-        label="Web address"
-        placeholder="https://"
-        value={String(edit.markData(editor, editor.schema.marks.link)?.href ?? "")}
-        confirm="Add Link"
-        top={toolbarHeight}
-        secondary={edit.markActive(editor, editor.schema.marks.link) ? { label: "Remove Link", run: () => ((prompt = null), session.setLink(null)) } : undefined}
-        onSubmit={(href) => {
-          prompt = null;
-          session.setLink(/^[a-z]+:/i.test(href) ? href : `https://${href}`);
-          session.view?.focus();
-        }}
-        onCancel={() => ((prompt = null), session.view?.focus())}
-      />
-    {:else if prompt === "comment"}
-      <PromptSheet
-        title="Comment"
-        label="Your comment on the selected text"
-        confirm="Add Comment"
-        multiline
-        top={toolbarHeight}
-        onSubmit={(text) => {
-          prompt = null;
-          session.addComment(text);
-          session.view?.focus();
-        }}
-        onCancel={() => ((prompt = null), session.view?.focus())}
-      />
-    {/if}
+    <WriterNotices {session} top={toolbarHeight} {recovery} onRecover={recover} onDismissRecovery={dismissRecovery} bind:odtQuestion bind:prompt />
 
     <StatusBar
+      goals={goals.line(counts.words)}
       words={counts.words}
       selected={counts.selected}
       page={currentPage}
@@ -555,19 +530,26 @@
       onTracking={() => openInspector("review")}
       {mode}
       onMode={setMode}
-      layoutLabel={providerLabel(provider, { checking: layoutChecking, checkedAt: layoutCheckedAt, wordInstalled }, clock)}
-      layoutTooltip={providerExplanation(provider, wordInstalled)}
+      layoutLabel={providerLabel(provider, { checking: layoutCheck.checking, checkedAt: layoutCheck.checkedAt, wordInstalled, stale: layoutStale, failed: layoutCheck.failed }, clock)}
+      layoutTooltip={`${providerExplanation(provider, wordInstalled)}${layoutCheck.lastCheckMs !== null ? ` The last check took ${(layoutCheck.lastCheckMs / 1000).toFixed(1)} s.` : ""}`}
+      onCheckLayout={provider === "word" && !layoutCheck.checking ? checkLayout : null}
       compatibility={mode === "strict" ? compatibilityLine(issues) : null}
-      compatibilityDetails={issues.map((issue) => issue.what).join("; ")}
+      compatibilityDetails={issues.map((issue) => issue.message).join(" ")}
+      onShowCompatibility={() => (compatibilityOpen = true)}
       missingFonts={missing}
+      onShowMissingFonts={() => openFontLibrary({ documentFonts: usedFonts, onReplaceFont, view: "missing" })}
     />
+
+    {#if compatibilityOpen}
+      <CompatibilitySheet {session} top={toolbarHeight} onClose={() => (compatibilityOpen = false)} />
+    {/if}
 
     {#if driveOpen}
       <DriveSheet {session} top={toolbarHeight} onClose={() => (driveOpen = false)} />
     {/if}
 
     <div class="visually-hidden" role="status" aria-live="polite">{session.announcement}</div>
-  </div>
+  </main>
 
   {#if showInspector}
     <WriterInspector
@@ -596,6 +578,19 @@
     height: 100%;
   }
 
+  /* Focus Mode: the controls fade until the pointer comes near them */
+  .writer.focus-mode :global(.toolbar),
+  .writer.focus-mode :global(footer.status) {
+    opacity: 0.15;
+    transition: opacity 0.2s var(--ease);
+  }
+
+  .writer.focus-mode :global(.toolbar:hover),
+  .writer.focus-mode :global(footer.status:hover),
+  .writer.focus-mode :global(.toolbar:focus-within) {
+    opacity: 1;
+  }
+
   .stage {
     position: relative;
     flex: 1;
@@ -619,31 +614,6 @@
     z-index: 1;
     min-width: max-content;
     background: linear-gradient(to bottom, var(--desk) 70%, transparent);
-  }
-
-  .notice {
-    position: absolute;
-    left: 50%;
-    z-index: 3;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem;
-    max-width: min(36rem, calc(100% - 2rem));
-    padding: 0.625rem 0.625rem 0.625rem 1rem;
-    transform: translateX(-50%);
-    animation: arrive 0.2s var(--ease);
-  }
-
-  .notice span {
-    flex: 1 1 14rem;
-  }
-
-  @keyframes arrive {
-    from {
-      opacity: 0;
-      transform: translate(-50%, -0.5rem);
-    }
   }
 
   /* printing (the export fallback) shows only the pages */

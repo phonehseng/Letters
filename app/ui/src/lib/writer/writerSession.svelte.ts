@@ -14,6 +14,8 @@ import { EditorView } from "prosemirror-view";
 import { modelToDoc, docToModel } from "./convert";
 import { countDocument, countRange } from "./counts";
 import * as edit from "./editing";
+import * as tableEdits from "./tableEdits";
+import * as pictures from "./pictureCommands";
 import { findAll, replaceAll, replaceMatch, type FindOptions, type Match } from "./find";
 import { imageView, MediaCache } from "./images";
 import type { Block, DocumentMeta, DocumentModel, TabStop } from "./model";
@@ -25,7 +27,10 @@ import { acceptChange, listChanges, nextChangeId, rejectChange, resolveAll, trac
 import { defaultTypingSettings, toggleForFeature, type Replacement } from "./typing";
 import type { WriterCommand } from "./writerCommands";
 import * as api from "./writerApi";
-import { freeOffsets } from "./resize";
+import { WriterObjects } from "./writerObjects.svelte";
+import { copySelection, pasteFromClipboard } from "./clipboardBridge";
+import { saveFormatsFrom, type SaveFormat } from "./formats";
+import { applyEngineModel } from "./textBlocks";
 
 type Data = Record<string, unknown>;
 
@@ -49,6 +54,13 @@ export class WriterSession {
   author = "";
   view: EditorView | null = null;
   media: MediaCache;
+  /** text blocks, free pictures, stacking and aligning (writerObjects.svelte.ts) */
+  objects: WriterObjects;
+  /**
+   * a document converted from another file (a pdf, rtf or .doc) has never
+   * been saved: it counts as changed, and its first Save asks where to put it
+   */
+  neverSaved = $state(false);
   private changeIds = 1000;
   private autosaved: EditorState["doc"] | null = null;
   private onError: (message: string) => void;
@@ -60,12 +72,15 @@ export class WriterSession {
     this.kind = opened.kind;
     this.onError = onError;
     this.media = new MediaCache((mediaId) => api.mediaUrl(this.id, mediaId));
+    this.objects = new WriterObjects(this);
     this.editor = PmEditorState.create({ doc: modelToDoc(opened.model), plugins: this.plugins() });
     this.saved = this.editor.doc;
     this.autosaved = this.editor.doc;
+    this.neverSaved = !!opened.convertedFrom;
     this.tracking = !!opened.model.settings?.trackChanges;
     this.changeIds = nextChangeId(this.editor.doc);
     api.writerSettings().then((settings) => (this.settings = settings)).catch(() => {});
+    this.checkCompatibility();
     api.authorName().then((name) => (this.author = name || "Letters"));
   }
 
@@ -86,12 +101,12 @@ export class WriterSession {
       nodeViews: { image: imageView(this.media) },
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": `${this.name}, document text`, class: "w-doc w-body" },
       dispatchTransaction: (tr) => this.dispatch(tr),
-      // pictures pasted or dropped from other apps and from the system
-      handlePaste: (_view, event) => {
-        const files = [...(event.clipboardData?.files ?? [])].filter((file) => file.type.startsWith("image/"));
-        if (files.length === 0) return false;
-        this.insertPictureFiles(files);
-        return true;
+      // pictures and html with pictures pasted from other apps go through
+      // the engine (clipboardBridge.ts); copying a picture carries its bytes
+      handlePaste: (_view, event) => pasteFromClipboard(this, event),
+      handleDOMEvents: {
+        copy: (_view, event) => copySelection(this, event as ClipboardEvent, false),
+        cut: (_view, event) => copySelection(this, event as ClipboardEvent, true),
       },
       handleDrop: (view, event) => {
         const files = [...(event.dataTransfer?.files ?? [])].filter((file) => file.type.startsWith("image/"));
@@ -140,7 +155,19 @@ export class WriterSession {
   }
 
   get dirty(): boolean {
+    if (this.neverSaved) return true;
     return !!this.saved && !this.editor.doc.eq(this.saved);
+  }
+
+  /** the file moved (organising in Recents or a folder): Save writes to the new place. */
+  async followMove(to: string) {
+    try {
+      const followed = await api.followMove(this.id, to);
+      this.path = followed.path;
+      this.name = followed.name;
+    } catch (problem) {
+      this.onError(errorText(problem));
+    }
   }
 
   get meta(): DocumentMeta {
@@ -160,6 +187,11 @@ export class WriterSession {
   }
 
   // --- messages
+
+  /** a problem from the shell, said in its own words. */
+  fail(problem: unknown) {
+    this.onError(errorText(problem));
+  }
 
   say(text: string, action?: WriterNotice["action"]) {
     this.notice = { text, action };
@@ -190,6 +222,7 @@ export class WriterSession {
       this.kind = saved.kind;
       this.saved = doc;
       this.autosaved = doc;
+      this.neverSaved = false;
       this.announce(`Saved “${saved.name}”.`);
       return true;
     } catch (problem) {
@@ -308,23 +341,9 @@ export class WriterSession {
     this.announce(`Table with ${rows} rows and ${columns} columns added.`);
   }
 
-  async insertPicture() {
-    const path = await api.choosePicture();
-    if (!path) return;
-    try {
-      const { mediaId, url } = await api.addPicture(this.id, path);
-      this.media.remember(mediaId, url);
-      const size = await pictureSize(url);
-      // at most the text width, keeping the proportions
-      const section = this.meta.sections?.[0];
-      const textWidth = section ? section.page.width - section.page.margins.left - section.page.margins.right : 9360;
-      const width = Math.min(size.width * 15, textWidth);
-      const height = Math.round((width * size.height) / Math.max(1, size.width));
-      this.run((s) => edit.insertImage(s, mediaId, Math.round(width), height, path.split(/[\\/]/).pop() ?? "Picture"));
-      this.say("Picture added. Add alt text for it in Format, so screen readers can describe it.");
-    } catch (problem) {
-      this.onError(errorText(problem));
-    }
+  /** Insert › Picture… (pictureCommands.ts) */
+  insertPicture() {
+    return pictures.insertPicture(this);
   }
 
   insertFootnote(): boolean {
@@ -367,59 +386,18 @@ export class WriterSession {
     return isInTable(this.editor);
   }
 
-  /** changes the table around the cursor: its data, or each selected cell's. */
+  /** changes the table around the cursor (tableEdits.ts). */
   updateTable(change: (data: Data) => Data) {
-    this.run((state) => {
-      const here = state.selection.$from;
-      for (let depth = here.depth; depth > 0; depth -= 1) {
-        const node = here.node(depth);
-        if (node.type.name === "table") return state.tr.setNodeMarkup(here.before(depth), undefined, { data: change({ ...(node.attrs.data as Data) }) });
-      }
-      return null;
-    });
+    this.run((state) => tableEdits.updateTable(state, change));
   }
 
+  /** changes each selected cell, or the cell with the cursor. */
   updateCells(change: (data: Data) => Data) {
-    this.run((state) => {
-      const tr = state.tr;
-      const { from, to } = state.selection;
-      let touched = false;
-      state.doc.nodesBetween(Math.min(from, to), Math.max(from, to), (node, pos) => {
-        if (node.type.name === "table_cell" || node.type.name === "table_header") {
-          tr.setNodeMarkup(pos, undefined, { ...node.attrs, data: change({ ...(node.attrs.data as Data) }) });
-          touched = true;
-          return false;
-        }
-        return true;
-      });
-      if (!touched) {
-        const here = state.selection.$from;
-        for (let depth = here.depth; depth > 0; depth -= 1) {
-          const node = here.node(depth);
-          if (node.type.name === "table_cell" || node.type.name === "table_header") {
-            tr.setNodeMarkup(here.before(depth), undefined, { ...node.attrs, data: change({ ...(node.attrs.data as Data) }) });
-            break;
-          }
-        }
-      }
-      return tr;
-    });
+    this.run((state) => tableEdits.updateCells(state, change));
   }
 
   setHeaderRow(on: boolean) {
-    this.run((state) => {
-      const here = state.selection.$from;
-      for (let depth = here.depth; depth > 0; depth -= 1) {
-        const node = here.node(depth);
-        if (node.type.name === "table") {
-          const row = node.firstChild;
-          if (!row) return null;
-          const rowPos = here.before(depth) + 1;
-          return state.tr.setNodeMarkup(rowPos, undefined, { data: { ...(row.attrs.data as Data), header: on } });
-        }
-      }
-      return null;
-    });
+    this.run((state) => tableEdits.setHeaderRow(state, on));
   }
 
   // --- the outline
@@ -580,48 +558,9 @@ export class WriterSession {
   /** the zoom the page is shown at, set by the screen (for screen to page sizes) */
   zoom = 1;
 
-  /** the selected picture's element on screen, and its paragraph's. */
-  private imageElements(): { image: HTMLElement; paragraph: HTMLElement } | null {
-    const selected = edit.selectedImage(this.editor);
-    const dom = selected && (this.view?.nodeDOM(selected.pos) as HTMLElement | null);
-    const image = dom?.querySelector("img") ?? null;
-    const paragraph = dom?.closest("p, h1, h2, h3, h4, h5, h6, td") as HTMLElement | null;
-    return image && paragraph ? { image, paragraph } : null;
-  }
-
-  /**
-   * In Line or Free, without the picture jumping: Free starts exactly where
-   * the picture is; In Line puts it at the text position nearest its middle.
-   */
-  setImageFree(free: boolean) {
-    const view = this.view;
-    const selected = edit.selectedImage(this.editor);
-    const elements = this.imageElements();
-    if (!view || !selected || !elements) {
-      this.say("Click a picture first.");
-      return;
-    }
-    const data = selected.node.attrs.data as Data;
-    const isFree = (data.placement as { type?: string } | undefined)?.type === "floating";
-    if (free === isFree) return;
-    const box = elements.image.getBoundingClientRect();
-    if (free) {
-      const offsets = freeOffsets(box, elements.paragraph.getBoundingClientRect(), this.zoom / 15);
-      const placement = { type: "floating", horizontal: { relativeTo: "column", offset: offsets.horizontal }, vertical: { relativeTo: "paragraph", offset: offsets.vertical }, wrap: "square" };
-      this.run((s) => edit.updateImage(s, (current) => ({ ...current, placement })), false);
-      this.announce("The picture is free: drag it anywhere on the page.");
-      return;
-    }
-    // the text position nearest the picture's middle
-    const target = view.posAtCoords({ left: box.left + box.width / 2, top: box.top + box.height / 2 });
-    this.run((state) => {
-      const tr = state.tr.delete(selected.pos, selected.pos + selected.node.nodeSize);
-      const at = target ? tr.mapping.map(target.pos) : selected.pos;
-      const inline = selected.node.type.create({ data: { ...data, placement: { type: "inline" } } }, null, selected.node.marks);
-      tr.insert(at, inline);
-      return tr.setSelection(NodeSelection.create(tr.doc, at));
-    }, false);
-    this.announce("The picture is in line with the text.");
+  /** In Line or Free for pictures the engine can't reach (pictureCommands.ts) */
+  setImageFreeLocally(free: boolean) {
+    pictures.setImageFreeLocally(this, free);
   }
 
   /** one undo step for a whole resize or move. */
@@ -629,31 +568,59 @@ export class WriterSession {
     this.run((s) => edit.updateImage(s, change), false);
   }
 
-  /** pastes or drops picture files at the cursor (or at `pos`). */
-  async insertPictureFiles(files: File[], pos?: number) {
-    for (const file of files.filter((each) => each.type.startsWith("image/"))) {
-      try {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        let binary = "";
-        for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        const name = file.name || `Pasted picture.${file.type.split("/")[1] ?? "png"}`;
-        const { mediaId, url } = await api.addPictureData(this.id, name, btoa(binary));
-        this.media.remember(mediaId, url);
-        const size = await pictureSize(url);
-        const section = this.meta.sections?.[0];
-        const textWidth = section ? section.page.width - section.page.margins.left - section.page.margins.right : 9360;
-        const width = Math.min(size.width * 15, textWidth);
-        const height = Math.round((width * size.height) / Math.max(1, size.width));
-        this.run((state) => {
-          const tr = pos !== undefined ? state.tr.setSelection(TextSelection.near(state.doc.resolve(Math.min(pos, state.doc.content.size)))) : state.tr;
-          const image = state.schema.nodes.image.create({ data: { mediaId, width: Math.round(width), height, name, placement: { type: "inline" } } });
-          return tr.replaceSelectionWith(image);
-        });
-        this.announce("Picture pasted.");
-      } catch (problem) {
-        this.onError(errorText(problem));
-      }
+  /** pasted or dropped picture files, through the engine (pictureCommands.ts) */
+  insertPictureFiles(files: File[], pos?: number) {
+    return pictures.insertPictureFiles(this, files, pos);
+  }
+
+  /** selects a whole node (a text block clicked by its edge), for Delete, Copy and the frame. */
+  selectNode(pos: number) {
+    this.run((state) => (state.doc.nodeAt(pos) ? state.tr.setSelection(NodeSelection.create(state.doc, pos)) : null));
+  }
+
+  // --- strict word mode and formats: the engine's tables (strictMode.ts, formats.ts)
+
+  /** the engine's feature table (compat::feature_matrix) */
+  features = $state.raw<api.EngineFeature[]>([]);
+  /** what Word would show differently in this document (compat::word_compatibility) */
+  issues = $state.raw<api.CompatibilityIssue[]>([]);
+  /** the formats Save As offers (formats::format_capabilities) */
+  formats = $state.raw<SaveFormat[]>([]);
+
+  /** asks the engine what Word would show differently now; returns the issues. */
+  async checkCompatibility(): Promise<api.CompatibilityIssue[]> {
+    try {
+      const answer = await api.compatibility(this.id, this.model());
+      this.features = answer.features;
+      this.issues = answer.report.issues;
+    } catch {
+      // the line keeps its last answer; the next edit asks again
     }
+    return this.issues;
+  }
+
+  /** the engine's fixes for Strict Word mode: every one, or issue number `only`. one undo step. */
+  async fixIssues(only?: number) {
+    try {
+      const answer = await api.objectCommand(this.id, this.model(), only === undefined ? { op: "applyFixes" } : { op: "applyFixes", only });
+      this.run((state) => applyEngineModel(state, answer.model), false);
+      const left = await this.checkCompatibility();
+      this.announce(left.length ? `Fixed. ${left.length} thing${left.length === 1 ? "" : "s"} Letters can’t change ${left.length === 1 ? "is" : "are"} left.` : "Fixed. Everything here opens the same in Word.");
+    } catch (problem) {
+      this.onError(errorText(problem));
+    }
+  }
+
+  /** the engine's format table, asked once. */
+  async loadFormats(): Promise<SaveFormat[]> {
+    if (this.formats.length) return this.formats;
+    try {
+      const answer = await api.saveFormats();
+      this.formats = saveFormatsFrom(answer.formats, answer.word || answer.libreOffice);
+    } catch (problem) {
+      this.onError(errorText(problem));
+    }
+    return this.formats;
   }
 
   // --- counts and status
@@ -687,13 +654,4 @@ export class WriterSession {
 export function errorText(problem: unknown): string {
   if (typeof problem === "object" && problem && "message" in problem) return String((problem as { message: unknown }).message);
   return String(problem);
-}
-
-function pictureSize(url: string): Promise<{ width: number; height: number }> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => resolve({ width: image.naturalWidth || 200, height: image.naturalHeight || 150 });
-    image.onerror = () => resolve({ width: 200, height: 150 });
-    image.src = url;
-  });
 }

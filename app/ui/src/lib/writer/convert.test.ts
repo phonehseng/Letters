@@ -1,9 +1,14 @@
+// model -> editor -> model must give back exactly what the engine read, for every kind of content
 import { describe, expect, it } from "vitest";
 import { blocksToDoc, docToBlocks, docToModel, modelToDoc } from "./convert";
 import type { Block, DocumentModel } from "./model";
 import { emptyModel } from "./model";
 import wordMade from "./fixtures/word-made.json";
 import wordMadeAsOdt from "./fixtures/word-made-as-odt.json";
+// made through the engine's bridge: Word saved our file with text blocks as
+// its own docx, LibreOffice saved it as its own odt (shell-core objects.rs)
+import wordMadeTextBoxes from "./fixtures/word-made-text-boxes.json";
+import libreOfficeMadeTextBoxes from "./fixtures/libreoffice-made-text-boxes.json";
 
 /** model -> editor -> model, checking the editor document is valid on the way. */
 function roundTrip(model: DocumentModel): DocumentModel {
@@ -25,6 +30,36 @@ describe("model to editor and back", () => {
 
   it("gives back the same document after a trip through odt", () => {
     expect(roundTrip(wordMadeAsOdt as unknown as DocumentModel)).toEqual(wordMadeAsOdt);
+  });
+
+  it("gives back text blocks in a file Word made, as text blocks the editor can type in", () => {
+    const model = wordMadeTextBoxes as unknown as DocumentModel;
+    expect(roundTrip(model)).toEqual(model);
+    const doc = modelToDoc(model);
+    const boxes: string[] = [];
+    doc.forEach((node) => node.type.name === "text_box" && boxes.push(node.textContent));
+    expect(boxes).toEqual(["Inside the boxIts second paragraph", "Hello world, ", "split into two blocks."]);
+  });
+
+  it("gives back text blocks in a file LibreOffice made", () => {
+    const model = libreOfficeMadeTextBoxes as unknown as DocumentModel;
+    expect(roundTrip(model)).toEqual(model);
+    let boxes = 0;
+    modelToDoc(model).descendants((node) => {
+      if (node.type.name === "text_box") boxes += 1;
+      return true;
+    });
+    expect(boxes).toBeGreaterThan(0);
+  });
+
+  it("keeps the object kinds the engine is adding (shapes, groups, positioned tables) untouched until the editor knows them", () => {
+    const model = withBlocks([
+      { type: "shape", preset: "rect", horizontal: { relativeTo: "page", offset: 10 }, vertical: { relativeTo: "page", offset: 20 }, width: 100, height: 50, fill: "FF0000", blocks: [{ type: "paragraph", content: [text("in a shape")] }] },
+      { type: "group", children: [{ type: "shape", preset: "ellipse", width: 1, height: 1 }], rotation: 30 },
+      { type: "paragraph", content: [{ type: "shape", preset: "line", width: 5, height: 0 } as never, text("after")] },
+      { type: "textBox", horizontal: { relativeTo: "page", offset: 0 }, vertical: { relativeTo: "page", offset: 0 }, width: 10, height: 10, wrap: "square", next: "box2", blocks: [] },
+    ]);
+    expect(roundTrip(model)).toEqual(model);
   });
 
   it("keeps an empty body empty", () => {

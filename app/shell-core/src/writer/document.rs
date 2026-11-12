@@ -30,14 +30,33 @@ pub struct WriterDocument {
 
 impl WriterDocument {
     /// reads a .docx or .odt file. the format comes from the content, so a
-    /// misnamed file still opens.
+    /// misnamed file still opens. rich text and old .doc files open through
+    /// the engine's `open_any` (a .doc needs word or libreoffice); they are
+    /// then saved as a .docx beside the original, which stays untouched.
     pub fn open(path: &Path) -> Result<(WriterDocument, Document), OfficeError> {
         let bytes = std::fs::read(path).map_err(|error| {
             OfficeError::NotAPackage(format!("the file can’t be read: {error}"))
         })?;
-        let kind = letters_office::detect(&bytes)?;
-        let document = letters_office::open(&bytes)?;
-        Ok((WriterDocument::from_document(path, kind, &document), document))
+        match letters_office::detect(&bytes) {
+            Ok(kind) => {
+                let document = letters_office::open(&bytes)?;
+                Ok((
+                    WriterDocument::from_document(path, kind, &document),
+                    document,
+                ))
+            }
+            Err(OfficeError::LegacyWordFormat) | Err(OfficeError::NotAPackage(_))
+                if is_converted_kind(path, &bytes) =>
+            {
+                let document = letters_office::formats::open_any(&bytes)?;
+                let docx = path.with_extension("docx");
+                Ok((
+                    WriterDocument::from_document(&docx, FileKind::Docx, &document),
+                    document,
+                ))
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// keeps what the ui does not get from a document already read.
@@ -87,8 +106,9 @@ impl WriterDocument {
     /// turns the json the ui sent back into a whole document, with the
     /// carry and the picture bytes put back.
     pub fn merge(&self, ui_model: Value) -> Result<Document, String> {
-        let mut document: Document = serde_json::from_value(ui_model)
-            .map_err(|error| format!("The document couldn’t be read back from the editor. ({error})"))?;
+        let mut document: Document = serde_json::from_value(ui_model).map_err(|error| {
+            format!("The document couldn’t be read back from the editor. ({error})")
+        })?;
         document.carry = self.carry.clone();
         document.media = self.media_to_keep(&document);
         document.normalize_sections();
@@ -110,6 +130,27 @@ impl WriterDocument {
         self.path = path.to_path_buf();
         self.kind = kind;
     }
+
+    /// the document's pictures, bytes included.
+    pub fn media(&self) -> &[MediaItem] {
+        &self.media
+    }
+
+    /// a picture made elsewhere (pasted html, the clipboard) joins the
+    /// document. ids are the caller's job: they must not clash.
+    pub fn adopt(&mut self, item: MediaItem) {
+        self.media.retain(|existing| existing.id != item.id);
+        self.media.push(item);
+    }
+}
+
+/// rich text or an old word file, which the writer opens by converting.
+pub fn is_converted_kind(path: &Path, bytes: &[u8]) -> bool {
+    let extension = path
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    bytes.starts_with(b"{\\rtf") || extension == "rtf" || extension == "doc"
 }
 
 /// base64 from the ui (a pasted picture).
@@ -202,7 +243,8 @@ mod tests {
             source_path: Some("word/media/image1.png".into()),
             bytes: vec![1, 2, 3],
         });
-        let mut writer = WriterDocument::from_document(Path::new("a.docx"), FileKind::Docx, &document);
+        let mut writer =
+            WriterDocument::from_document(Path::new("a.docx"), FileKind::Docx, &document);
         let kept = writer.add_picture("photo.jpg", vec![9]);
         let dropped = writer.add_picture("other.png", vec![8]);
         assert_ne!(kept, dropped);
@@ -220,15 +262,20 @@ mod tests {
 
     #[test]
     fn pictures_are_shown_as_data_addresses() {
-        let mut writer = WriterDocument::from_document(Path::new("a.odt"), FileKind::Odt, &Document::new());
+        let mut writer =
+            WriterDocument::from_document(Path::new("a.odt"), FileKind::Odt, &Document::new());
         let id = writer.add_picture("dot.png", vec![0x89, b'P']);
-        assert_eq!(writer.media_data_url(&id).unwrap(), "data:image/png;base64,iVA=");
+        assert_eq!(
+            writer.media_data_url(&id).unwrap(),
+            "data:image/png;base64,iVA="
+        );
         assert!(writer.media_data_url("missing").is_none());
     }
 
     #[test]
     fn a_model_the_shell_cannot_read_is_refused_with_a_sentence() {
-        let writer = WriterDocument::from_document(Path::new("a.docx"), FileKind::Docx, &Document::new());
+        let writer =
+            WriterDocument::from_document(Path::new("a.docx"), FileKind::Docx, &Document::new());
         let error = writer.merge(serde_json::json!({"blocks": 3})).unwrap_err();
         assert!(error.starts_with("The document couldn’t be read back"));
     }

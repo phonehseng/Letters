@@ -19,6 +19,7 @@ import { ListCounter } from "./numbering";
 import { schema } from "./schema";
 import { findStyle, resolvedParagraphProps } from "./styles";
 import { onType, type Replacement, type TypingSettings } from "./typing";
+import { objectLayer } from "./objectLayer";
 
 const PRESERVED = new Set(["preserved_block", "preserved_inline", "preserved_run"]);
 
@@ -289,8 +290,10 @@ export function findHighlights(): Plugin {
 // --- page boundaries (placed by the surface after it measures, see pagination.ts)
 
 export interface PageGap {
-  /** the top-level block the new page starts with */
+  /** the top-level block the new page starts with (or that it starts inside) */
   blockIndex: number;
+  /** when the page starts inside a paragraph: the position of the line it starts with */
+  pos?: number;
   /** css pixels at 100%: the rest of the page above, its bottom margin, the desk and the next top margin */
   height: number;
   /** the number of the page that starts here */
@@ -320,9 +323,10 @@ export function pageBoundaries(): Plugin {
         return DecorationSet.create(
           state.doc,
           gaps
-            .filter((gap) => gap.blockIndex < positions.length)
+            .filter((gap) => gap.blockIndex < positions.length && (gap.pos === undefined || gap.pos <= state.doc.content.size))
             .map((gap) =>
-              Decoration.widget(positions[gap.blockIndex], gap.render, { side: -1, key: `page-${gap.pageNumber}-${Math.round(gap.height)}`, ignoreSelection: true }),
+              // a page that starts inside a paragraph gets its gap inside it, before that line
+              Decoration.widget(gap.pos ?? positions[gap.blockIndex], gap.render, { side: -1, key: `page-${gap.pageNumber}-${Math.round(gap.height)}-${gap.pos ?? "b"}`, ignoreSelection: true }),
             ),
         );
       },
@@ -418,6 +422,7 @@ export function writerPlugins(options: { typing: () => TypingSettings; onAutocor
     listLabels(),
     findHighlights(),
     pageBoundaries(),
+    objectLayer(),
     preservedGuard(options.onPreservedRefused),
     uniqueParagraphIds(),
   ];

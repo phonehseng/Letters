@@ -10,6 +10,7 @@
   import { tooltipFor } from "../tools";
   import { formatForPath, saveFilters } from "./formats";
   import * as api from "./writerApi";
+  import { openSettingsWindow } from "../settings/settingsApi";
   import { errorText, type WriterSession } from "./writerSession.svelte";
 
   interface Props {
@@ -25,7 +26,6 @@
   let folder = $state("Letters");
   let busy = $state(false);
   let done = $state<{ name: string; link?: string } | null>(null);
-  let clientId = $state("");
 
   const stem = $derived(session.name.replace(/\.[^.]+$/, ""));
   const what = $derived(format === "pdf" ? `a PDF of “${stem}”` : format === "googleDoc" ? `“${stem}” as a Google Doc (sent as a Word file, which Google converts)` : `“${stem}.docx”`);
@@ -34,16 +34,14 @@
     status = await api.driveStatus().catch(() => ({ folders: [], canUpload: false, signedIn: false }));
   }
 
-  onMount(() => {
-    clientId = session.settings.driveClientId ?? "";
-    refresh();
-  });
+  onMount(refresh);
 
   async function saveToFolder(base: string) {
     const suggested = `${base}\\${folder ? `${folder}\\` : ""}${session.name}`;
-    const path = await api.chooseSaveLocationWithFilters(suggested, saveFilters(session.kind));
+    const formats = await session.loadFormats();
+    const path = await api.chooseSaveLocationWithFilters(suggested, saveFilters(session.kind, formats));
     if (!path) return;
-    const chosen = formatForPath(path);
+    const chosen = formatForPath(path, formats);
     try {
       if (chosen?.id === "pdf") await session.exportPdf(path);
       else await api.exportCopy(session.id, session.model(), path);
@@ -54,9 +52,13 @@
     }
   }
 
-  async function saveClientId() {
-    await session.setSettings({ ...session.settings, driveClientId: clientId.trim() });
-    await refresh();
+  /** the Settings window, where the client id is entered; Check Again picks it up. */
+  async function openAccounts() {
+    try {
+      await openSettingsWindow();
+    } catch (problem) {
+      session.say(errorText(problem));
+    }
   }
 
   async function signIn() {
@@ -102,13 +104,10 @@
     <section>
       <h3>Upload Directly</h3>
       {#if !status.canUpload}
-        <p class="hint">Direct upload needs a Google OAuth client ID for desktop apps, which the app’s publisher registers with Google (see Google’s guide, “OAuth 2.0 for iOS & Desktop Apps”). Letters doesn’t ship one.</p>
-        <label class="setting">
-          <span class="caption">Client ID</span>
-          <input class="field" bind:value={clientId} placeholder="….apps.googleusercontent.com" />
-        </label>
-        <button class="button" disabled={!clientId.trim()} onclick={saveClientId}>Use This Client ID</button>
-        <button class="link" onclick={() => api.openLink("https://developers.google.com/identity/protocols/oauth2/native-app")}>How to get a client ID</button>
+        <p class="hint">Direct upload needs a Google OAuth client ID for desktop apps, which the app’s publisher registers with Google. Letters doesn’t ship one; it goes in Settings › Accounts.</p>
+        <!-- the client id lives in the Settings window (lib/settings AccountsSection), so it is set in one place -->
+        <button class="button" onclick={openAccounts}>Open Settings…</button>
+        <button class="button" onclick={refresh}>Check Again</button>
       {:else if !status.signedIn}
         <p class="hint">Sign in with Google in your browser. Letters asks only to see files it creates itself.</p>
         <button class="button primary" disabled={busy} onclick={signIn}>{busy ? "Waiting for the browser…" : "Sign In with Google…"}</button>
@@ -184,14 +183,6 @@
 
   .spacer {
     flex: 1;
-  }
-
-  .link {
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--accent-label);
-    font: var(--subheadline);
   }
 
   .segments {

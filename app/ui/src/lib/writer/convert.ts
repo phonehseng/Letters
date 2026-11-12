@@ -55,6 +55,8 @@ function blockToNode(block: Block): PmNode {
       return schema.node("section_break", { data });
     case "preserved":
       return schema.node("preserved_block", { data });
+    case "textBox":
+      return containerToNode("text_box", data);
     default:
       return schema.node("preserved_block", { data: { [RAW]: block } });
   }
@@ -78,6 +80,21 @@ function cellToNode(cell: Data): PmNode {
     { colspan: cell.colSpan ?? 1, rowspan: cell.rowSpan ?? 1, data },
     blocks.length ? blocksToNodes(blocks) : [emptyParagraph()],
   );
+}
+
+/** a block that holds blocks (a text block): its own fields in data, its blocks as children. */
+function containerToNode(name: string, data: Data): PmNode {
+  const blocks = (data.blocks as Block[]) ?? [];
+  const own = without(data, "blocks");
+  if (blocks.length === 0) own[NO_BLOCKS] = true;
+  return schema.node(name, { data: own }, blocks.length ? blocksToNodes(blocks) : [emptyParagraph()]);
+}
+
+function containerToModel(type: string, node: PmNode): Block {
+  const data = node.attrs.data as Data;
+  const blocks = nodesToBlocks(node.content);
+  const keepEmpty = data[NO_BLOCKS] && blocks.length === 1 && isEmptyParagraph(blocks[0]);
+  return { type, ...without(data, NO_BLOCKS), blocks: keepEmpty ? [] : blocks };
 }
 
 const INLINE_NODES: Record<string, string> = {
@@ -149,6 +166,8 @@ function nodeToBlock(node: PmNode): Block {
       return { type: "pageBreak", ...data };
     case "section_break":
       return { type: "sectionBreak", ...data };
+    case "text_box":
+      return containerToModel("textBox", node);
     default:
       if (data[RAW]) return data[RAW] as Block;
       return { type: "preserved", ...data };

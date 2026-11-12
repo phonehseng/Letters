@@ -11,6 +11,7 @@ export const TAB_TOOLS: Record<WriterTab, ToolName[]> = {
     "wStyle", "wFont", "wFontSize", "wBold", "wItalic", "wUnderline", "wStrike", "wSuperscript", "wSubscript", "wTextColour", "wHighlight",
     "wAlignment", "wLineSpacing", "wSpacing", "wIndents", "wLists", "wTableRows", "wTableColumns", "wTableMerge", "wTableBorders",
     "wTableShading", "wTableHeaderRow", "wImageSize", "wImageAltText", "wImageWrap",
+    "wImageCrop", "wImageRotate", "wImageLock", "wImageOriginalSize", "wImageFitWidth", "wBringToFront", "wSendToBack", "wAlignObjects",
   ],
   document: ["wPageSize", "wOrientation", "wMargins", "wColumns", "wHeaderFooter", "wPresetMla", "wPresetApa", "wAutocorrect", "wCapitalize", "wSmartQuotes", "wSpellcheck"],
   review: ["wTrackChanges", "wAcceptChange", "wRejectChange", "wComments", "wInsertComment"],
@@ -22,6 +23,7 @@ export const SCREEN_TOOLS: ToolName[] = [
   "wInsertPageNumber", "wInsertComment", "find", "wFindReplace", "wReplace", "wReplaceAll", "view", "wRuler", "wRulerFirstLine", "wRulerLeft",
   "wRulerRight", "wTabStops", "nightMode", "newWindow", "wFormat", "explain", "wStatusWords", "wStatusPages", "wStatusLanguage", "wAutocorrect",
   "wCapitalize", "wSmartQuotes", "wSpellcheck", "wTrackChanges", "wPreserved", "wStrictMode", "wLayoutSource", "wPrint", "wSaveToDrive", "wImageInline", "wImageFree", "wSaveFormats",
+  "wTextBlockSplit", "wTextBlockMake", "wTextBlockDissolve", "wImageCrop", "wImageRotate", "wBringToFront", "wSendToBack", "wAlignObjects", "wCompatibility", "wCheckLayout",
 ];
 
 export function writerExplainGroups(openTab: WriterTab | null): { title: string; names: ToolName[] }[] {

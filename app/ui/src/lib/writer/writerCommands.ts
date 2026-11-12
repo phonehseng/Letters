@@ -39,6 +39,16 @@ export const WRITER_COMMANDS = [
   "toggle-strict-mode",
   "image-inline",
   "image-free",
+  // second round: text blocks, arranging objects, cropping, word's layout
+  "text-block-split",
+  "text-block-make",
+  "text-block-dissolve",
+  "object-front",
+  "object-back",
+  "image-crop",
+  "check-layout",
+  // the long-form work's Focus Mode (lib/longform)
+  "toggle-focus-mode",
 ] as const;
 
 export type WriterCommand = (typeof WRITER_COMMANDS)[number];

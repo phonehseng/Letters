@@ -6,21 +6,29 @@
 // it struck through and keeps it in the document until accepted. this is
 // how the office model stores them, so they save back as real revisions.
 //
-// what is tracked: typing, deleting and pasting text and inline items.
-// what is not (said in CHANGELOG.md): formatting changes, and splitting or
-// joining paragraphs, which the model has no tracked form for.
+// what is tracked: typing, deleting and pasting text and inline items,
+// formatting changes (word's w:rPrChange) and splitting and joining
+// paragraphs (a revision of the paragraph mark); see trackedFormatting.ts.
 
 import { Fragment, Slice, type Mark as PmMark, type Node as PmNode, type Schema } from "prosemirror-model";
 import { TextSelection, type EditorState, type Transaction } from "prosemirror-state";
-import { ReplaceStep } from "prosemirror-transform";
+import { AddMarkStep, RemoveMarkStep, ReplaceStep } from "prosemirror-transform";
+import { markToModel, markToPm } from "./convert";
+import type { ParagraphData } from "./model";
+import { FORMATTING, formatChangeOf, formatChangeXml, paragraphRevision, withParagraphRevision, withoutParagraphRevision } from "./trackedFormatting";
 
-export type ChangeKind = "insertion" | "deletion";
+export type ChangeKind = "insertion" | "deletion" | "formatting" | "paragraphInsertion" | "paragraphDeletion";
 
 export interface ChangeData {
   kind: ChangeKind;
   id: string;
   author: string;
   date?: string;
+}
+
+/** what a change is, in the Review list: "Added", "Formatted", "New Paragraph"... */
+export function changeLabel(kind: ChangeKind): string {
+  return { insertion: "Added", deletion: "Deleted", formatting: "Formatted", paragraphInsertion: "New Paragraph", paragraphDeletion: "Joined" }[kind];
 }
 
 export interface TrackedChange extends ChangeData {
@@ -39,7 +47,24 @@ const dataOf = (mark: PmMark) => mark.attrs.data as ChangeData;
 export function listChanges(doc: PmNode): TrackedChange[] {
   const changes: TrackedChange[] = [];
   doc.descendants((node, pos) => {
+    if (node.isTextblock) {
+      const revision = paragraphRevision(node.attrs.data as ParagraphData);
+      // the paragraph mark sits at the end of the paragraph
+      const end = pos + node.nodeSize - 1;
+      if (revision) changes.push({ kind: revision.kind === "ins" ? "paragraphInsertion" : "paragraphDeletion", id: revision.id, author: revision.author, date: revision.date, from: end, to: end, text: "¶" });
+      return true;
+    }
     if (!node.isInline) return true;
+    for (const mark of node.marks) {
+      const format = formatChangeOf(mark);
+      if (!format) continue;
+      const last = changes[changes.length - 1];
+      const text = node.isText ? (node.text ?? "") : "";
+      if (last && last.kind === "formatting" && last.id === format.id && last.to === pos) {
+        last.to = pos + node.nodeSize;
+        last.text += text;
+      } else changes.push({ kind: "formatting", id: format.id, author: format.author, date: format.date, from: pos, to: pos + node.nodeSize, text });
+    }
     for (const mark of changeMarks(node)) {
       const data = dataOf(mark);
       const last = [...changes].reverse().find((change) => change.kind === data.kind && change.id === data.id && change.author === data.author);
@@ -75,14 +100,63 @@ function dropMark(tr: Transaction, change: TrackedChange): void {
 
 /** accepting keeps an insertion (its mark goes) and removes a deletion's text. */
 export function acceptChange(tr: Transaction, change: TrackedChange): void {
-  if (change.kind === "insertion") dropMark(tr, change);
+  if (change.kind === "formatting") resolveFormatting(tr, change, true);
+  else if (change.kind === "paragraphInsertion") clearParagraphRevision(tr, change);
+  else if (change.kind === "paragraphDeletion") joinAtMark(tr, change);
+  else if (change.kind === "insertion") dropMark(tr, change);
   else tr.delete(change.from, change.to);
 }
 
 /** rejecting removes an insertion's text and keeps a deletion's text. */
 export function rejectChange(tr: Transaction, change: TrackedChange): void {
-  if (change.kind === "insertion") tr.delete(change.from, change.to);
+  if (change.kind === "formatting") resolveFormatting(tr, change, false);
+  else if (change.kind === "paragraphInsertion") joinAtMark(tr, change);
+  else if (change.kind === "paragraphDeletion") clearParagraphRevision(tr, change);
+  else if (change.kind === "insertion") tr.delete(change.from, change.to);
   else dropMark(tr, change);
+}
+
+/** the paragraph whose mark is at `pos` (the end of its content). */
+function paragraphAt(tr: Transaction, pos: number): { node: PmNode; pos: number } | null {
+  const $pos = tr.doc.resolve(pos);
+  if (!$pos.parent.isTextblock) return null;
+  return { node: $pos.parent, pos: $pos.before() };
+}
+
+function clearParagraphRevision(tr: Transaction, change: TrackedChange) {
+  const paragraph = paragraphAt(tr, change.from);
+  if (!paragraph) return;
+  tr.setNodeMarkup(paragraph.pos, undefined, { ...paragraph.node.attrs, data: withoutParagraphRevision(paragraph.node.attrs.data as ParagraphData) });
+}
+
+/** the paragraph mark goes: this paragraph and the next become one. */
+function joinAtMark(tr: Transaction, change: TrackedChange) {
+  clearParagraphRevision(tr, change);
+  const paragraph = paragraphAt(tr, change.from);
+  if (!paragraph) return;
+  const after = paragraph.pos + paragraph.node.nodeSize;
+  const $after = tr.doc.resolve(after);
+  if ($after.nodeAfter?.isTextblock) tr.join(after);
+}
+
+/** accepting keeps the new formatting; rejecting puts the old formatting back. either way the record goes. */
+function resolveFormatting(tr: Transaction, change: TrackedChange, accept: boolean) {
+  tr.doc.nodesBetween(change.from, change.to, (node, pos) => {
+    if (!node.isInline) return true;
+    const mark = node.marks.find((each) => formatChangeOf(each)?.id === change.id);
+    if (!mark) return false;
+    const from = Math.max(pos, change.from);
+    const to = Math.min(pos + node.nodeSize, change.to);
+    const old = formatChangeOf(mark)!.oldMarks;
+    if (node.isText) {
+      tr.removeMark(from, to, mark);
+      if (!accept) {
+        for (const each of node.marks) if (FORMATTING.has(each.type.name)) tr.removeMark(from, to, each);
+        for (const each of old) tr.addMark(from, to, markToPm(each));
+      }
+    }
+    return false;
+  });
 }
 
 /** accepts or rejects every change, last first so positions stay valid. */
@@ -184,6 +258,11 @@ function markDeleted(tr: Transaction, from: number, to: number, tracker: Tracker
  */
 export function trackTransaction(state: EditorState, tr: Transaction, tracker: Tracker): Transaction | null {
   if (!tr.docChanged || tr.getMeta("history$") || tr.getMeta("untracked")) return null;
+  if (tr.steps.every((step) => step instanceof AddMarkStep || step instanceof RemoveMarkStep)) return trackFormatting(state, tr, tracker);
+  const split = trackSplit(state, tr, tracker);
+  if (split) return split;
+  const join = trackJoin(state, tr, tracker);
+  if (join) return join;
   if (!tr.steps.every((step) => step instanceof ReplaceStep)) return null;
   const tracked = state.tr;
   // maps a position in the original transaction's document (after the
@@ -218,4 +297,64 @@ export function trackTransaction(state: EditorState, tr: Transaction, tracker: T
   if (tr.storedMarks) tracked.setStoredMarks(tr.storedMarks);
   tracked.setMeta("tracked", true);
   return tracked;
+}
+
+// --- formatting changes and paragraph splits and joins (trackedFormatting.ts)
+
+/** formatting while Track Changes is on: the text keeps its old formatting as word's w:rPrChange. */
+export function trackFormatting(state: EditorState, tr: Transaction, tracker: Tracker): Transaction | null {
+  const schema = state.schema;
+  const revision = { id: tracker.nextId(), author: tracker.author, date: tracker.date };
+  const ranges: [number, number][] = [];
+  for (const step of tr.steps) {
+    const { from, to, mark } = step as unknown as { from: number; to: number; mark: PmMark };
+    if (FORMATTING.has(mark.type.name)) ranges.push([from, to]);
+  }
+  if (ranges.length === 0) return null;
+  for (const [from, to] of ranges) {
+    state.doc.nodesBetween(from, to, (node, pos) => {
+      if (!node.isText) return true;
+      if (node.marks.some((mark) => formatChangeOf(mark))) return false;
+      const old = node.marks.map(markToModel).filter((mark) => FORMATTING.has(mark.type));
+      const record = schema.marks.preserved.create({ data: { xml: formatChangeXml(revision, old) } });
+      tr.addMark(Math.max(from, pos), Math.min(to, pos + node.nodeSize), record);
+      return false;
+    });
+  }
+  return tr.setMeta("tracked", true);
+}
+
+/** Enter while tracking: the new paragraph mark is recorded as inserted. */
+function trackSplit(state: EditorState, tr: Transaction, tracker: Tracker): Transaction | null {
+  if (tr.steps.length !== 1 || !(tr.steps[0] instanceof ReplaceStep)) return null;
+  const { from, to, slice } = tr.steps[0] as unknown as { from: number; to: number; slice: Slice };
+  if (from !== to || slice.openStart < 1 || slice.content.childCount !== 2 || slice.content.textBetween(0, slice.content.size) !== "") return null;
+  const $at = tr.doc.resolve(from);
+  if (!$at.parent.isTextblock) return null;
+  const pos = $at.before();
+  tr.setNodeMarkup(pos, undefined, { ...$at.parent.attrs, data: withParagraphRevision($at.parent.attrs.data as ParagraphData, "ins", { id: tracker.nextId(), author: tracker.author, date: tracker.date }) });
+  void state;
+  return tr.setMeta("tracked", true);
+}
+
+/** Backspace or Delete across a paragraph boundary while tracking: the mark is recorded as deleted, the paragraphs stay. */
+function trackJoin(state: EditorState, tr: Transaction, tracker: Tracker): Transaction | null {
+  if (tr.steps.length !== 1 || !(tr.steps[0] instanceof ReplaceStep)) return null;
+  const { from, to, slice } = tr.steps[0] as unknown as { from: number; to: number; slice: Slice };
+  if (slice.size !== 0 || to <= from) return null;
+  const $from = state.doc.resolve(from);
+  const $to = state.doc.resolve(to);
+  if (!$from.parent.isTextblock || !$to.parent.isTextblock || $from.parent === $to.parent) return null;
+  if ($from.parentOffset !== $from.parent.content.size || $to.parentOffset !== 0) return null;
+  const data = $from.parent.attrs.data as ParagraphData;
+  const revision = paragraphRevision(data);
+  // joining back a split you made yourself is not a change to anyone's text
+  if (revision?.kind === "ins" && revision.author === tracker.author) {
+    tr.setNodeMarkup($from.before(), undefined, { ...$from.parent.attrs, data: withoutParagraphRevision(data) });
+    return tr;
+  }
+  if (revision?.kind === "del") return state.tr.setSelection(TextSelection.create(state.doc, from));
+  const tracked = state.tr.setNodeMarkup($from.before(), undefined, { ...$from.parent.attrs, data: withParagraphRevision(data, "del", { id: tracker.nextId(), author: tracker.author, date: tracker.date }) });
+  tracked.setSelection(TextSelection.create(tracked.doc, from));
+  return tracked.setMeta("tracked", true);
 }

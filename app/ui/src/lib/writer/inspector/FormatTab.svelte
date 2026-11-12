@@ -4,7 +4,8 @@
   // a table; size, alt text and wrap when a picture is selected.
   import { tools, tooltipFor } from "../../tools";
   import * as edit from "../editing";
-  import { documentFonts, fontChoices, loadSystemFonts, SAFE_FONTS } from "../fonts";
+  import { documentFonts, fontChoices, SAFE_FONTS } from "../fonts";
+  import { FontPicker } from "../../fonts";
   import { imageWrap, placementFor } from "../editing";
   import { schema } from "../schema";
   import { choiceForParagraph, documentStyleChoices, STANDARD_STYLES, styleHeadingLevel } from "../styles";
@@ -137,13 +138,16 @@
     </label>
     <label class="setting">
       <span class="caption" title={tooltipFor("wImageWrap")}>{tools.wImageWrap.label}</span>
-      <select class="field" value={imageWrap(imageData)} onchange={(event) => {
+      <select class="field" value={imageWrap(imageData)} onchange={async (event) => {
         const wrap = event.currentTarget.value;
-        run((s) => edit.updateImage(s, (data) => ({ ...data, placement: placementFor(wrap, (data.placement ?? {}) as Record<string, unknown>) })));
+        const wasInline = imageWrap(imageData) === "inline";
+        // in line and free go through the engine, so the picture doesn't jump
+        if (wrap === "inline" || wasInline) await session.objects.setImageFree(wrap !== "inline");
+        if (wrap !== "inline") run((s) => edit.updateImage(s, (data) => ({ ...data, placement: placementFor(wrap, (data.placement ?? {}) as Record<string, unknown>) })));
       }}>
         <option value="inline">In Line with Text</option>
         <option value="square">Square: text around its box</option>
-        <option value="tight">Tight: text close around it</option>
+        <option value="tight">Tight: drawn as square here; Word wraps closer</option>
         <option value="topAndBottom">Top and Bottom</option>
         <option value="behindText">Behind Text</option>
         <option value="inFrontOfText">In Front of Text</option>
@@ -161,17 +165,14 @@
       </select>
     </label>
     <div class="setting-row">
-      <label class="setting wide">
+      <div class="setting wide">
         <span class="caption" title={tooltipFor("wFont")}>{tools.wFont.label}</span>
-        <select class="field" value={String(fontData?.name ?? "")} onfocus={() => loadSystemFonts().then((names) => (systemFonts = names))} onchange={(event) => setFont(event.currentTarget.value)}>
-          <option value="">The Style’s Font</option>
-          {#each fonts as group (group.group)}
-            <optgroup label={group.group}>
-              {#each group.names as name (name)}<option value={name} style:font-family={name}>{name}</option>{/each}
-            </optgroup>
-          {/each}
-        </select>
-      </label>
+        <!-- the font library's picker (lib/fonts); a font it adds or downloads is already loaded into the editor -->
+        <FontPicker value={String(fontData?.name ?? "")} documentFonts={fonts.find((group) => group.group === "In This Document")?.names ?? []} label={tools.wFont.label} onChange={(family) => setFont(family)} />
+        {#if fontData?.name}
+          <button class="link" title="Use the paragraph style’s font again" onclick={() => setFont("")}>Use the Style’s Font</button>
+        {/if}
+      </div>
       <label class="setting">
         <span class="caption" title={tooltipFor("wFontSize")}>{tools.wFontSize.label} (pt)</span>
         <input class="field" type="number" min="1" max="999" step="0.5" value={sizeData ? Number(sizeData.halfPoints) / 2 : ""} placeholder="Style" onchange={(event) => setSize(Number(event.currentTarget.value))} />
@@ -323,6 +324,16 @@
 {/if}
 
 <style>
+  .link {
+    align-self: flex-start;
+    margin-top: 0.25rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent-label);
+    font: var(--footnote);
+  }
+
   section {
     display: flex;
     flex-direction: column;

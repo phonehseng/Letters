@@ -65,10 +65,19 @@ fn read_request(stream: &TcpStream) -> Option<Request> {
             headers.push((name.trim().to_ascii_lowercase(), value.trim().to_string()));
         }
     }
-    let length = headers.iter().find(|(name, _)| name == "content-length").and_then(|(_, value)| value.parse().ok()).unwrap_or(0);
+    let length = headers
+        .iter()
+        .find(|(name, _)| name == "content-length")
+        .and_then(|(_, value)| value.parse().ok())
+        .unwrap_or(0);
     let mut body = vec![0; length];
     reader.read_exact(&mut body).ok()?;
-    Some(Request { method, target, headers, body })
+    Some(Request {
+        method,
+        target,
+        headers,
+        body,
+    })
 }
 
 fn reply(mut stream: TcpStream, status: &str, json: &str) {
@@ -76,35 +85,75 @@ fn reply(mut stream: TcpStream, status: &str, json: &str) {
 }
 
 fn serve(stream: TcpStream, memory: &Mutex<Memory>) {
-    let Some(request) = read_request(&stream) else { return };
+    let Some(request) = read_request(&stream) else {
+        return;
+    };
     let path = request.target.split('?').next().unwrap_or("").to_string();
-    let header = |name: &str| request.headers.iter().find(|(key, _)| key == name).map(|(_, value)| value.clone()).unwrap_or_default();
+    let header = |name: &str| {
+        request
+            .headers
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.clone())
+            .unwrap_or_default()
+    };
     match (request.method.as_str(), path.as_str()) {
         ("POST", "/token") => {
             let form = parse_query(&String::from_utf8_lossy(&request.body));
-            let field = |name: &str| form.iter().find(|(key, _)| key == name).map(|(_, value)| value.clone()).unwrap_or_default();
+            let field = |name: &str| {
+                form.iter()
+                    .find(|(key, _)| key == name)
+                    .map(|(_, value)| value.clone())
+                    .unwrap_or_default()
+            };
             match field("grant_type").as_str() {
-                "authorization_code" if field("code") == format!("code-for-{}", challenge(&field("code_verifier"))) => {
-                    memory.lock().unwrap().log.push("token authorization_code ok".into());
-                    reply(stream, "200 OK", r#"{"access_token":"access-1","refresh_token":"refresh-1","expires_in":3600}"#);
+                "authorization_code"
+                    if field("code")
+                        == format!("code-for-{}", challenge(&field("code_verifier"))) =>
+                {
+                    memory
+                        .lock()
+                        .unwrap()
+                        .log
+                        .push("token authorization_code ok".into());
+                    reply(
+                        stream,
+                        "200 OK",
+                        r#"{"access_token":"access-1","refresh_token":"refresh-1","expires_in":3600}"#,
+                    );
                 }
                 "refresh_token" if field("refresh_token") == "refresh-1" => {
-                    memory.lock().unwrap().log.push("token refresh_token ok".into());
-                    reply(stream, "200 OK", r#"{"access_token":"access-refreshed","expires_in":3600}"#);
+                    memory
+                        .lock()
+                        .unwrap()
+                        .log
+                        .push("token refresh_token ok".into());
+                    reply(
+                        stream,
+                        "200 OK",
+                        r#"{"access_token":"access-refreshed","expires_in":3600}"#,
+                    );
                 }
                 _ => reply(stream, "400 Bad Request", r#"{"error":"invalid_grant"}"#),
             }
         }
-        _ if !header("authorization").starts_with("Bearer access-") => reply(stream, "401 Unauthorized", "{}"),
+        _ if !header("authorization").starts_with("Bearer access-") => {
+            reply(stream, "401 Unauthorized", "{}")
+        }
         ("GET", "/drive/v3/files") => {
             let folder = memory.lock().unwrap().folder.clone();
             match folder {
-                Some(name) => reply(stream, "200 OK", &format!(r#"{{"files":[{{"id":"folder-1","name":"{name}"}}]}}"#)),
+                Some(name) => reply(
+                    stream,
+                    "200 OK",
+                    &format!(r#"{{"files":[{{"id":"folder-1","name":"{name}"}}]}}"#),
+                ),
                 None => reply(stream, "200 OK", r#"{"files":[]}"#),
             }
         }
         ("POST", "/drive/v3/files") => {
-            let metadata: serde_json::Value = serde_json::from_slice(&request.body).unwrap_or_default();
+            let metadata: serde_json::Value =
+                serde_json::from_slice(&request.body).unwrap_or_default();
             let name = metadata["name"].as_str().unwrap_or("").to_string();
             let mut memory = memory.lock().unwrap();
             memory.log.push(format!("create folder {name}"));
@@ -112,16 +161,45 @@ fn serve(stream: TcpStream, memory: &Mutex<Memory>) {
             reply(stream, "200 OK", r#"{"id":"folder-1","name":"folder"}"#);
         }
         ("POST", "/upload/drive/v3/files") => {
-            let boundary = header("content-type").split("boundary=").nth(1).unwrap_or("").to_string();
+            let boundary = header("content-type")
+                .split("boundary=")
+                .nth(1)
+                .unwrap_or("")
+                .to_string();
             let body = String::from_utf8_lossy(&request.body).into_owned();
             let parts: Vec<&str> = body.split(&format!("--{boundary}")).collect();
-            let metadata: serde_json::Value = parts.get(1).and_then(|part| part.split("\r\n\r\n").nth(1)).and_then(|json| serde_json::from_str(json.trim()).ok()).unwrap_or_default();
-            let media = parts.get(2).and_then(|part| part.split_once("\r\n\r\n")).map(|(_, bytes)| bytes.trim_end_matches("\r\n").len()).unwrap_or(0);
+            let metadata: serde_json::Value = parts
+                .get(1)
+                .and_then(|part| part.split("\r\n\r\n").nth(1))
+                .and_then(|json| serde_json::from_str(json.trim()).ok())
+                .unwrap_or_default();
+            let media = parts
+                .get(2)
+                .and_then(|part| part.split_once("\r\n\r\n"))
+                .map(|(_, bytes)| bytes.trim_end_matches("\r\n").len())
+                .unwrap_or(0);
             let google_doc = metadata["mimeType"] == "application/vnd.google-apps.document";
-            let parents = metadata["parents"][0].as_str().unwrap_or("none").to_string();
-            memory.lock().unwrap().log.push(format!("upload {} parents={parents} bytes={media}", if google_doc { "google-doc" } else { "plain" }));
-            let link = if google_doc { "https://docs.google.com/document/d/file-1/edit" } else { "https://drive.google.com/file/d/file-1/view" };
-            reply(stream, "200 OK", &format!(r#"{{"id":"file-1","name":"{}","webViewLink":"{link}"}}"#, metadata["name"].as_str().unwrap_or("")));
+            let parents = metadata["parents"][0]
+                .as_str()
+                .unwrap_or("none")
+                .to_string();
+            memory.lock().unwrap().log.push(format!(
+                "upload {} parents={parents} bytes={media}",
+                if google_doc { "google-doc" } else { "plain" }
+            ));
+            let link = if google_doc {
+                "https://docs.google.com/document/d/file-1/edit"
+            } else {
+                "https://drive.google.com/file/d/file-1/view"
+            };
+            reply(
+                stream,
+                "200 OK",
+                &format!(
+                    r#"{{"id":"file-1","name":"{}","webViewLink":"{link}"}}"#,
+                    metadata["name"].as_str().unwrap_or("")
+                ),
+            );
         }
         _ => reply(stream, "404 Not Found", "{}"),
     }

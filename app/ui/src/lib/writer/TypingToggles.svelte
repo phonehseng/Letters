@@ -61,12 +61,15 @@
     gap: 0.25rem;
   }
 
+  /* 24px tall at least (WCAG's target size); an off switch keeps the
+     secondary colour, since the line through it already says it is off */
   .pill {
+    min-height: 1.5rem;
     padding: 0.125rem 0.5rem;
     border: 0;
     border-radius: 0.625rem;
     background: transparent;
-    color: var(--label-tertiary);
+    color: var(--label-secondary);
     font: var(--footnote);
     letter-spacing: var(--footnote-spacing);
     text-decoration: line-through;

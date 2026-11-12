@@ -4,6 +4,7 @@
   // Alt Right) promote and demote; drag a heading, or press Alt Up and
   // Alt Down, to move its whole section.
   import { tick } from "svelte";
+  import { countWords, sectionCounts, wordsLabel } from "../longform/manuscript";
   import { tools, tooltipFor } from "../tools";
   import { currentEntry, sectionBlocks, type OutlineEntry } from "./outline";
   import type { WriterSession } from "./writerSession.svelte";
@@ -16,6 +17,13 @@
 
   const entries = $derived(session.outline());
   const current = $derived(currentEntry(entries, session.editor.selection.from));
+  // each section's words beside its heading, as a manuscript navigator shows them (lib/longform)
+  const sectionWords = $derived.by(() => {
+    const blockWords: number[] = [];
+    session.editor.doc.forEach((block) => blockWords.push(countWords(block.textContent)));
+    const counts = sectionCounts(entries.map((entry) => ({ blockIndex: entry.index, level: entry.level, text: entry.text })), blockWords);
+    return new Map(counts.map((count) => [count.blockIndex, count.words]));
+  });
   let dragged = $state<OutlineEntry | null>(null);
   let dropBefore = $state<number | null>(null);
   let list = $state<HTMLOListElement>();
@@ -87,6 +95,7 @@
             onkeydown={(event) => onKey(entry, position, event)}
           >
             <span class="text">{entry.text || "Untitled heading"}</span>
+            <span class="words">{wordsLabel(sectionWords.get(entry.index) ?? 0)}</span>
           </button>
           <span class="shift">
             <button title={tooltipFor("wPromote")} aria-label={`Promote ${entry.text}`} disabled={entry.level === 1} onclick={() => session.shiftHeading(entry, "promote")}>‹</button>
@@ -104,6 +113,14 @@
 </aside>
 
 <style>
+  .words {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding-left: 0.375rem;
+    color: var(--label-secondary);
+    font: var(--footnote);
+  }
+
   .sidebar {
     flex-shrink: 0;
     width: 12rem;

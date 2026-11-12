@@ -12,11 +12,16 @@ use tauri::{AppHandle, Manager, State, Window};
 
 use crate::errors::CommandError;
 use crate::state::AppState;
+use letters_shell_core::writer::clipboard::{Copied, PastedHtml, PastedPicture};
 use letters_shell_core::writer::engine::{apply_preset, ruler_for, PresetDetails};
 use letters_shell_core::writer::export::ExportError;
-use letters_shell_core::writer::sessions::{ExportedPdf, OpenedWriter, SavedWriter, WriterSessions};
+use letters_shell_core::writer::objects::{Compatibility, ObjectAnswer, ObjectOp};
+use letters_shell_core::writer::sessions::{
+    ExportedPdf, OpenedWriter, SavedWriter, WriterSessions,
+};
 use letters_shell_core::writer::settings::{WriterSettings, WriterSettingsStore};
 use letters_shell_core::writer::thumbnail::save_generic_thumbnail;
+use letters_shell_core::writer::{format_capabilities, FormatCapability};
 
 /// the writer's part of the app's memory, managed beside `AppState`.
 pub struct WriterState {
@@ -71,9 +76,26 @@ pub fn writer_open(
     recovered: bool,
 ) -> Result<OpenedWriter, CommandError> {
     let path = PathBuf::from(path);
-    let opened = writer.sessions.open(window.label(), &path, recovered).map_err(failed)?;
+    let opened = writer
+        .sessions
+        .open(window.label(), &path, recovered)
+        .map_err(failed)?;
     remember(&state, &path);
     Ok(opened)
+}
+
+/// an open document's file moved: Save follows it (the ui hears the
+/// "document-moved" event and calls this).
+#[tauri::command(async)]
+pub fn writer_follow_move(
+    writer: State<WriterState>,
+    id: u64,
+    to: String,
+) -> Result<SavedWriter, CommandError> {
+    writer
+        .sessions
+        .follow_move(id, Path::new(&to))
+        .map_err(failed)
 }
 
 #[tauri::command(async)]
@@ -99,12 +121,20 @@ pub fn writer_save(
 }
 
 #[tauri::command(async)]
-pub fn writer_odt_losses(writer: State<WriterState>, id: u64, model: Value) -> Result<Option<String>, CommandError> {
+pub fn writer_odt_losses(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+) -> Result<Option<String>, CommandError> {
     writer.sessions.odt_losses(id, model).map_err(failed)
 }
 
 #[tauri::command(async)]
-pub fn writer_autosave(writer: State<WriterState>, id: u64, model: Value) -> Result<(), CommandError> {
+pub fn writer_autosave(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+) -> Result<(), CommandError> {
     writer.sessions.autosave(id, model).map_err(failed)
 }
 
@@ -114,7 +144,11 @@ pub fn writer_discard_recovery(writer: State<WriterState>, id: u64) -> Result<()
 }
 
 #[tauri::command(async)]
-pub fn writer_media(writer: State<WriterState>, id: u64, media_id: String) -> Result<Option<String>, CommandError> {
+pub fn writer_media(
+    writer: State<WriterState>,
+    id: u64,
+    media_id: String,
+) -> Result<Option<String>, CommandError> {
     writer.sessions.media(id, &media_id).map_err(failed)
 }
 
@@ -126,21 +160,41 @@ pub struct AddedPicture {
 }
 
 #[tauri::command(async)]
-pub fn writer_add_picture(writer: State<WriterState>, id: u64, path: String) -> Result<AddedPicture, CommandError> {
-    let (media_id, url) = writer.sessions.add_picture(id, Path::new(&path)).map_err(failed)?;
+pub fn writer_add_picture(
+    writer: State<WriterState>,
+    id: u64,
+    path: String,
+) -> Result<AddedPicture, CommandError> {
+    let (media_id, url) = writer
+        .sessions
+        .add_picture(id, Path::new(&path))
+        .map_err(failed)?;
     Ok(AddedPicture { media_id, url })
 }
 
 /// a pasted or dropped picture, as base64 bytes.
 #[tauri::command(async)]
-pub fn writer_add_picture_data(writer: State<WriterState>, id: u64, name: String, data: String) -> Result<AddedPicture, CommandError> {
-    let bytes = letters_shell_core::writer::document::decode_base64(&data).ok_or_else(|| failed("The picture couldn’t be read.".into()))?;
-    let (media_id, url) = writer.sessions.add_picture_bytes(id, &name, bytes).map_err(failed)?;
+pub fn writer_add_picture_data(
+    writer: State<WriterState>,
+    id: u64,
+    name: String,
+    data: String,
+) -> Result<AddedPicture, CommandError> {
+    let bytes = letters_shell_core::writer::document::decode_base64(&data)
+        .ok_or_else(|| failed("The picture couldn’t be read.".into()))?;
+    let (media_id, url) = writer
+        .sessions
+        .add_picture_bytes(id, &name, bytes)
+        .map_err(failed)?;
     Ok(AddedPicture { media_id, url })
 }
 
 #[tauri::command(async)]
-pub fn writer_apply_preset(model: Value, preset: String, details: PresetDetails) -> Result<Value, CommandError> {
+pub fn writer_apply_preset(
+    model: Value,
+    preset: String,
+    details: PresetDetails,
+) -> Result<Value, CommandError> {
     apply_preset(model, &preset, &details).map_err(failed)
 }
 
@@ -160,7 +214,12 @@ pub struct ExportAnswer {
 }
 
 #[tauri::command(async)]
-pub fn writer_export_pdf(writer: State<WriterState>, id: u64, model: Value, path: String) -> Result<ExportAnswer, CommandError> {
+pub fn writer_export_pdf(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+    path: String,
+) -> Result<ExportAnswer, CommandError> {
     match writer.sessions.export_pdf(id, model, Path::new(&path)) {
         Ok(exported) => Ok(ExportAnswer {
             exported: Some(exported),
@@ -171,6 +230,147 @@ pub fn writer_export_pdf(writer: State<WriterState>, id: u64, model: Value, path
             no_converter: true,
         }),
         Err(ExportError::Failed(message)) => Err(failed(message)),
+    }
+}
+
+/// text blocks, free pictures, stacking, aligning and word's fixes (see
+/// shell-core/src/writer/objects.rs).
+#[tauri::command(async)]
+pub fn writer_objects(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+    op: Value,
+) -> Result<ObjectAnswer, CommandError> {
+    let op: ObjectOp = serde_json::from_value(op)
+        .map_err(|error| failed(format!("Letters didn’t understand that command. ({error})")))?;
+    writer.sessions.objects(id, model, &op).map_err(failed)
+}
+
+/// the engine's feature table and what word would show differently.
+#[tauri::command(async)]
+pub fn writer_compatibility(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+) -> Result<Compatibility, CommandError> {
+    writer.sessions.compatibility(id, model).map_err(failed)
+}
+
+/// the clipboard forms of the copied blocks, a lone picture's bytes included.
+#[tauri::command(async)]
+pub fn writer_copy(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+    blocks: Value,
+) -> Result<Copied, CommandError> {
+    writer.sessions.copy(id, model, blocks).map_err(failed)
+}
+
+/// picture bytes (base64) from the clipboard or a dropped file.
+#[tauri::command(async)]
+pub fn writer_paste_picture(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+    data: String,
+    description: Option<String>,
+) -> Result<PastedPicture, CommandError> {
+    let bytes = letters_shell_core::writer::document::decode_base64(&data)
+        .ok_or_else(|| failed("The picture couldn’t be read.".into()))?;
+    writer
+        .sessions
+        .paste_picture(id, model, &bytes, description)
+        .map_err(failed)
+}
+
+/// html from the clipboard, with the pictures it names.
+#[tauri::command(async)]
+pub fn writer_paste_html(
+    writer: State<WriterState>,
+    id: u64,
+    html: String,
+) -> Result<PastedHtml, CommandError> {
+    writer.sessions.paste_html(id, &html).map_err(failed)
+}
+
+/// every format Save As offers, with the engine's sentence on each, and
+/// which converters this computer has (for .doc).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Formats {
+    formats: Vec<FormatCapability>,
+    word: bool,
+    libre_office: bool,
+}
+
+#[tauri::command(async)]
+pub fn writer_formats() -> Formats {
+    Formats {
+        formats: format_capabilities(),
+        word: letters_shell_core::writer::export::word_installed(),
+        libre_office: letters_shell_core::writer::export::find_libreoffice().is_some(),
+    }
+}
+
+/// opens windows' own print dialog (not the web view's preview) for what
+/// the window shows for printing: the print view print.ts lays out. the
+/// person picks the printer there; nothing about the default printer or
+/// any other setting changes. Err on systems without it, and the ui then
+/// uses the web view's own printing.
+///
+/// it runs off the main thread (async), because the web view is reached on
+/// the main thread and this command waits for the answer.
+#[tauri::command(async)]
+pub fn writer_system_print(window: tauri::WebviewWindow) -> Result<(), CommandError> {
+    #[cfg(windows)]
+    {
+        let (done, answer) = std::sync::mpsc::channel();
+        window
+            .with_webview(move |platform| {
+                show_system_print(&platform, |result| drop(done.send(result)))
+            })
+            .map_err(|error| failed(error.to_string()))?;
+        answer
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|_| failed("The print dialog didn’t open.".into()))?
+            .map_err(failed)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = window;
+        Err(failed(
+            "The system print dialog isn’t available here.".into(),
+        ))
+    }
+}
+
+/// the answer is given before the dialog shows: the dialog is modal and
+/// stays open as long as the person needs.
+#[cfg(windows)]
+fn show_system_print(
+    platform: &tauri::webview::PlatformWebview,
+    answer: impl FnOnce(Result<(), String>),
+) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2_16, COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM,
+    };
+    use windows_core::Interface;
+    // ShowPrintUI arrived with web view 2 runtime 1.0.1518; older runtimes say so
+    let printing = unsafe { platform.controller().CoreWebView2() }
+        .map_err(|error| error.to_string())
+        .and_then(|core| {
+            core.cast::<ICoreWebView2_16>().map_err(|_| {
+                "This version of the web view can’t open the system print dialog.".to_string()
+            })
+        });
+    match printing {
+        Ok(printing) => {
+            answer(Ok(()));
+            let _ = unsafe { printing.ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM) };
+        }
+        Err(problem) => answer(Err(problem)),
     }
 }
 

@@ -1,0 +1,404 @@
+{
+  "blocks": [
+    {
+      "content": [
+        {
+          "text": "Before the box.",
+          "type": "text"
+        }
+      ],
+      "styleId": "Standard",
+      "type": "paragraph"
+    },
+    {
+      "autoHeight": false,
+      "blocks": [
+        {
+          "content": [
+            {
+              "text": "Inside the box",
+              "type": "text"
+            }
+          ],
+          "styleId": "Frame_20_contents",
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Its second paragraph",
+              "type": "text"
+            }
+          ],
+          "styleId": "Frame_20_contents",
+          "type": "paragraph"
+        }
+      ],
+      "fill": "FFFFFF",
+      "height": 1441,
+      "horizontal": {
+        "offset": 2880,
+        "relativeTo": "page"
+      },
+      "margins": {
+        "bottom": 72,
+        "left": 144,
+        "right": 144,
+        "top": 72
+      },
+      "name": "Text Box 1001",
+      "type": "textBox",
+      "vertical": {
+        "offset": 2160,
+        "relativeTo": "page"
+      },
+      "width": 3601,
+      "wrap": "square",
+      "zOrder": 2
+    },
+    {
+      "autoHeight": false,
+      "blocks": [
+        {
+          "content": [
+            {
+              "text": "Hello world, ",
+              "type": "text"
+            }
+          ],
+          "styleId": "Frame_20_contents",
+          "type": "paragraph"
+        }
+      ],
+      "fill": "FFFFFF",
+      "height": 1441,
+      "horizontal": {
+        "offset": 1440,
+        "relativeTo": "page"
+      },
+      "margins": {
+        "bottom": 72,
+        "left": 144,
+        "right": 144,
+        "top": 72
+      },
+      "name": "Text Box 1002",
+      "type": "textBox",
+      "vertical": {
+        "offset": 1440,
+        "relativeTo": "page"
+      },
+      "width": 4537,
+      "wrap": "square",
+      "zOrder": 0
+    },
+    {
+      "autoHeight": false,
+      "blocks": [
+        {
+          "content": [
+            {
+              "text": "split into two blocks.",
+              "type": "text"
+            }
+          ],
+          "styleId": "Frame_20_contents",
+          "type": "paragraph"
+        }
+      ],
+      "fill": "FFFFFF",
+      "height": 1441,
+      "horizontal": {
+        "offset": 6264,
+        "relativeTo": "page"
+      },
+      "margins": {
+        "bottom": 72,
+        "left": 144,
+        "right": 144,
+        "top": 72
+      },
+      "name": "Text Box 1003",
+      "type": "textBox",
+      "vertical": {
+        "offset": 1440,
+        "relativeTo": "page"
+      },
+      "width": 4537,
+      "wrap": "square",
+      "zOrder": 1
+    },
+    {
+      "content": [
+        {
+          "text": "After the box.",
+          "type": "text"
+        }
+      ],
+      "styleId": "Standard",
+      "type": "paragraph"
+    }
+  ],
+  "comments": [],
+  "headersFooters": [],
+  "metadata": {},
+  "notes": [],
+  "numbering": {
+    "definitions": [],
+    "instances": []
+  },
+  "sections": [
+    {
+      "columns": {
+        "count": 1,
+        "separator": false,
+        "space": 720
+      },
+      "differentFirstPage": false,
+      "footers": {},
+      "headers": {},
+      "page": {
+        "height": 15840,
+        "margins": {
+          "bottom": 1440,
+          "footer": 720,
+          "gutter": 0,
+          "header": 720,
+          "left": 1440,
+          "right": 1440,
+          "top": 1440
+        },
+        "orientation": "portrait",
+        "width": 12240
+      },
+      "preserved": {
+        "attributes": [
+          {
+            "name": "style:master-page",
+            "value": "Standard"
+          }
+        ]
+      },
+      "start": "nextPage"
+    }
+  ],
+  "settings": {
+    "evenAndOddHeaders": false,
+    "trackChanges": false
+  },
+  "styles": {
+    "defaults": {
+      "paragraph": {
+        "preserved": [
+          "fo:hyphenation-ladder-count=\"no-limit\"",
+          "fo:hyphenation-keep=\"auto\"",
+          "loext:hyphenation-keep-type=\"column\"",
+          "loext:hyphenation-keep-line=\"false\"",
+          "style:text-autospace=\"ideograph-alpha\"",
+          "style:punctuation-wrap=\"hanging\"",
+          "style:line-break=\"strict\"",
+          "style:tab-stop-distance=\"0.5in\"",
+          "style:writing-mode=\"page\""
+        ]
+      },
+      "run": {
+        "font": {
+          "name": "Times New Roman"
+        },
+        "language": "en-US",
+        "preserved": [
+          "style:use-window-font-color=\"true\"",
+          "loext:opacity=\"0%\"",
+          "style:letter-kerning=\"false\"",
+          "style:font-name-asian=\"NSimSun\"",
+          "style:font-size-asian=\"10pt\"",
+          "style:language-asian=\"zh\"",
+          "style:country-asian=\"CN\"",
+          "style:font-name-complex=\"Lucida Sans1\"",
+          "style:font-size-complex=\"10pt\"",
+          "style:language-complex=\"hi\"",
+          "style:country-complex=\"IN\"",
+          "loext:font-optical-sizing=\"auto\"",
+          "fo:hyphenate=\"false\"",
+          "fo:hyphenation-remain-char-count=\"2\"",
+          "fo:hyphenation-push-char-count=\"2\"",
+          "loext:hyphenation-no-caps=\"false\"",
+          "loext:hyphenation-no-last-word=\"false\"",
+          "loext:hyphenation-word-char-count=\"5\"",
+          "loext:hyphenation-zone=\"no-limit\"",
+          "loext:hyphenation-compound-remain-char-count=\"2\"",
+          "loext:hyphenation-compound-push-char-count=\"2\""
+        ],
+        "size": 20
+      }
+    },
+    "preserved": [
+      "<style:default-style style:family=\"graphic\"><style:graphic-properties svg:stroke-color=\"#3465a4\" draw:fill-color=\"#729fcf\" fo:wrap-option=\"no-wrap\" draw:shadow-offset-x=\"0.1181in\" draw:shadow-offset-y=\"0.1181in\" draw:start-line-spacing-horizontal=\"0.1114in\" draw:start-line-spacing-vertical=\"0.1114in\" draw:end-line-spacing-horizontal=\"0.1114in\" draw:end-line-spacing-vertical=\"0.1114in\" style:flow-with-text=\"false\"/><style:paragraph-properties style:text-autospace=\"ideograph-alpha\" style:line-break=\"strict\" loext:tab-stop-distance=\"0in\" style:writing-mode=\"lr-tb\" style:font-independent-line-spacing=\"false\"><style:tab-stops/></style:paragraph-properties><style:text-properties style:use-window-font-color=\"true\" loext:opacity=\"0%\" style:font-name=\"Times New Roman\" fo:font-size=\"10pt\" fo:language=\"en\" fo:country=\"US\" style:letter-kerning=\"false\" style:font-name-asian=\"NSimSun\" style:font-size-asian=\"10pt\" style:language-asian=\"zh\" style:country-asian=\"CN\" style:font-name-complex=\"Lucida Sans1\" style:font-size-complex=\"10pt\" style:language-complex=\"hi\" style:country-complex=\"IN\" loext:font-optical-sizing=\"auto\"/></style:default-style>",
+      "<style:default-style style:family=\"table\"><style:table-properties table:border-model=\"collapsing\"/></style:default-style>",
+      "<style:default-style style:family=\"table-row\"><style:table-row-properties fo:keep-together=\"auto\"/></style:default-style>",
+      "<style:style style:name=\"Frame\" style:family=\"graphic\"><style:graphic-properties text:anchor-type=\"paragraph\" svg:x=\"0in\" svg:y=\"0in\" fo:margin-left=\"0.0791in\" fo:margin-right=\"0.0791in\" fo:margin-top=\"0.0791in\" fo:margin-bottom=\"0.0791in\" style:wrap=\"parallel\" style:number-wrapped-paragraphs=\"no-limit\" style:wrap-contour=\"false\" style:vertical-pos=\"top\" style:vertical-rel=\"paragraph-content\" style:horizontal-pos=\"center\" style:horizontal-rel=\"paragraph-content\" draw:fill=\"none\" fo:padding=\"0.0591in\" fo:border=\"0.06pt solid #000000\"/></style:style>",
+      "<text:outline-style style:name=\"Outline\"><text:outline-level-style text:level=\"1\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style><text:outline-level-style text:level=\"2\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style><text:outline-level-style text:level=\"3\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style><text:outline-level-style text:level=\"4\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style><text:outline-level-style text:level=\"5\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style><text:outline-level-style text:level=\"6\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style><text:outline-level-style text:level=\"7\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style><text:outline-level-style text:level=\"8\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style><text:outline-level-style text:level=\"9\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style><text:outline-level-style text:level=\"10\" style:num-format=\"\"><style:list-level-properties text:list-level-position-and-space-mode=\"label-alignment\"><style:list-level-label-alignment text:label-followed-by=\"nothing\"/></style:list-level-properties></text:outline-level-style></text:outline-style>",
+      "<text:notes-configuration text:note-class=\"footnote\" style:num-format=\"1\" text:start-value=\"0\" text:footnotes-position=\"page\" text:start-numbering-at=\"document\"/>",
+      "<text:notes-configuration text:note-class=\"endnote\" style:num-format=\"i\" text:start-value=\"0\"/>",
+      "<text:linenumbering-configuration text:number-lines=\"false\" text:offset=\"0.1965in\" style:num-format=\"1\" text:number-position=\"left\" text:increment=\"5\"/>",
+      "<style:default-page-layout><style:page-layout-properties style:layout-grid-standard-mode=\"true\"/></style:default-page-layout>",
+      "<loext:theme loext:name=\"Office\"><loext:theme-colors loext:name=\"LibreOffice\"><loext:color loext:name=\"dark1\" loext:color=\"#000000\"/><loext:color loext:name=\"light1\" loext:color=\"#ffffff\"/><loext:color loext:name=\"dark2\" loext:color=\"#000000\"/><loext:color loext:name=\"light2\" loext:color=\"#ffffff\"/><loext:color loext:name=\"accent1\" loext:color=\"#18a303\"/><loext:color loext:name=\"accent2\" loext:color=\"#0369a3\"/><loext:color loext:name=\"accent3\" loext:color=\"#a33e03\"/><loext:color loext:name=\"accent4\" loext:color=\"#8e03a3\"/><loext:color loext:name=\"accent5\" loext:color=\"#c99c00\"/><loext:color loext:name=\"accent6\" loext:color=\"#c9211e\"/><loext:color loext:name=\"hyperlink\" loext:color=\"#0000ee\"/><loext:color loext:name=\"followed-hyperlink\" loext:color=\"#551a8b\"/></loext:theme-colors></loext:theme>"
+    ],
+    "styles": [
+      {
+        "id": "Standard",
+        "isDefault": true,
+        "kind": "paragraph",
+        "name": "Standard",
+        "paragraph": {
+          "alignment": "left",
+          "preserved": [
+            "style:contextual-spacing=\"false\"",
+            "style:justify-single-word=\"false\"",
+            "fo:orphans=\"2\"",
+            "fo:widows=\"2\"",
+            "style:writing-mode=\"lr-tb\"",
+            "loext:paragraph-composer=\"false\""
+          ],
+          "spacing": {
+            "after": 0,
+            "before": 0
+          }
+        }
+      },
+      {
+        "basedOn": "Standard",
+        "id": "Heading",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Heading",
+        "next": "Text_20_body",
+        "paragraph": {
+          "keepWithNext": true,
+          "preserved": [
+            "style:contextual-spacing=\"false\""
+          ],
+          "spacing": {
+            "after": 120,
+            "before": 240
+          }
+        },
+        "run": {
+          "font": {
+            "name": "Arial"
+          },
+          "preserved": [
+            "style:font-family-generic=\"swiss\"",
+            "style:font-pitch=\"variable\"",
+            "style:font-name-asian=\"Microsoft YaHei\"",
+            "style:font-family-asian=\"'Microsoft YaHei'\"",
+            "style:font-family-generic-asian=\"system\"",
+            "style:font-pitch-asian=\"variable\"",
+            "style:font-size-asian=\"14pt\"",
+            "style:font-name-complex=\"Lucida Sans1\"",
+            "style:font-family-complex=\"'Lucida Sans'\"",
+            "style:font-family-generic-complex=\"system\"",
+            "style:font-pitch-complex=\"variable\"",
+            "style:font-size-complex=\"14pt\""
+          ],
+          "size": 28
+        }
+      },
+      {
+        "basedOn": "Standard",
+        "id": "Text_20_body",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Text body",
+        "paragraph": {
+          "preserved": [
+            "style:contextual-spacing=\"false\""
+          ],
+          "spacing": {
+            "after": 140,
+            "before": 0,
+            "line": {
+              "rule": "auto",
+              "value": 276
+            }
+          }
+        }
+      },
+      {
+        "basedOn": "Text_20_body",
+        "id": "List",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "List",
+        "run": {
+          "preserved": [
+            "style:font-size-asian=\"12pt\"",
+            "style:font-name-complex=\"Lucida Sans\"",
+            "style:font-family-complex=\"'Lucida Sans'\"",
+            "style:font-family-generic-complex=\"swiss\""
+          ]
+        }
+      },
+      {
+        "basedOn": "Standard",
+        "id": "Caption",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Caption",
+        "paragraph": {
+          "preserved": [
+            "style:contextual-spacing=\"false\"",
+            "text:number-lines=\"false\"",
+            "text:line-number=\"0\""
+          ],
+          "spacing": {
+            "after": 120,
+            "before": 120
+          }
+        },
+        "run": {
+          "italic": true,
+          "preserved": [
+            "style:font-size-asian=\"12pt\"",
+            "style:font-style-asian=\"italic\"",
+            "style:font-name-complex=\"Lucida Sans\"",
+            "style:font-family-complex=\"'Lucida Sans'\"",
+            "style:font-family-generic-complex=\"swiss\"",
+            "style:font-size-complex=\"12pt\"",
+            "style:font-style-complex=\"italic\""
+          ],
+          "size": 24
+        }
+      },
+      {
+        "basedOn": "Standard",
+        "id": "Index",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Index",
+        "paragraph": {
+          "preserved": [
+            "text:number-lines=\"false\"",
+            "text:line-number=\"0\""
+          ]
+        },
+        "run": {
+          "preserved": [
+            "style:font-size-asian=\"12pt\"",
+            "style:font-name-complex=\"Lucida Sans\"",
+            "style:font-family-complex=\"'Lucida Sans'\"",
+            "style:font-family-generic-complex=\"swiss\""
+          ]
+        }
+      },
+      {
+        "basedOn": "Standard",
+        "id": "Frame_20_contents",
+        "isDefault": false,
+        "kind": "paragraph",
+        "name": "Frame contents"
+      }
+    ],
+    "themeFonts": {}
+  }
+}

@@ -19,7 +19,11 @@ struct Item {
 }
 
 const fn item(id: &'static str, label: &'static str, shortcut: Option<&'static str>) -> Item {
-    Item { id, label, shortcut }
+    Item {
+        id,
+        label,
+        shortcut,
+    }
 }
 
 const TEXT: [Item; 6] = [
@@ -73,8 +77,39 @@ const EXPORT: [Item; 6] = [
     item("print", "Print…", Some("CmdOrCtrl+P")),
     item("save-to-drive", "Save to Google Drive…", None),
     item("toggle-strict-mode", "Strict Word Mode", None),
-    item("image-inline", "Picture In Line", Some("CmdOrCtrl+Alt+Shift+L")),
+    item(
+        "image-inline",
+        "Picture In Line",
+        Some("CmdOrCtrl+Alt+Shift+L"),
+    ),
     item("image-free", "Picture Free", Some("CmdOrCtrl+Alt+Shift+F")),
+];
+
+/// text blocks and arranging free objects (the writer's writerObjects)
+const ARRANGE: [Item; 7] = [
+    item(
+        "text-block-split",
+        "Split into Text Blocks",
+        Some("CmdOrCtrl+Alt+Shift+Enter"),
+    ),
+    item(
+        "text-block-make",
+        "Make Text Block",
+        Some("CmdOrCtrl+Alt+Shift+T"),
+    ),
+    item(
+        "text-block-dissolve",
+        "Return to Text",
+        Some("CmdOrCtrl+Alt+Shift+R"),
+    ),
+    item(
+        "object-front",
+        "Bring to Front",
+        Some("CmdOrCtrl+Alt+Shift+]"),
+    ),
+    item("object-back", "Send to Back", Some("CmdOrCtrl+Alt+Shift+[")),
+    item("image-crop", "Crop Picture", Some("CmdOrCtrl+Alt+Shift+C")),
+    item("check-layout", "Check Layout with Word", None),
 ];
 
 fn items(app: &AppHandle, list: &[Item]) -> tauri::Result<Vec<MenuItem<Wry>>> {
@@ -90,7 +125,10 @@ fn items(app: &AppHandle, list: &[Item]) -> tauri::Result<Vec<MenuItem<Wry>>> {
 }
 
 fn refs(items: &[MenuItem<Wry>]) -> Vec<&dyn tauri::menu::IsMenuItem<Wry>> {
-    items.iter().map(|item| item as &dyn tauri::menu::IsMenuItem<Wry>).collect()
+    items
+        .iter()
+        .map(|item| item as &dyn tauri::menu::IsMenuItem<Wry>)
+        .collect()
 }
 
 pub fn format_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
@@ -109,14 +147,24 @@ pub fn insert_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
     SubmenuBuilder::new(app, "Insert")
         .items(&refs(&items(app, &INSERT)?))
         .separator()
+        .items(&refs(&items(app, &ARRANGE)?))
+        .separator()
         .items(&refs(&items(app, &EXPORT)?))
         .build()
 }
 
 /// true for ids of the writer's menu items, which go to the focused window.
 pub fn is_writer_command(id: &str) -> bool {
-    [&TEXT[..], &STYLES, &PARAGRAPH, &REVIEW, &INSERT, &EXPORT]
-        .iter()
-        .flat_map(|list| list.iter())
-        .any(|entry| entry.id == id)
+    [
+        &TEXT[..],
+        &STYLES,
+        &PARAGRAPH,
+        &REVIEW,
+        &INSERT,
+        &ARRANGE,
+        &EXPORT,
+    ]
+    .iter()
+    .flat_map(|list| list.iter())
+    .any(|entry| entry.id == id)
 }

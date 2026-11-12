@@ -33,7 +33,12 @@ pub struct Uploaded {
 
 /// the boundary between the two parts; random enough that it never occurs in a file.
 pub fn boundary() -> String {
-    format!("letters-{}", crate::drive::pkce::new_state().unwrap_or_else(|_| "boundary-7f3a9c".into()).replace(['-', '_'], "x"))
+    format!(
+        "letters-{}",
+        crate::drive::pkce::new_state()
+            .unwrap_or_else(|_| "boundary-7f3a9c".into())
+            .replace(['-', '_'], "x")
+    )
 }
 
 /// the request body: the description as json, then the bytes.
@@ -46,44 +51,87 @@ pub fn multipart_body(request: &UploadRequest, bytes: &[u8], boundary: &str) -> 
         metadata["parents"] = json!([folder]);
     }
     let mut body = Vec::with_capacity(bytes.len() + 512);
-    body.extend_from_slice(format!("--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{metadata}\r\n").as_bytes());
-    body.extend_from_slice(format!("--{boundary}\r\nContent-Type: {}\r\n\r\n", request.content_type).as_bytes());
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{metadata}\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Type: {}\r\n\r\n",
+            request.content_type
+        )
+        .as_bytes(),
+    );
     body.extend_from_slice(bytes);
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
     body
 }
 
 pub fn upload_url(endpoints: &Endpoints) -> String {
-    format!("{}?uploadType=multipart&fields=id,name,webViewLink", endpoints.upload)
+    format!(
+        "{}?uploadType=multipart&fields=id,name,webViewLink",
+        endpoints.upload
+    )
 }
 
-pub fn upload(endpoints: &Endpoints, access_token: &str, request: &UploadRequest, bytes: &[u8]) -> Result<Uploaded, String> {
+pub fn upload(
+    endpoints: &Endpoints,
+    access_token: &str,
+    request: &UploadRequest,
+    bytes: &[u8],
+) -> Result<Uploaded, String> {
     let boundary = boundary();
     let body = multipart_body(request, bytes, &boundary);
     let mut response = ureq::post(&upload_url(endpoints))
         .header("Authorization", &format!("Bearer {access_token}"))
-        .header("Content-Type", &format!("multipart/related; boundary={boundary}"))
+        .header(
+            "Content-Type",
+            &format!("multipart/related; boundary={boundary}"),
+        )
         .send(&body[..])
         .map_err(|error| format!("The upload to Google Drive failed ({error})."))?;
-    let text = response.body_mut().read_to_string().map_err(|error| error.to_string())?;
-    serde_json::from_str(&text).map_err(|error| format!("Google Drive’s answer couldn’t be read ({error})."))
+    let text = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|error| error.to_string())?;
+    serde_json::from_str(&text)
+        .map_err(|error| format!("Google Drive’s answer couldn’t be read ({error})."))
 }
 
 /// the folder Letters made with this name before, or a new one. with the
 /// drive.file scope Letters only ever sees folders it made itself.
-pub fn find_or_create_folder(endpoints: &Endpoints, access_token: &str, name: &str) -> Result<String, String> {
-    let query = format!("name = '{}' and mimeType = '{FOLDER}' and trashed = false", name.replace('\'', "\\'"));
-    let url = format!("{}?q={}&fields=files(id,name)", endpoints.files, encode(&query));
+pub fn find_or_create_folder(
+    endpoints: &Endpoints,
+    access_token: &str,
+    name: &str,
+) -> Result<String, String> {
+    let query = format!(
+        "name = '{}' and mimeType = '{FOLDER}' and trashed = false",
+        name.replace('\'', "\\'")
+    );
+    let url = format!(
+        "{}?q={}&fields=files(id,name)",
+        endpoints.files,
+        encode(&query)
+    );
     let mut response = ureq::get(&url)
         .header("Authorization", &format!("Bearer {access_token}"))
         .call()
         .map_err(|error| format!("Google Drive couldn’t be searched ({error})."))?;
-    let text = response.body_mut().read_to_string().map_err(|error| error.to_string())?;
+    let text = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|error| error.to_string())?;
     #[derive(Deserialize)]
     struct Listing {
         files: Vec<Uploaded>,
     }
-    if let Some(found) = serde_json::from_str::<Listing>(&text).ok().and_then(|listing| listing.files.into_iter().next()) {
+    if let Some(found) = serde_json::from_str::<Listing>(&text)
+        .ok()
+        .and_then(|listing| listing.files.into_iter().next())
+    {
         return Ok(found.id);
     }
     let metadata = json!({ "name": name, "mimeType": FOLDER }).to_string();
@@ -92,7 +140,10 @@ pub fn find_or_create_folder(endpoints: &Endpoints, access_token: &str, name: &s
         .header("Content-Type", "application/json")
         .send(metadata.as_bytes())
         .map_err(|error| format!("The folder couldn’t be made in Google Drive ({error})."))?;
-    let text = created.body_mut().read_to_string().map_err(|error| error.to_string())?;
+    let text = created
+        .body_mut()
+        .read_to_string()
+        .map_err(|error| error.to_string())?;
     let folder: Uploaded = serde_json::from_str(&text).map_err(|error| error.to_string())?;
     Ok(folder.id)
 }
@@ -105,7 +156,8 @@ mod tests {
     fn the_body_holds_the_description_then_the_bytes() {
         let request = UploadRequest {
             name: "Essay.docx".into(),
-            content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document".into(),
+            content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                .into(),
             as_google_doc: true,
             folder_id: Some("folder1".into()),
         };
@@ -118,10 +170,16 @@ mod tests {
 
     #[test]
     fn a_plain_upload_keeps_its_own_type() {
-        let request = UploadRequest { name: "Essay.pdf".into(), content_type: "application/pdf".into(), as_google_doc: false, folder_id: None };
+        let request = UploadRequest {
+            name: "Essay.pdf".into(),
+            content_type: "application/pdf".into(),
+            as_google_doc: false,
+            folder_id: None,
+        };
         let body = String::from_utf8(multipart_body(&request, b"%PDF", "b")).unwrap();
         assert!(!body.contains("mimeType"));
         assert!(!body.contains("parents"));
-        assert!(upload_url(&Endpoints::google()).ends_with("uploadType=multipart&fields=id,name,webViewLink"));
+        assert!(upload_url(&Endpoints::google())
+            .ends_with("uploadType=multipart&fields=id,name,webViewLink"));
     }
 }

@@ -1,3 +1,4 @@
+// the ruler: indents and tab stops between twips and the screen
 import { describe, expect, it } from "vitest";
 import { commandForKey, type KeyPress } from "../commands";
 import { documentCss, fontStack, lineHeight, paragraphCss, styleClass } from "./css";

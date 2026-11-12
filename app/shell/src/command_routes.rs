@@ -169,12 +169,21 @@ fn writer() -> Feature {
         writer_commands::writer_settings,
         writer_commands::writer_set_settings,
         writer_commands::writer_add_picture_data,
+        writer_commands::writer_objects,
+        writer_commands::writer_compatibility,
+        writer_commands::writer_copy,
+        writer_commands::writer_paste_picture,
+        writer_commands::writer_paste_html,
+        writer_commands::writer_formats,
+        writer_commands::writer_system_print,
+        writer_commands::writer_follow_move,
     ]
 }
 
 /// google drive, and the writer's layouts, copies and printing.
 fn writer_drive() -> Feature {
     feature![
+        drive_commands::writer_engine_layout,
         drive_commands::drive_status,
         drive_commands::drive_sign_in,
         drive_commands::drive_sign_out,

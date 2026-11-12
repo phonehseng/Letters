@@ -2,8 +2,9 @@
   // the document as pages on the grey desk, like the pdf viewer: the page
   // size and margins come from the first section, the header sits in the
   // top margin, page boundaries are placed where measured content no
-  // longer fits (an estimate: see pagination.ts), and footnotes are shown
-  // together under the text with the last page's footer below them.
+  // longer fits (pagination.ts, measured by pageMeasure.ts), each footnote
+  // sits at the bottom of its page, and free objects are placed and
+  // wrapped by the object layer (surfaceLayout.ts, objectLayer.ts).
   import "prosemirror-view/style/prosemirror.css";
   import "prosemirror-tables/style/tables.css";
   import "prosemirror-gapcursor/style/gapcursor.css";
@@ -11,19 +12,27 @@
   import MiniEditor from "./MiniEditor.svelte";
   import type { Block, DocumentMeta, Section } from "./model";
   import { pageGaps, partFor, DESK_GAP } from "./pageGaps";
-  import type { BlockBox } from "./pagination";
   import { layoutPages, type LayoutProviderName, type WordLayout } from "./layoutSource";
-  import type { PageGap } from "./plugins";
   import { pagesKey } from "./plugins";
   import { twipsToPx } from "./units";
   import type { WriterSession } from "./writerSession.svelte";
   import { addHeaderFooter } from "./editing";
   import { documentCss } from "./css";
+  import type { EditorView } from "prosemirror-view";
+  import { assignNotes, blockBoxes, breakPositions, sameGaps, type MeasureContext } from "./pageMeasure";
+  import { blockPagesFrom, computeLayer, measureBlocks, measuredBoxHeights, measurePageEdges, samePlacements } from "./surfaceLayout";
+  import "./pageContent.css";
+  import type { SurfaceLayout } from "./objectGeometry";
+  import { objectLayerKey } from "./objectLayer";
+  import { sameExclusions } from "./wrap";
+  import { wordLineBreaks } from "./wordLines";
 
   interface Props {
     session: WriterSession;
     zoom: number;
     nightMode: boolean;
+    /** Focus Mode: the page alone (the screen fades its controls) */
+    focusMode?: boolean;
     /** pages as last measured, for the status bar */
     pageCount?: number;
     /** the page with the cursor, counted from 1 */
@@ -32,11 +41,16 @@
     layout: { provider: LayoutProviderName; word: WordLayout | null };
   }
 
-  let { session, zoom, nightMode, pageCount = $bindable(1), currentPage = $bindable(1), layout }: Props = $props();
+  let { session, zoom, nightMode, focusMode = false, pageCount = $bindable(1), currentPage = $bindable(1), layout }: Props = $props();
 
   let body = $state<HTMLDivElement>();
   let lastPageUsed = $state(0);
-  let notesHeight = $state(0);
+  /** each page's top edge in the editor root's coordinates (surfaceLayout.ts) */
+  let pageEdges = $state<number[]>([0]);
+  /** the footnotes on each page (0-based), in order */
+  let notesOnPage = $state<Map<number, string[]>>(new Map());
+  /** each footnote's drawn height, for pagination */
+  let noteHeights: Record<string, number> = {};
 
   const meta = $derived(session.editor.doc.attrs.meta as DocumentMeta);
   const section = $derived<Section>(meta.sections?.[0] ?? { page: { width: 12240, height: 15840, margins: { top: 1440, right: 1440, bottom: 1440, left: 1440, header: 720, footer: 720 } } });
@@ -51,7 +65,8 @@
   const footnotes = $derived((meta.notes ?? []).filter((note) => !note.special && note.kind === "footnote"));
   const endnotes = $derived((meta.notes ?? []).filter((note) => !note.special && note.kind === "endnote"));
   // the space left at the bottom of the last page, so it looks like a whole page
-  const lastPageSpace = $derived(Math.max(0, textHeight - lastPageUsed - notesHeight));
+  // (its footnotes are drawn in that space, like every page's)
+  const lastPageSpace = $derived(Math.max(0, textHeight - lastPageUsed));
   const typing = () => session.settings.typing;
   const language = $derived(session.language());
 
@@ -88,74 +103,96 @@
     };
   });
 
-  // --- measuring pages
+  // --- measuring pages (pagination.ts), then the objects on them (objectLayer.ts)
 
   let measureTimer: ReturnType<typeof setTimeout> | null = null;
+  /** passes since the document last changed: wrapping text around objects can move them, so a few rounds settle it */
+  let settlePasses = 0;
 
   function scheduleMeasure() {
     if (measureTimer) clearTimeout(measureTimer);
     measureTimer = setTimeout(measure, 120);
   }
 
-  /** how tall each top-level block is, with the page gaps taken out. */
-  function blockBoxes(): BlockBox[] | null {
-    const view = session.view;
-    if (!view) return null;
-    const doc = view.state.doc;
-    const gaps = pagesKey.getState(view.state) ?? [];
-    const gapBefore = new Map(gaps.map((gap) => [gap.blockIndex, gap.height]));
-    const tops: number[] = [];
-    const bottoms: number[] = [];
-    let pos = 0;
-    for (let index = 0; index < doc.childCount; index += 1) {
-      const element = view.nodeDOM(pos) as HTMLElement | null;
-      if (!element?.getBoundingClientRect) return null;
-      const rect = element.getBoundingClientRect();
-      tops.push(rect.top / zoom);
-      const style = getComputedStyle(element);
-      bottoms.push(rect.bottom / zoom + (Number.parseFloat(style.marginBottom) || 0));
-      pos += doc.child(index).nodeSize;
+  /** what the measuring helpers (pageMeasure.ts) need to know */
+  function measureContext(view: EditorView): MeasureContext {
+    // footnotes drawn at the bottom of their page tell their height
+    for (const note of body?.parentElement?.querySelectorAll<HTMLElement>(".page-notes [data-note-id]") ?? []) {
+      noteHeights[note.dataset.noteId ?? ""] = note.getBoundingClientRect().height / zoom;
     }
-    return tops.map((top, index) => {
-      const node = doc.child(index);
-      const next = index + 1 < tops.length ? tops[index + 1] - (gapBefore.get(index + 1) ?? 0) : bottoms[index];
-      const data = node.attrs.data as { props?: { pageBreakBefore?: boolean } };
-      return { height: Math.max(0, next - top), isPageBreak: node.type.name === "page_break", breakBefore: !!data?.props?.pageBreakBefore };
-    });
+    return { view, zoom, meta, footnoteIds: new Set(footnotes.map((note) => note.id)), noteHeights };
   }
 
   function measure() {
     const view = session.view;
-    const boxes = blockBoxes();
+    const context = view ? measureContext(view) : null;
+    const boxes = context ? blockBoxes(context) : null;
     if (!view || !boxes) return;
     const pages = layoutPages(layout.provider, boxes, textHeight, layout.word);
     // how much of each page is used, for the rest of it to be drawn empty
-    const used = pages.starts.map((start, index) => {
-      const end = pages.starts[index + 1] ?? boxes.length;
-      return boxes.slice(start, end).reduce((sum, box) => sum + box.height, 0);
-    });
-    const gaps = pageGaps(meta, pages, used, textHeight);
+    const used =
+      pages.used ??
+      pages.starts.map((start, index) => {
+        const end = pages.starts[index + 1] ?? boxes.length;
+        return boxes.slice(start, end).reduce((sum, box) => sum + box.height, 0);
+      });
+    const { positions, insets } = breakPositions(view, pages, zoom);
+    const gaps = pageGaps(meta, pages, used, textHeight, positions, insets);
     const current = pagesKey.getState(view.state) ?? [];
     if (!sameGaps(current, gaps)) session.setPageGaps(gaps);
     lastPageUsed = used[used.length - 1] ?? 0;
+    notesOnPage = assignNotes(context!, pages);
     // with Word doing the layout, its own page count is the answer
-    pageCount = layout.provider === "word" && layout.word ? layout.word.pageCount : pages.starts.length;
+    pageCount = layout.provider !== "estimate" && layout.word ? layout.word.pageCount : pages.starts.length;
     const cursorBlock = view.state.selection.$from.index(0);
     currentPage = pages.starts.filter((start) => start <= cursorBlock).length;
+    requestAnimationFrame(placeObjects);
   }
 
-  function sameGaps(a: PageGap[], b: PageGap[]): boolean {
-    return a.length === b.length && a.every((gap, index) => gap.blockIndex === b[index].blockIndex && Math.abs(gap.height - b[index].height) < 1);
+  /** where free objects go and the floats that make text wrap around them; repeats until nothing moves. */
+  function placeObjects() {
+    const view = session.view;
+    if (!view) return;
+    const blocks = measureBlocks(view, zoom);
+    if (!blocks) return;
+    const gaps = pagesKey.getState(view.state) ?? [];
+    const edges = measurePageEdges(view, zoom, gaps, twipsToPx(margins.top));
+    const surface: SurfaceLayout = {
+      pageWidth: page.width,
+      pageHeight: page.height,
+      margins,
+      pageEdges: edges,
+      blockPages: blockPagesFrom(gaps, view.state.doc.childCount),
+      blockTops: blocks.tops,
+    };
+    session.objects.layout = surface;
+    pageEdges = edges;
+    const layer = computeLayer(view.state.doc, surface, twipsToPx(page.width - margins.left - margins.right), measuredBoxHeights(view, view.state.doc, zoom));
+    const current = objectLayerKey.getState(view.state);
+    const lines = layout.provider !== "estimate" && layout.word?.lines && layout.word === laidOut ? wordLineBreaks(view.state.doc, layout.word.lines) : [];
+    const changed = !current || !samePlacements(current.placements, layer.placements) || !sameExclusions(current.exclusions, layer.exclusions) || current.lines.length !== lines.length;
+    if (!changed) return;
+    view.dispatch(view.state.tr.setMeta(objectLayerKey, { ...layer, lines }).setMeta("addToHistory", false));
+    // the wrapped text can push later blocks down: measure the pages again, a few times at most
+    if (settlePasses < 3) {
+      settlePasses += 1;
+      scheduleMeasure();
+    }
   }
 
   // measure after every change of the document, the zoom or the page.
   // placing the page gaps makes a new editor state with the same document,
   // which must not start another measurement
   let measured: { doc: unknown; zoom: number; page: unknown; word: unknown } = { doc: null, zoom: 0, page: null, word: null };
+  /** word's answer that has been applied to the lines (only the document it was made for) */
+  let laidOut: unknown = null;
   $effect(() => {
     const now = { doc: session.editor.doc, zoom, page, word: layout.word };
     if (now.doc === measured.doc && now.zoom === measured.zoom && now.page === measured.page && now.word === measured.word) return;
+    // word's lines are applied when its answer arrives; edits after it keep them where untouched (objectLayer.ts)
+    if (now.word !== measured.word) laidOut = now.word;
     measured = now;
+    settlePasses = 0;
     tick().then(scheduleMeasure);
   });
 
@@ -206,6 +243,7 @@
     <div
       class="paper"
       class:night={nightMode}
+      class:w-focus-mode={focusMode}
       style:width={px(page.width)}
       style:padding="{px(margins.top)} {px(margins.right)} 0 {px(margins.left)}"
       style:--w-margin-left={px(margins.left)}
@@ -231,10 +269,17 @@
 
       <div class="body" bind:this={body}></div>
 
-      {#if orderedFootnotes.length || orderedEndnotes.length}
-        <section class="notes" aria-label="Footnotes" bind:clientHeight={notesHeight}>
-          {#each orderedFootnotes as note (note.id)}
-            <div class="note">
+      <!-- footnotes at the bottom of the page their reference is on, as Word puts them -->
+      {#each [...notesOnPage] as [pageIndex, ids] (pageIndex)}
+        <section
+          class="notes page-notes"
+          aria-label={`Footnotes on page ${pageIndex + 1}`}
+          style:top="{(pageEdges[pageIndex] ?? 0) + (page.height - margins.bottom) / 15 + margins.top / 15}px"
+          style:left={px(margins.left)}
+          style:width={px(page.width - margins.left - margins.right)}
+        >
+          {#each orderedFootnotes.filter((note) => ids.includes(note.id)) as note (note.id)}
+            <div class="note" data-note-id={note.id}>
               <span class="note-number" aria-hidden="true">{noteNumber(note.id, "footnote")}</span>
               <MiniEditor
                 blocks={note.blocks}
@@ -249,6 +294,11 @@
               />
             </div>
           {/each}
+        </section>
+      {/each}
+
+      {#if orderedEndnotes.length}
+        <section class="notes" aria-label="Endnotes">
           {#if orderedEndnotes.length}
             <h3 class="notes-title">Endnotes</h3>
             {#each orderedEndnotes as note (note.id)}
@@ -338,12 +388,15 @@
     margin: 0 calc(-1 * var(--w-margin-right)) 0 calc(-1 * var(--w-margin-left));
   }
 
+  /* 24px tall at least (WCAG's target size) and #5f5f66 on the white page,
+     6.3:1, where #8a8a8f gave 3.4:1 (docs/ACCESSIBILITY.md) */
   .add-part {
-    padding: 0.125rem 0.5rem;
+    min-height: 1.5rem;
+    padding: 0.25rem 0.5rem;
     border: 0;
     border-radius: 0.375rem;
     background: transparent;
-    color: #8a8a8f;
+    color: #5f5f66;
     font: 400 0.6875rem/0.875rem var(--font);
     opacity: 0;
     transition: opacity 0.15s var(--ease);
@@ -363,6 +416,25 @@
     padding-top: 0.5em;
     border-top: 0.5px solid #b0b0b5;
     font-size: 10pt;
+  }
+
+  /* a page's footnotes sit on its bottom margin line, growing upwards; the
+     short rule is word's separator */
+  .page-notes {
+    position: absolute;
+    z-index: 1;
+    box-sizing: border-box;
+    margin: 0;
+    border-top: 0;
+    transform: translateY(-100%);
+  }
+
+  .page-notes::before {
+    content: "";
+    display: block;
+    width: 2in;
+    margin-bottom: 0.4em;
+    border-top: 0.5px solid #000000;
   }
 
   .notes-title {
@@ -386,222 +458,4 @@
     flex: 1;
   }
 
-  /* --- the document's own content */
-
-  .paper :global(.ProseMirror) {
-    outline: none;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-    caret-color: #000000;
-  }
-
-  /* no specificity at all, so the document's own styles (css.ts) always win */
-  :global(:where(.w-doc) :where(p, h1, h2, h3, h4, h5, h6)) {
-    margin: 0;
-    font-size: inherit;
-    font-weight: inherit;
-    min-height: 1em;
-    /* free pictures are placed from their paragraph's top left */
-    position: relative;
-  }
-
-  .paper :global(.w-list-item)::before {
-    content: attr(data-label);
-    display: inline-block;
-    min-width: var(--w-hang);
-    text-indent: 0;
-  }
-
-  .paper :global(.w-tab) {
-    white-space: pre;
-    tab-size: 48px;
-  }
-
-  .paper :global(.w-note-ref)::after {
-    content: attr(data-number);
-  }
-
-  .paper :global(.w-field) {
-    border-radius: 2px;
-    background: rgb(0 0 0 / 0.07);
-  }
-
-  .paper :global(.w-comment) {
-    background: rgb(255 200 0 / 0.3);
-    border-bottom: 1px solid rgb(220 160 0);
-  }
-
-  /* a small speech-bubble square where a comment's marker sits */
-  .paper :global(.w-comment-ref)::before {
-    content: "";
-    display: inline-block;
-    width: 0.55em;
-    height: 0.45em;
-    margin: 0 0.1em;
-    border: 1px solid #c89000;
-    border-radius: 2px;
-    background: #ffd34d;
-    vertical-align: super;
-  }
-
-  .paper :global(ins.w-insertion) {
-    color: #1a6fd4;
-    text-decoration: underline;
-    text-decoration-color: #1a6fd4;
-  }
-
-  .paper :global(del.w-deletion) {
-    color: #c4314b;
-    text-decoration: line-through;
-  }
-
-  .paper :global(.w-find) {
-    background: rgb(255 214 0 / 0.55);
-  }
-
-  .paper :global(.w-find-current) {
-    background: rgb(255 150 0 / 0.75);
-  }
-
-  .paper :global(.w-link) {
-    color: #0b57d0;
-    text-decoration: underline;
-  }
-
-  .paper :global(.w-hidden) {
-    text-decoration: underline dotted;
-    opacity: 0.5;
-  }
-
-  .paper :global(.w-chip) {
-    display: inline-block;
-    padding: 0 0.4em;
-    border: 1px dashed #9a9aa0;
-    border-radius: 0.3em;
-    background: #f4f4f6;
-    color: #5a5a60;
-    font: 400 9pt/1.4 var(--font);
-    text-indent: 0;
-    user-select: none;
-  }
-
-  .paper :global(div.w-chip) {
-    display: block;
-    margin: 0.4em 0;
-    padding: 0.6em;
-    text-align: center;
-  }
-
-  .paper :global(.ProseMirror-selectednode.w-chip),
-  .paper :global(.w-image.w-selected img) {
-    outline: 2px solid var(--accent);
-  }
-
-  .paper :global(.w-page-break),
-  .paper :global(.w-section-break) {
-    margin: 0.6em 0;
-    border-top: 1px dashed #b0b0b5;
-    color: #8a8a8f;
-    font: 400 8pt/1 var(--font);
-    text-align: center;
-    user-select: none;
-  }
-
-  .paper :global(.w-page-break span),
-  .paper :global(.w-section-break span) {
-    position: relative;
-    top: -0.55em;
-    padding: 0 0.5em;
-    background: #ffffff;
-  }
-
-  .paper :global(.w-image) {
-    display: inline-block;
-    text-indent: 0;
-  }
-
-  .paper :global(.w-image img) {
-    display: block;
-    max-width: 100%;
-    height: auto;
-    object-fit: contain;
-  }
-
-  .paper :global(.w-image-floating) {
-    display: block;
-    margin: 0.4em 0;
-  }
-
-  .paper :global(.w-image-note) {
-    display: block;
-    margin-top: 0.2em;
-    color: #6a6a70;
-    font: 400 8pt/1.2 var(--font);
-  }
-
-  .paper :global(.w-image-missing) {
-    min-width: 2em;
-    min-height: 2em;
-    background: repeating-linear-gradient(45deg, #eee, #eee 6px, #f8f8f8 6px, #f8f8f8 12px);
-  }
-
-  .paper :global(table.w-table) {
-    border-collapse: collapse;
-    margin: 0.3em 0;
-  }
-
-  .paper :global(table.w-table td),
-  .paper :global(table.w-table th) {
-    min-width: 2em;
-    padding: 0.15em 0.4em;
-    border: 0.5px solid #8a8a8f;
-    vertical-align: top;
-  }
-
-  .paper :global(table.w-table .selectedCell::after) {
-    background: rgb(0 136 255 / 0.15);
-  }
-
-  .paper :global(.w-page-gap) {
-    position: relative;
-    margin: 0 calc(-1 * var(--w-margin-right)) 0 calc(-1 * var(--w-margin-left));
-    user-select: none;
-    pointer-events: none;
-  }
-
-  .paper :global(.w-gap-desk) {
-    position: absolute;
-    left: -8px;
-    right: -8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--desk);
-    color: var(--label-tertiary);
-    font: 400 0.625rem/1 var(--font);
-  }
-
-  .paper :global(.w-gap-header),
-  .paper :global(.w-gap-footer) {
-    position: absolute;
-    left: var(--w-margin-left);
-    right: var(--w-margin-right);
-    opacity: 0.55;
-  }
-
-  @media print {
-    .paper {
-      box-shadow: none;
-      zoom: 1;
-    }
-    .paper :global(.w-page-gap),
-    .add-part {
-      display: none;
-    }
-    .paper :global(.w-page-break) {
-      break-after: page;
-      border: 0;
-      visibility: hidden;
-    }
-  }
 </style>

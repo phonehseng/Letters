@@ -1,13 +1,14 @@
 // fonts, behind one small adapter. the font library (app/ui/src/lib/fonts,
-// core/fonts) is being built by another engineer: when it lands, its
-// FontPicker, its fonts served as bytes (loaded with the FontFace api) and
-// its Missing Fonts view replace the fallbacks here. until then:
-//
-// the fonts the Font menu offers: the document's own, then the computer's
-// (through the Local Font Access API where the web view allows it), or a
-// short list of fonts nearly every computer has.
+// core/fonts) gives the Format inspector its FontPicker, loads fonts that
+// aren't installed into the editor from the bytes the shell serves
+// (useFontInDocument, with the FontFace api) and has the Missing Fonts
+// view the status bar opens. this file keeps what the writer needs on top:
+// which fonts a document uses, replacing one everywhere, and the
+// metric-compatible stand-ins for Office fonts.
 
-import type { DocumentMeta } from "./model";
+import type { Node as PmNode } from "prosemirror-model";
+import type { EditorState, Transaction } from "prosemirror-state";
+import type { DocumentMeta, StyleSheet } from "./model";
 
 /** fonts that come with Windows and macOS, for when the system list can't be read. */
 export const SAFE_FONTS = ["Arial", "Calibri", "Cambria", "Courier New", "Georgia", "Helvetica", "Times New Roman", "Verdana"];
@@ -92,4 +93,41 @@ export async function loadFontBytes(name: string, bytes: ArrayBuffer | null): Pr
   await face.load();
   document.fonts.add(face);
   return true;
+}
+/** fonts the text itself sets (font marks), besides the styles'. */
+export function fontsInText(doc: PmNode): string[] {
+  const names = new Set<string>();
+  doc.descendants((node) => {
+    for (const mark of node.marks) if (mark.type.name === "fontFamily") names.add(String((mark.attrs.data as { name?: string }).name ?? ""));
+    return true;
+  });
+  names.delete("");
+  return [...names];
+}
+
+/** one font replaced by another everywhere: the text's font marks and the styles (the Missing Fonts view's Replace). one undo step. */
+export function replaceFont(state: EditorState, from: string, to: string): Transaction | null {
+  const tr = state.tr;
+  const type = state.schema.marks.fontFamily;
+  state.doc.descendants((node, pos) => {
+    if (!node.isText) return true;
+    const mark = node.marks.find((each) => each.type === type && (each.attrs.data as { name?: string }).name === from);
+    if (mark) tr.addMark(pos, pos + node.nodeSize, type.create({ data: { ...(mark.attrs.data as object), name: to } }));
+    return false;
+  });
+  const meta = state.doc.attrs.meta as DocumentMeta;
+  const styles = renameInStyles(meta.styles, from, to);
+  if (styles !== meta.styles) tr.setDocAttribute("meta", { ...meta, styles });
+  return tr.docChanged || styles !== meta.styles ? tr : null;
+}
+
+function renameInStyles(sheet: StyleSheet, from: string, to: string): StyleSheet {
+  let changed = false;
+  const rename = <T extends { run?: { font?: { name: string } } }>(item: T): T => {
+    if (item.run?.font?.name !== from) return item;
+    changed = true;
+    return { ...item, run: { ...item.run, font: { ...item.run.font, name: to } } };
+  };
+  const next = { ...sheet, defaults: sheet.defaults ? rename(sheet.defaults) : sheet.defaults, styles: sheet.styles.map(rename) };
+  return changed ? next : sheet;
 }

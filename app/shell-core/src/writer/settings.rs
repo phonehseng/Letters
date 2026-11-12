@@ -25,6 +25,10 @@ pub struct WriterSettings {
     pub drive_client_id: String,
     #[serde(default)]
     pub drive_client_secret: String,
+    /// Free mode lays out pages with letters' own engine (core/layout)
+    /// instead of estimating them
+    #[serde(default)]
+    pub layout_engine: bool,
 }
 
 fn free() -> String {
@@ -43,6 +47,7 @@ impl Default for WriterSettings {
             mode: free(),
             drive_client_id: String::new(),
             drive_client_secret: String::new(),
+            layout_engine: false,
         }
     }
 }

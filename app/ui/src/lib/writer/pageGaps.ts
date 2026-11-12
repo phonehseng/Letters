@@ -35,8 +35,14 @@ export function staticPart(meta: DocumentMeta, id: string | undefined, pageNumbe
   return holder;
 }
 
-/** the gaps to show for a pagination, one before each page after the first. */
-export function pageGaps(meta: DocumentMeta, pages: Pages, used: number[], textHeight: number): PageGap[] {
+/**
+ * the gaps to show for a pagination, one before each page after the
+ * first. `positions` gives, for a page that starts inside a paragraph,
+ * the position of the line it starts with (undefined: at the block's
+ * start); `insets` how far that paragraph's text is indented, so the gap
+ * still spans the whole page.
+ */
+export function pageGaps(meta: DocumentMeta, pages: Pages, used: number[], textHeight: number, positions: (number | undefined)[] = [], insets: ({ left: number; right: number } | undefined)[] = []): PageGap[] {
   const section = meta.sections?.[0];
   if (!section) return [];
   const margins = section.page.margins;
@@ -48,11 +54,14 @@ export function pageGaps(meta: DocumentMeta, pages: Pages, used: number[], textH
     const pageAbove = index + 1;
     const rest = Math.max(0, textHeight - (used[index] ?? 0));
     const height = rest + bottom + DESK_GAP + top;
+    const pos = positions[index + 1];
+    const inset = insets[index + 1];
     return {
       blockIndex,
+      pos,
       height,
       pageNumber: pageAbove + 1,
-      render: () => gapElement(meta, section, { rest, top, bottom, pageAbove, total, evenAndOdd }),
+      render: () => gapElement(meta, section, { rest, top, bottom, pageAbove, total, evenAndOdd, inset }),
     };
   });
 }
@@ -60,7 +69,7 @@ export function pageGaps(meta: DocumentMeta, pages: Pages, used: number[], textH
 function gapElement(
   meta: DocumentMeta,
   section: Section,
-  sizes: { rest: number; top: number; bottom: number; pageAbove: number; total: number; evenAndOdd: boolean },
+  sizes: { rest: number; top: number; bottom: number; pageAbove: number; total: number; evenAndOdd: boolean; inset?: { left: number; right: number } },
 ): HTMLElement {
   const margins = section.page.margins;
   const gap = document.createElement("div");
@@ -68,8 +77,10 @@ function gapElement(
   gap.contentEditable = "false";
   gap.setAttribute("aria-hidden", "true");
   gap.style.height = `${sizes.rest + sizes.bottom + DESK_GAP + sizes.top}px`;
-  gap.style.setProperty("--w-margin-left", `${twipsToPx(margins.left)}px`);
-  gap.style.setProperty("--w-margin-right", `${twipsToPx(margins.right)}px`);
+  // inside an indented paragraph the gap reaches out by the indent as well
+  gap.style.setProperty("--w-margin-left", `${twipsToPx(margins.left) + (sizes.inset?.left ?? 0)}px`);
+  gap.style.setProperty("--w-margin-right", `${twipsToPx(margins.right) + (sizes.inset?.right ?? 0)}px`);
+  if (sizes.inset) gap.style.textIndent = "0";
 
   const footer = staticPart(meta, partFor(section, section.footers, sizes.pageAbove, sizes.evenAndOdd), sizes.pageAbove, sizes.total);
   footer.classList.add("w-gap-footer");

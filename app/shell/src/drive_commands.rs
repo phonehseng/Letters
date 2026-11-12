@@ -14,8 +14,10 @@ use letters_shell_core::drive::tokens::{SystemStore, TokenStore};
 use letters_shell_core::drive::upload::{UploadRequest, Uploaded};
 use letters_shell_core::drive::{content_type, Drive};
 use letters_shell_core::writer::export::word_installed;
-use letters_shell_core::writer::FileKind;
+use letters_shell_core::writer::export::ExportError;
 use letters_shell_core::writer::layout::WordLayout;
+use letters_shell_core::writer::sessions::ExportedPdf;
+use letters_shell_core::writer::FileKind;
 use serde::Serialize;
 use serde_json::Value;
 use tauri::State;
@@ -32,7 +34,10 @@ const STORE: &str = "Letters Google Drive";
 
 fn drive_client(writer: &WriterState) -> Client {
     let settings = writer.settings();
-    Client { client_id: settings.drive_client_id, client_secret: settings.drive_client_secret }
+    Client {
+        client_id: settings.drive_client_id,
+        client_secret: settings.drive_client_secret,
+    }
 }
 
 #[derive(Serialize)]
@@ -49,9 +54,16 @@ pub struct DriveStatus {
 pub fn drive_status(writer: State<WriterState>) -> DriveStatus {
     let store = SystemStore::new(STORE);
     let client = drive_client(&writer);
-    let drive = Drive { endpoints: Endpoints::google(), client: client.clone(), store: &store };
+    let drive = Drive {
+        endpoints: Endpoints::google(),
+        client: client.clone(),
+        store: &store,
+    };
     DriveStatus {
-        folders: drive_folders().iter().map(|path| path.to_string_lossy().into_owned()).collect(),
+        folders: drive_folders()
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect(),
         can_upload: !client.client_id.trim().is_empty(),
         signed_in: drive.signed_in(),
     }
@@ -61,8 +73,14 @@ pub fn drive_status(writer: State<WriterState>) -> DriveStatus {
 #[tauri::command(async)]
 pub fn drive_sign_in(writer: State<WriterState>) -> Result<(), CommandError> {
     let store = SystemStore::new(STORE);
-    let drive = Drive { endpoints: Endpoints::google(), client: drive_client(&writer), store: &store };
-    drive.sign_in(open_in_browser, Duration::from_secs(300)).map_err(failed)
+    let drive = Drive {
+        endpoints: Endpoints::google(),
+        client: drive_client(&writer),
+        store: &store,
+    };
+    drive
+        .sign_in(open_in_browser, Duration::from_secs(300))
+        .map_err(failed)
 }
 
 #[tauri::command(async)]
@@ -81,10 +99,22 @@ pub fn drive_upload(
     folder: Option<String>,
 ) -> Result<Uploaded, CommandError> {
     let (bytes, file_name, as_google_doc) = match format.as_str() {
-        "docx" | "googleDoc" => (writer.sessions().bytes_as(id, model, FileKind::Docx).map_err(failed)?, format!("{name}.docx"), format == "googleDoc"),
+        "docx" | "googleDoc" => (
+            writer
+                .sessions()
+                .bytes_as(id, model, FileKind::Docx)
+                .map_err(failed)?,
+            format!("{name}.docx"),
+            format == "googleDoc",
+        ),
         "pdf" => {
-            let pdf = std::env::temp_dir().join("letters-writer-export").join(format!("upload-{id}.pdf"));
-            writer.sessions().export_pdf(id, model, &pdf).map_err(|error| failed(format!("{error:?}")))?;
+            let pdf = std::env::temp_dir()
+                .join("letters-writer-export")
+                .join(format!("upload-{id}.pdf"));
+            writer
+                .sessions()
+                .export_pdf(id, model, &pdf)
+                .map_err(|error| failed(format!("{error:?}")))?;
             let bytes = std::fs::read(&pdf).map_err(|error| failed(error.to_string()))?;
             let _ = std::fs::remove_file(&pdf);
             (bytes, format!("{name}.pdf"), false)
@@ -92,24 +122,38 @@ pub fn drive_upload(
         other => return Err(failed(format!("Letters can’t upload .{other}."))),
     };
     let store = SystemStore::new(STORE);
-    let drive = Drive { endpoints: Endpoints::google(), client: drive_client(&writer), store: &store };
+    let drive = Drive {
+        endpoints: Endpoints::google(),
+        client: drive_client(&writer),
+        store: &store,
+    };
     let request = UploadRequest {
-        name: if as_google_doc { name.clone() } else { file_name.clone() },
+        name: if as_google_doc {
+            name.clone()
+        } else {
+            file_name.clone()
+        },
         content_type: content_type(&file_name).into(),
         as_google_doc,
         folder_id: None,
     };
-    drive.upload(request, folder.as_deref(), &bytes).map_err(failed)
+    drive
+        .upload(request, folder.as_deref(), &bytes)
+        .map_err(failed)
 }
 
 fn open_in_browser(url: &str) -> Result<(), String> {
     #[cfg(windows)]
-    let result = std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", url]).spawn();
+    let result = std::process::Command::new("rundll32")
+        .args(["url.dll,FileProtocolHandler", url])
+        .spawn();
     #[cfg(target_os = "macos")]
     let result = std::process::Command::new("open").arg(url).spawn();
     #[cfg(not(any(windows, target_os = "macos")))]
     let result = std::process::Command::new("xdg-open").arg(url).spawn();
-    result.map(drop).map_err(|error| format!("The browser couldn’t be opened ({error})."))
+    result
+        .map(drop)
+        .map_err(|error| format!("The browser couldn’t be opened ({error})."))
 }
 
 #[tauri::command(async)]
@@ -128,25 +172,59 @@ pub fn writer_word_available() -> bool {
 }
 
 #[tauri::command(async)]
-pub fn writer_word_layout(writer: State<WriterState>, id: u64, model: Value) -> Result<WordLayout, CommandError> {
+pub fn writer_word_layout(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+) -> Result<WordLayout, CommandError> {
     writer.sessions().word_layout(id, model).map_err(failed)
 }
 
-/// writes a copy as .docx, .odt, .html or .txt; the document keeps its own file.
+/// Letters' own lines and pages (core/layout), for Free mode with the engine setting on.
 #[tauri::command(async)]
-pub fn writer_export_copy(writer: State<WriterState>, id: u64, model: Value, path: String) -> Result<String, CommandError> {
-    writer.sessions().export_copy(id, model, Path::new(&path)).map_err(failed)?;
+pub fn writer_engine_layout(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+) -> Result<WordLayout, CommandError> {
+    writer.sessions().engine_layout(id, model).map_err(failed)
+}
+
+/// writes a copy in any of the engine's formats (rtf, markdown, .doc...); the document keeps its own file.
+#[tauri::command(async)]
+pub fn writer_export_copy(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+    path: String,
+) -> Result<String, CommandError> {
+    writer
+        .sessions()
+        .export_copy(id, model, Path::new(&path))
+        .map_err(failed)?;
     Ok(path)
 }
 
-/// a print-ready pdf of the document through word or libreoffice, in the
-/// temp folder, for printing. Err with kind "failed" when neither exists.
+/// a print-ready pdf of the document through word (exact) or libreoffice
+/// (close, with a sentence saying so), in the temp folder, with each
+/// section's paper and margins for the print dialog. Err when neither exists.
 #[tauri::command(async)]
-pub fn writer_print_pdf(writer: State<WriterState>, id: u64, model: Value) -> Result<String, CommandError> {
-    let pdf: PathBuf = std::env::temp_dir().join("letters-writer-export").join(format!("print-{id}.pdf"));
+pub fn writer_print_pdf(
+    writer: State<WriterState>,
+    id: u64,
+    model: Value,
+) -> Result<ExportedPdf, CommandError> {
+    let pdf: PathBuf = std::env::temp_dir()
+        .join("letters-writer-export")
+        .join(format!("print-{id}.pdf"));
+    let _ = std::fs::create_dir_all(pdf.parent().unwrap_or(Path::new(".")));
     writer
         .sessions()
         .export_pdf(id, model, &pdf)
-        .map(|_| pdf.to_string_lossy().into_owned())
-        .map_err(|_| failed("Word and LibreOffice aren’t installed, so Letters prints its own pages.".into()))
+        .map_err(|error| match error {
+            ExportError::NoConverter => failed(
+                "Word and LibreOffice aren’t installed, so Letters prints its own pages.".into(),
+            ),
+            ExportError::Failed(message) => failed(message),
+        })
 }

@@ -47,6 +47,14 @@ export const WRITER_SHORTCUTS: Shortcut[] = [
   // a selected picture: in line with the text, or free on the page
   { command: "image-inline", code: "KeyL", alt: true, shift: true, label: "Alt Shift L" },
   { command: "image-free", code: "KeyF", alt: true, shift: true, label: "Alt Shift F" },
+  { command: "image-crop", code: "KeyC", alt: true, shift: true, label: "Alt Shift C" },
+  // text blocks: split at the cursor, make from the selection, return to the text
+  { command: "text-block-split", code: "Enter", alt: true, shift: true, label: "Alt Shift Enter" },
+  { command: "text-block-make", code: "KeyT", alt: true, shift: true, label: "Alt Shift T" },
+  { command: "text-block-dissolve", code: "KeyR", alt: true, shift: true, label: "Alt Shift R" },
+  { command: "object-front", code: "BracketRight", alt: true, shift: true, label: "Alt Shift ]" },
+  { command: "object-back", code: "BracketLeft", alt: true, shift: true, label: "Alt Shift [" },
+  { command: "toggle-focus-mode", code: "Enter", shift: true, label: "Shift Enter" },
 ];
 
 /** the writer command a key press stands for, or null. ctrl on windows, command on a mac. */

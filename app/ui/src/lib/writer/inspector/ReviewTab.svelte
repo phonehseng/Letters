@@ -4,6 +4,7 @@
   // entry goes to its place in the document.
   import { tools, tooltipFor } from "../../tools";
   import * as edit from "../editing";
+  import { changeLabel } from "../tracked";
   import type { WriterSession } from "../writerSession.svelte";
 
   interface Props {
@@ -60,7 +61,7 @@
       {#each changes as change (`${change.kind}-${change.id}-${change.from}`)}
         <li class="change">
           <button class="go" title="Go to this change" onclick={() => session.goTo(change.from, change.to)}>
-            <span class="kind {change.kind}">{change.kind === "insertion" ? "Added" : "Deleted"}</span>
+            <span class="kind {change.kind}">{changeLabel(change.kind)}</span>
             <span class="what">“{change.text.trim() || " "}”</span>
             <span class="who">{change.author || "Someone"} {date(change.date)}</span>
           </button>

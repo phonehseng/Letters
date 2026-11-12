@@ -19,7 +19,9 @@ pub struct SystemStore {
 
 impl SystemStore {
     pub fn new(service: &str) -> SystemStore {
-        SystemStore { service: service.into() }
+        SystemStore {
+            service: service.into(),
+        }
     }
 
     fn entry(&self) -> Result<keyring::Entry, String> {
@@ -35,7 +37,9 @@ impl TokenStore for SystemStore {
 
     fn save(&self, tokens: &Tokens) -> Result<(), String> {
         let text = serde_json::to_string(tokens).map_err(|error| error.to_string())?;
-        self.entry()?.set_password(&text).map_err(|error| format!("The sign-in couldn’t be kept in the system’s credential store ({error})."))
+        self.entry()?.set_password(&text).map_err(|error| {
+            format!("The sign-in couldn’t be kept in the system’s credential store ({error}).")
+        })
     }
 
     fn clear(&self) {

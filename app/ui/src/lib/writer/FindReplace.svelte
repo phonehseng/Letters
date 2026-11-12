@@ -13,12 +13,14 @@
     top: number;
     replaceShown: boolean;
     onClose: () => void;
+    /** words to start with (a search result that opened this document) */
+    initialQuery?: string;
   }
 
-  let { session, top, replaceShown = $bindable(), onClose }: Props = $props();
+  let { session, top, replaceShown = $bindable(), onClose, initialQuery = "" }: Props = $props();
 
   let input = $state<HTMLInputElement>();
-  let query = $state("");
+  let query = $state(untrack(() => initialQuery));
   let replacement = $state("");
   let matchCase = $state(false);
   let matches = $state<Match[]>([]);

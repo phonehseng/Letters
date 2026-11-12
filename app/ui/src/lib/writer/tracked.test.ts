@@ -1,3 +1,4 @@
+// tracked changes: listing, accepting, rejecting, and recording edits, formatting, splits and joins
 import { describe, expect, it } from "vitest";
 import { TextSelection, type EditorState } from "prosemirror-state";
 import { docToModel } from "./convert";
@@ -103,10 +104,87 @@ describe("recording edits while Track Changes is on", () => {
     ]);
   });
 
-  it("formatting and undo go through untouched", () => {
-    const state = select(stateWith([para("Bold me")]), 1, 5);
-    const bold = state.tr.addMark(1, 5, state.schema.marks.bold.create({ data: {} }));
-    expect(trackTransaction(state, bold, tracker)).toBeNull();
+  it("undo goes through untouched", () => {
+    const state = stateWith([para("Bold me")]);
     expect(trackTransaction(state, state.tr.insertText("x").setMeta("history$", {}), tracker)).toBeNull();
+  });
+
+  it("formatting is recorded as Word's w:rPrChange, with the old formatting kept", () => {
+    let state = stateWith([{ type: "paragraph", content: [{ type: "text", text: "Bold me", marks: [{ type: "italic" }] }] }]);
+    const start = startOf(state, 0);
+    const bold = state.tr.addMark(start, start + 4, state.schema.marks.bold.create({ data: {} }));
+    state = apply(state, bold);
+    const [change] = listChanges(state.doc);
+    expect(change).toMatchObject({ kind: "formatting", author: "Ben", text: "Bold" });
+    const content = docToModel(state.doc).blocks[0].content as { text: string; marks: { type: string; xml?: string }[] }[];
+    expect(content[0].marks.map((mark) => mark.type)).toEqual(["bold", "italic", "preserved"]);
+    expect(content[0].marks[2].xml).toBe('<w:rPrChange w:id="' + change.id + '" w:author="Ben" w:date="2026-11-12T10:00:00Z"><w:rPr><w:i/></w:rPr></w:rPrChange>');
+    // a second change to the same text keeps the first record (Word keeps the original formatting)
+    const again = apply(state, state.tr.addMark(start, start + 4, state.schema.marks.underline.create({ data: { style: "single" } })));
+    expect(listChanges(again.doc).filter((each) => each.kind === "formatting")).toHaveLength(1);
+  });
+
+  it("accepting a formatting change keeps it; rejecting puts the old formatting back", () => {
+    let state = stateWith([para("Plain")]);
+    const start = startOf(state, 0);
+    state = apply(state, state.tr.addMark(start, start + 5, state.schema.marks.bold.create({ data: {} })));
+    const [change] = listChanges(state.doc);
+    const accepted = state.tr;
+    acceptChange(accepted, change);
+    expect(docToModel(accepted.doc).blocks[0].content).toEqual([{ type: "text", text: "Plain", marks: [{ type: "bold" }] }]);
+    const rejected = state.tr;
+    rejectChange(rejected, change);
+    expect(docToModel(rejected.doc).blocks[0].content).toEqual([{ type: "text", text: "Plain" }]);
+  });
+
+  it("splitting a paragraph records its new paragraph mark; rejecting joins it back", () => {
+    let state = stateWith([para("One two")]);
+    const at = startOf(state, 0) + 3;
+    state = select(state, at);
+    state = apply(state, state.tr.split(at));
+    expect(state.doc.childCount).toBe(2);
+    const [change] = listChanges(state.doc);
+    expect(change).toMatchObject({ kind: "paragraphInsertion", author: "Ben", text: "¶" });
+    expect(docToModel(state.doc).blocks[0].props).toEqual({ preserved: [`<w:rPr><w:ins w:id="${change.id}" w:author="Ben" w:date="2026-11-12T10:00:00Z"/></w:rPr>`] });
+    const rejected = state.tr;
+    rejectChange(rejected, change);
+    expect(rejected.doc.childCount).toBe(1);
+    expect(rejected.doc.textContent).toBe("One two");
+    expect(docToModel(rejected.doc).blocks[0].props).toBeUndefined();
+    const accepted = state.tr;
+    acceptChange(accepted, change);
+    expect(accepted.doc.childCount).toBe(2);
+    expect(listChanges(accepted.doc)).toEqual([]);
+  });
+
+  it("joining paragraphs keeps both and records the mark as deleted; accepting joins them", () => {
+    let state = stateWith([para("One"), para("Two")]);
+    const end = startOf(state, 0) + 3;
+    const next = startOf(state, 1);
+    state = select(state, next);
+    state = apply(state, state.tr.delete(end, next));
+    expect(state.doc.childCount).toBe(2);
+    const [change] = listChanges(state.doc);
+    expect(change.kind).toBe("paragraphDeletion");
+    expect(state.selection.from).toBe(end);
+    const accepted = state.tr;
+    acceptChange(accepted, change);
+    expect(accepted.doc.childCount).toBe(1);
+    expect(accepted.doc.textContent).toBe("OneTwo");
+    const rejected = state.tr;
+    rejectChange(rejected, change);
+    expect(rejected.doc.childCount).toBe(2);
+    expect(listChanges(rejected.doc)).toEqual([]);
+  });
+
+  it("joining back a split you made yourself just joins", () => {
+    let state = stateWith([para("One two")]);
+    const at = startOf(state, 0) + 3;
+    state = apply(select(state, at), select(state, at).tr.split(at));
+    const end = startOf(state, 0) + 3;
+    const next = startOf(state, 1);
+    state = apply(select(state, next), select(state, next).tr.delete(end, next));
+    expect(state.doc.childCount).toBe(1);
+    expect(listChanges(state.doc)).toEqual([]);
   });
 });

@@ -15,6 +15,7 @@ import { colour, fontStack, highlightColour, paragraphClass, paragraphCss } from
 import type { ParagraphData } from "./model";
 import { knownMediaUrls } from "./images";
 import { preservedLabel, preservedTooltip } from "./preserved";
+import { formatChangeOf, formatChangeTitle, paragraphRevision, paragraphRevisionTitle } from "./trackedFormatting";
 
 type Data = Record<string, unknown>;
 
@@ -32,7 +33,14 @@ const dataAttr = { data: { default: {} } };
 
 function paragraphDom(node: PmNode, tag: string): DOMOutputSpec {
   const data = node.attrs.data as ParagraphData;
-  return [tag, { class: paragraphClass(data.styleId), style: paragraphCss(data.props), "data-json": json(data) }, 0];
+  const attrs: Record<string, string> = { class: paragraphClass(data.styleId), style: paragraphCss(data.props), "data-json": json(data) };
+  // a tracked split or join shows its paragraph mark, with who and when on hover
+  const revision = paragraphRevision(data);
+  if (revision) {
+    attrs.class += revision.kind === "ins" ? " w-mark-inserted" : " w-mark-deleted";
+    attrs["data-revision"] = paragraphRevisionTitle(revision);
+  }
+  return [tag, attrs, 0];
 }
 
 /** an atom that shows a small chip with words, like a preserved item. */
@@ -86,7 +94,16 @@ const MARKS: [string, MarkRender, ParseRule[]?, Record<string, unknown>?][] = [
   ["subscript", () => ["sub"], [{ tag: "sub" }], { excludes: "superscript subscript" }],
   ["language", (data) => ["span", { lang: String(data.tag ?? "") }]],
   ["off", (data) => ["span", { "data-off": String(data.property ?? "") }], [], { excludes: "" }],
-  ["preserved", () => ["span", { class: "w-preserved-format" }], [], { excludes: "" }],
+  [
+    "preserved",
+    (data) => {
+      // word's tracked formatting change is kept as preserved xml: show it as a change
+      const change = formatChangeOf({ type: { name: "preserved" }, attrs: { data } });
+      return change ? ["span", { class: "w-format-change", title: formatChangeTitle(change) }] : ["span", { class: "w-preserved-format" }];
+    },
+    [],
+    { excludes: "" },
+  ],
   [
     "link",
     (data) => ["a", { href: String(data.href ?? (data.anchor ? `#${data.anchor}` : "")), title: String(data.tooltip ?? data.href ?? ""), class: "w-link" }],
@@ -153,6 +170,18 @@ export const schema = new Schema({
       attrs: dataAttr,
       parseDOM: [{ tag: "div.w-section-break" }],
       toDOM: () => ["div", { class: "w-section-break", contenteditable: "false" }, ["span", "Section Break"]],
+    },
+    // a text block: blocks of text in a frame of their own, placed on the
+    // page like a free picture (model `textBox`). its content is ordinary
+    // blocks, so styles, lists and tables work inside it. where it sits is
+    // set by the object layer (objectLayer.ts) with a node decoration
+    text_box: {
+      group: "block",
+      content: "block+",
+      isolating: true,
+      attrs: dataAttr,
+      parseDOM: [{ tag: "div.w-text-box", getAttrs: (element) => ({ data: readJson(element as HTMLElement) }) }],
+      toDOM: (node) => ["div", { class: "w-text-box", style: textBoxCss(node.attrs.data as Data), "data-json": json(node.attrs.data) }, 0],
     },
     preserved_block: {
       group: "block",
@@ -228,6 +257,21 @@ export const schema = new Schema({
   },
   marks: Object.fromEntries(MARKS.map(([name, render, parse, extra]) => [name, { ...markSpec(name, render, parse), ...extra }])) as Record<string, MarkSpec>,
 });
+
+/** a text block's frame: its size, inner margins, line and fill, from the model. */
+export function textBoxCss(data: Data): string {
+  const px = (twips: unknown) => `${(Number(twips) || 0) / 15}px`;
+  const margins = (data.margins ?? { left: 144, top: 72, right: 144, bottom: 72 }) as Record<string, number>;
+  const border = data.border as { style?: string; size?: number; color?: string } | undefined;
+  const line = border && border.style !== "none" ? `${Math.max(0.5, (border.size ?? 4) / 6)}px solid ${colour(border.color ?? "000000")}` : "1px dashed rgb(0 0 0 / 0.18)";
+  return [
+    `width:${px(data.width)}`,
+    data.autoHeight ? `min-height:${px(data.height)}` : `height:${px(data.height)}`,
+    `padding:${px(margins.top)} ${px(margins.right)} ${px(margins.bottom)} ${px(margins.left)}`,
+    `border:${line}`,
+    `background:${data.fill ? colour(String(data.fill)) : "transparent"}`,
+  ].join(";");
+}
 
 function underlineStyle(style: string): string {
   if (style === "double") return "double";

@@ -28,7 +28,8 @@ fn extension(path: &Path) -> String {
 pub fn route_for_path(path: &Path) -> FileRoute {
     match extension(path).as_str() {
         "pdf" => FileRoute::Viewer,
-        "docx" | "odt" => FileRoute::Writer,
+        // rich text and old word files open by conversion (document.rs)
+        "docx" | "odt" | "rtf" | "doc" => FileRoute::Writer,
         _ => FileRoute::Unsupported,
     }
 }
@@ -48,7 +49,7 @@ pub fn unsupported_message(path: &Path) -> String {
     let name = crate::session::file_name(path);
     match extension(path).as_str() {
         "doc" => format!("“{name}” is an older Word document. Open it in Word and save it as .docx, then open that here."),
-        "rtf" | "txt" | "pages" | "xlsx" | "pptx" | "ods" | "odp" => {
+        "txt" | "pages" | "xlsx" | "pptx" | "ods" | "odp" => {
             format!("Letters can’t open “{name}” yet. It opens PDFs and Word (.docx) or OpenDocument (.odt) documents.")
         }
         _ => format!("Letters can’t open “{name}”. It opens PDFs and Word (.docx) or OpenDocument (.odt) documents."),
@@ -61,17 +62,30 @@ mod tests {
 
     #[test]
     fn files_go_to_the_screen_for_their_type() {
-        assert_eq!(route_for_path(Path::new("C:/a/essay.pdf")), FileRoute::Viewer);
-        assert_eq!(route_for_path(Path::new("C:/a/Essay.PDF")), FileRoute::Viewer);
+        assert_eq!(
+            route_for_path(Path::new("C:/a/essay.pdf")),
+            FileRoute::Viewer
+        );
+        assert_eq!(
+            route_for_path(Path::new("C:/a/Essay.PDF")),
+            FileRoute::Viewer
+        );
         assert_eq!(route_for_path(Path::new("essay.docx")), FileRoute::Writer);
         assert_eq!(route_for_path(Path::new("notes.ODT")), FileRoute::Writer);
-        assert_eq!(route_for_path(Path::new("old.doc")), FileRoute::Unsupported);
-        assert_eq!(route_for_path(Path::new("no extension")), FileRoute::Unsupported);
+        assert_eq!(route_for_path(Path::new("old.doc")), FileRoute::Writer);
+        assert_eq!(route_for_path(Path::new("notes.rtf")), FileRoute::Writer);
+        assert_eq!(
+            route_for_path(Path::new("no extension")),
+            FileRoute::Unsupported
+        );
     }
 
     #[test]
     fn the_saved_format_follows_the_name() {
-        assert_eq!(save_kind_for_path(Path::new("a.docx")), Some(FileKind::Docx));
+        assert_eq!(
+            save_kind_for_path(Path::new("a.docx")),
+            Some(FileKind::Docx)
+        );
         assert_eq!(save_kind_for_path(Path::new("a.Odt")), Some(FileKind::Odt));
         assert_eq!(save_kind_for_path(Path::new("a.pdf")), None);
     }

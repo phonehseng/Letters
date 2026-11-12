@@ -19,7 +19,11 @@ pub fn drive_folders() -> Vec<PathBuf> {
         found.push(home.join("My Drive"));
         if let Ok(entries) = std::fs::read_dir(home.join("Library").join("CloudStorage")) {
             for entry in entries.flatten() {
-                if entry.file_name().to_string_lossy().starts_with("GoogleDrive-") {
+                if entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("GoogleDrive-")
+                {
                     found.push(entry.path().join("My Drive"));
                 }
             }
@@ -53,7 +57,11 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("letters-drive-{}", std::process::id()));
         let my_drive = dir.join("My Drive");
         std::fs::create_dir_all(&my_drive).unwrap();
-        let found = existing(vec![my_drive.clone(), dir.join("missing"), my_drive.clone()]);
+        let found = existing(vec![
+            my_drive.clone(),
+            dir.join("missing"),
+            my_drive.clone(),
+        ]);
         assert_eq!(found, vec![my_drive.clone()]);
         assert!(is_in_drive(&my_drive.join("essay.docx"), &found));
         assert!(!is_in_drive(&dir.join("essay.docx"), &found));

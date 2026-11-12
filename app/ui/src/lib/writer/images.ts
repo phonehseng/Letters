@@ -1,10 +1,10 @@
 // pictures in the editor. the bytes stay in the shell; each picture asks
 // for its `data:` address once and the answer is kept for the document.
-// a floating picture is shown on a line of its own with its wrap noted,
-// because the editing surface has no layout for text flowing round it.
+// a cropped picture shows only its kept part, at the whole picture's scale.
 
 import type { Node as PmNode } from "prosemirror-model";
 import type { NodeView } from "prosemirror-view";
+import { cropOf, cropPlacement, isUncropped } from "./crop";
 import { twipsToPx } from "./units";
 
 type Data = Record<string, unknown>;
@@ -54,22 +54,32 @@ export function wrapNote(data: Data): string | null {
 export function imageView(cache: MediaCache) {
   return (node: PmNode): NodeView => {
     const data = node.attrs.data as Data;
-    const note = wrapNote(data);
+    const free = wrapNote(data) !== null;
     const dom = document.createElement("span");
-    dom.className = note ? "w-image w-image-free" : "w-image";
+    // a free picture is placed on the page by the object layer
+    // (objectLayer.ts, a node decoration with its left and top) and text
+    // flows around it there (wrap.ts)
+    dom.className = free ? "w-image w-image-free" : "w-image";
+    const width = twipsToPx(Number(data.width ?? 1440));
+    const height = twipsToPx(Number(data.height ?? 1440));
     const img = document.createElement("img");
     img.alt = String(data.description ?? "");
     img.draggable = false;
-    img.style.width = `${twipsToPx(Number(data.width ?? 1440))}px`;
-    img.style.height = `${twipsToPx(Number(data.height ?? 1440))}px`;
-    dom.append(img);
-    if (note) {
-      // a free picture sits where its offsets put it, from its paragraph's
-      // top left (the paragraph is the positioned box); text does not wrap
-      // around it on this surface, word places it exactly
-      const placement = data.placement as { horizontal?: { offset?: number; align?: string }; vertical?: { offset?: number }; wrap?: string };
-      Object.assign(dom.style, freeStyle(placement));
-      dom.title = note;
+    const crop = cropOf(data);
+    if (isUncropped(crop)) {
+      img.style.width = `${width}px`;
+      img.style.height = `${height}px`;
+      dom.append(img);
+    } else {
+      // the shown part is a window onto the whole picture, at its own scale
+      const window = document.createElement("span");
+      window.className = "w-crop";
+      window.style.width = `${width}px`;
+      window.style.height = `${height}px`;
+      const whole = cropPlacement({ width, height }, crop);
+      Object.assign(img.style, { left: `${whole.left}px`, top: `${whole.top}px`, width: `${whole.width}px`, height: `${whole.height}px` });
+      window.append(img);
+      dom.append(window);
     }
     cache.url(String(data.mediaId ?? "")).then((url) => {
       if (url) img.src = url;

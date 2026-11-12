@@ -13,7 +13,8 @@ export function extensionOf(path: string): string {
 export function routeForPath(path: string): FileRoute {
   const extension = extensionOf(path);
   if (extension === "pdf") return "viewer";
-  if (extension === "docx" || extension === "odt") return "writer";
+  // rich text and old word files open by conversion (the shell makes a .docx beside them)
+  if (["docx", "odt", "rtf", "doc"].includes(extension)) return "writer";
   return "unsupported";
 }
 
@@ -35,6 +36,8 @@ export function documentKind(path: string): string {
   const extension = extensionOf(path);
   if (extension === "docx") return "Word document";
   if (extension === "odt") return "OpenDocument text";
+  if (extension === "rtf") return "Rich Text document";
+  if (extension === "doc") return "Word 97–2003 document";
   return "PDF";
 }
 

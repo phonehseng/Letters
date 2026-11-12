@@ -43,7 +43,8 @@ impl RecoveryStore {
 
     /// one file per document, named from its path so the next open finds it.
     fn file_for(&self, original: &Path) -> PathBuf {
-        self.folder.join(format!("{}.json", thumbnail_name(original)))
+        self.folder
+            .join(format!("{}.json", thumbnail_name(original)))
     }
 
     /// writes the copy. it is written in one step, so a crash while writing
@@ -119,7 +120,10 @@ mod tests {
         let next = RecoveryStore::new(first.folder.clone());
         assert!(next.find(original).unwrap().saved_at > 0);
         let recovered = next.document(original).unwrap();
-        assert_eq!(recovered.blocks[0].paragraph().unwrap().plain_text(), "Unsaved words");
+        assert_eq!(
+            recovered.blocks[0].paragraph().unwrap().plain_text(),
+            "Unsaved words"
+        );
     }
 
     #[test]

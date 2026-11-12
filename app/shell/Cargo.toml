@@ -51,3 +51,10 @@ serde_json = "1"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
+
+# the writer's print command opens windows' own print dialog through the
+# web view (writer_commands.rs writer_system_print). both crates are what
+# tauri itself uses, at the same versions; MIT or Apache-2.0
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows-core = "0.62"

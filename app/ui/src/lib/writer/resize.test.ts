@@ -1,8 +1,10 @@
+// resizing pictures, the Save As formats, where page breaks come from, strict mode and printing
 import { describe, expect, it } from "vitest";
 import { fitWidth, freeOffsets, nudgeSize, previewOrigin, resize, snapPosition } from "./resize";
-import { formatForPath, saveFilters, SAVE_FORMATS } from "./formats";
+import { copySavedSentence, formatForPath, saveFilters, saveFormatsFrom } from "./formats";
 import { chooseProvider, layoutPages, pagesFromWord, providerExplanation, providerLabel } from "./layoutSource";
-import { compatibilityLine, gate } from "./strictMode";
+import { compatibilityLine, fixableCount, fixLabel, gate, switchQuestion, wordExact } from "./strictMode";
+import type { CompatibilityIssue, EngineFeature, FormatCapability } from "./writerApi";
 import { printLayout, pageRule } from "./print";
 import { metricSubstitute } from "./fonts";
 
@@ -39,14 +41,31 @@ describe("resizing pictures", () => {
   });
 });
 
+// the engine's table as formats::format_capabilities gives it (core/office/src/formats.rs)
+const ENGINE_FORMATS: FormatCapability[] = [
+  { format: "docx", label: "Word Document", extension: "docx", canOpen: true, canSave: true, needsConverter: false, summary: "Keeps everything." },
+  { format: "odt", label: "OpenDocument Text", extension: "odt", canOpen: true, canSave: true, needsConverter: false, summary: "Keeps text and styles." },
+  { format: "rtf", label: "Rich Text Format", extension: "rtf", canOpen: true, canSave: true, needsConverter: false, summary: "Keeps formatting." },
+  { format: "markdown", label: "Markdown", extension: "md", canOpen: false, canSave: true, needsConverter: false, summary: "Keeps headings." },
+  { format: "html", label: "Web Page", extension: "html", canOpen: false, canSave: true, needsConverter: false, summary: "Keeps links." },
+  { format: "doc", label: "Word 97–2003 Document", extension: "doc", canOpen: true, canSave: true, needsConverter: true, summary: "For old Word." },
+];
+
 describe("save formats", () => {
-  it("the name chooses the format; Word and OpenDocument become the document's file", () => {
-    expect(formatForPath("C:\\a\\essay.docx")?.becomes).toBe("own");
-    expect(formatForPath("essay.HTML")?.id).toBe("html");
-    expect(formatForPath("essay.pdf")?.becomes).toBe("copy");
-    expect(formatForPath("essay.rtf")).toBeNull();
-    expect(saveFilters("odt")[0]).toEqual({ name: "OpenDocument Text", extensions: ["odt"] });
-    expect(SAVE_FORMATS.every((format) => format.note.endsWith("."))).toBe(true);
+  it("come from the engine's table; the name chooses the format; Word and OpenDocument become the document's file", () => {
+    const formats = saveFormatsFrom(ENGINE_FORMATS, false);
+    expect(formatForPath("C:\\a\\essay.docx", formats)?.becomes).toBe("own");
+    expect(formatForPath("essay.HTML", formats)?.id).toBe("html");
+    expect(formatForPath("essay.pdf", formats)?.becomes).toBe("copy");
+    expect(formatForPath("essay.rtf", formats)?.note).toBe("Keeps formatting.");
+    expect(formatForPath("essay.md", formats)?.id).toBe("md");
+    // .doc needs Word or LibreOffice
+    expect(formatForPath("essay.doc", formats)).toBeNull();
+    expect(formatForPath("essay.doc", saveFormatsFrom(ENGINE_FORMATS, true))?.id).toBe("doc");
+    expect(formats[2].id).toBe("pdf");
+    expect(saveFilters("odt", formats)[0]).toEqual({ name: "OpenDocument Text", extensions: ["odt"] });
+    expect(formats.every((format) => format.note.endsWith("."))).toBe(true);
+    expect(copySavedSentence(formats.find((format) => format.id === "md")!, "Essay.docx")).toContain("images");
   });
 });
 
@@ -68,21 +87,51 @@ describe("where page breaks come from", () => {
   it("says plainly where the pages come from", () => {
     expect(providerLabel("word", { checking: true, checkedAt: null, wordInstalled: true }, 0)).toBe("Checking layout with Word…");
     expect(providerLabel("word", { checking: false, checkedAt: 1000, wordInstalled: true }, 5000)).toBe("Layout checked with Word a moment ago");
+    expect(providerLabel("word", { checking: false, checkedAt: 0, wordInstalled: true }, 120_000)).toBe("Layout checked with Word 2 minutes ago");
+    expect(providerLabel("word", { checking: false, checkedAt: 0, wordInstalled: true, stale: true }, 1000)).toBe("Layout checked with Word a moment ago, before your last edits");
+    expect(providerLabel("word", { checking: false, checkedAt: null, wordInstalled: true, failed: "x" }, 0)).toBe("Word couldn’t check the layout");
     expect(providerLabel("estimate", { checking: false, checkedAt: null, wordInstalled: false }, 0)).toBe("Pages estimated");
     expect(providerExplanation("estimate", false)).toBe("Page breaks are estimated because Microsoft Word isn’t installed on this computer.");
-    expect(providerExplanation("word", true)).toContain("not an imitation");
+    expect(providerExplanation("word", true)).toContain("half a minute");
   });
 });
 
 describe("strict word mode", () => {
-  it("turns off what Word would show differently, with the reason", () => {
-    expect(gate("wColumns", "free").enabled).toBe(true);
-    const gated = gate("wColumns", "strict");
+  // a part of compat::feature_matrix() as the engine gives it
+  const matrix: EngineFeature[] = [
+    { key: "columns", label: "Text columns", support: "both", note: "" },
+    { key: "highlight", label: "Highlighter", support: "wordExact", note: "word has 16 highlighter colours; odt any colour" },
+    { key: "pictureCrop", label: "Cropped pictures", support: "wordExact", note: "odt keeps the whole picture" },
+    { key: "lists", label: "Unusual lists", support: "approximate", note: "each format has its own set" },
+  ];
+
+  it("offers only what the engine's matrix calls Word-exact, with the engine's reason", () => {
+    expect(gate("wColumns", "strict", matrix).enabled).toBe(true);
+    expect(gate("wImageCrop", "strict", matrix).enabled).toBe(true);
+    expect(gate("wHighlight", "strict", matrix).enabled).toBe(true);
+    const gated = gate("wLists", "strict", matrix);
     expect(gated.enabled).toBe(false);
-    expect(gated.reason).toContain("Strict Word mode");
-    expect(gate("wBold", "strict").enabled).toBe(true);
+    expect(gated.reason).toBe("Off in Strict Word mode: Each format has its own set.");
+    expect(gate("wLists", "free", matrix).enabled).toBe(true);
+    expect(gate("wBold", "strict", matrix).enabled).toBe(true);
+    expect(wordExact(matrix[1])).toBe(true);
+    expect(wordExact(matrix[3])).toBe(false);
+  });
+
+  it("says what differs and offers the engine's fixes", () => {
+    const issues: CompatibilityIssue[] = [
+      { code: "highlight", message: "A highlight colour Word lacks.", location: { block: 0 }, fix: { type: "nearestHighlight", color: "yellow" } },
+      { code: "odtObject", message: "A drawing Word can’t show." },
+    ];
     expect(compatibilityLine([])).toBe("Everything here opens the same in Word.");
-    expect(compatibilityLine([{ what: "a" }, { what: "b" }])).toBe("2 things will look different in Word");
+    expect(compatibilityLine(issues)).toBe("2 things will look different in Word");
+    expect(fixableCount(issues)).toBe(1);
+    expect(fixLabel(issues[0])).toBe("Use Word’s Colour");
+    expect(fixLabel(issues[1])).toBeNull();
+    expect(fixLabel({ code: "font", message: "", fix: { type: "replaceFont", from: "Liberation Serif", to: "Times New Roman" } })).toBe("Use Times New Roman");
+    expect(switchQuestion([])).toBeNull();
+    expect(switchQuestion(issues)).toBe("2 things in this document aren’t Word-exact. Fix All changes the 1 Letters can fix; Show lists the rest.");
+    expect(switchQuestion([issues[0]])).toBe("1 thing in this document isn’t Word-exact. Fix All changes it so Word shows exactly what you see. Undo takes it back.");
   });
 });
 

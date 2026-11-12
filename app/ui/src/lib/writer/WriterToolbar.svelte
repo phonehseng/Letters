@@ -111,11 +111,16 @@
     { label: tools.wInsertLink.label, shortcut: shortcutLabel("insert-link"), run: () => onCommand("insert-link") },
     { label: tools.wInsertPageNumber.label, title: tools.wInsertPageNumber.tooltip, run: () => onCommand("insert-page-number") },
     { label: tools.wInsertComment.label, shortcut: shortcutLabel("insert-comment"), run: () => onCommand("insert-comment") },
+    // text blocks: movable boxes of text (writerObjects.svelte.ts)
+    { label: tools.wTextBlockSplit.label, title: tools.wTextBlockSplit.tooltip, shortcut: shortcutLabel("text-block-split"), separatorBefore: true, run: () => onCommand("text-block-split") },
+    { label: tools.wTextBlockMake.label, title: tools.wTextBlockMake.tooltip, shortcut: shortcutLabel("text-block-make"), run: () => onCommand("text-block-make") },
+    { label: tools.wTextBlockDissolve.label, title: tools.wTextBlockDissolve.tooltip, shortcut: shortcutLabel("text-block-dissolve"), run: () => onCommand("text-block-dissolve") },
   ]);
 
   const viewItems = $derived<PullDownItem[]>([
     { label: tools.wRuler.label, checked: rulerShown, title: tools.wRuler.tooltip, run: onRuler },
     { label: tools.nightMode.label, checked: nightMode, title: tools.nightMode.tooltip, run: onNightMode },
+    { label: tools.wFocusMode.label, title: tools.wFocusMode.tooltip, shortcut: shortcutLabel("toggle-focus-mode"), run: () => onCommand("toggle-focus-mode") },
   ]);
 </script>
 

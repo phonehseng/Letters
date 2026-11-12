@@ -17,6 +17,8 @@ export interface WriterOpened {
   mediaIds: string[];
   /** a recovery copy a run that ended without saving left behind */
   recovery: { savedAt: number } | null;
+  /** the rich text or old Word file this was converted from; Save writes `path`, a .docx beside it */
+  convertedFrom?: string | null;
 }
 
 export interface WriterSaved {
@@ -30,15 +32,34 @@ export interface WriterSettings {
   spellcheck: boolean;
   /** "free" or "strict" (Strict Word mode) */
   mode?: string;
+  /** Free mode lays out pages with Letters' own engine instead of estimating them */
+  layoutEngine?: boolean;
   /** the google oauth client for direct drive uploads (Settings) */
   driveClientId?: string;
   driveClientSecret?: string;
+}
+
+export interface PrintPageSetup {
+  section: number;
+  /** "Letter", "A4"... or "Custom" */
+  paper: string;
+  widthMm: number;
+  heightMm: number;
+  landscape: boolean;
+  /** top, right, bottom, left */
+  marginsInches: [number, number, number, number];
 }
 
 export interface ExportedPdf {
   path: string;
   method: "word" | "libreOffice";
   methodLabel: string;
+  /** made by Word, so it matches Word page for page */
+  exact?: boolean;
+  /** a plain sentence when it isn't exact */
+  note?: string | null;
+  /** each section's paper and margins */
+  pages?: PrintPageSetup[];
 }
 
 /** the editor's model without what the shell keeps itself (it never sent carry or picture bytes). */
@@ -51,6 +72,11 @@ function forShell(model: DocumentModel): DocumentModel {
 
 export function openWriterDocument(path: string, recovered = false): Promise<WriterOpened> {
   return invoke("writer_open", { path, recovered });
+}
+
+/** the document's file moved: Save writes to `to` from now on. */
+export function followMove(id: number, to: string): Promise<WriterSaved> {
+  return invoke("writer_follow_move", { id, to });
 }
 
 export function closeWriterDocument(id: number): Promise<void> {
@@ -131,18 +157,157 @@ export function wordAvailable(): Promise<boolean> {
   return invoke<boolean>("writer_word_available").catch(() => false);
 }
 
-/** where Word breaks the pages: the page each top-level block starts on (empty when it couldn't be matched). */
-export function wordLayout(id: number, model: DocumentModel): Promise<{ blockPages: number[]; pageCount: number }> {
+/** one line as Word laid it out (shell-core/src/writer/layout.rs). */
+export interface WordLine {
+  page: number;
+  block: number;
+  /** inside a table: row, cell and block within the cell */
+  cell?: [number, number, number];
+  /** characters from the start of Word's paragraph to the line's start */
+  offset: number;
+  top: number;
+  left: number;
+  text: string;
+}
+
+export interface WordShape {
+  name: string;
+  page: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  relativeHorizontal: number;
+  relativeVertical: number;
+  text: string;
+}
+
+export interface WordLayoutAnswer {
+  /** the page each top-level block starts on (empty when it couldn't be matched) */
+  blockPages: number[];
+  pageCount: number;
+  lines: WordLine[];
+  shapes: WordShape[];
+  /** how long the answer took, Word's start included */
+  milliseconds: number;
+  wordMilliseconds: number;
+}
+
+/** Letters' own lines and pages (core/layout), in the same form as Word's. */
+export function engineLayout(id: number, model: DocumentModel): Promise<WordLayoutAnswer> {
+  return invoke("writer_engine_layout", { id, model: forShell(model) });
+}
+
+/** Word's own lines and pages for the document as it is now (cached by the shell). */
+export function wordLayout(id: number, model: DocumentModel): Promise<WordLayoutAnswer> {
   return invoke("writer_word_layout", { id, model: forShell(model) });
 }
 
-/** writes a copy as .docx, .odt, .html or .txt; the document keeps its own file. */
+// --- objects on the page, strict word mode, the clipboard and formats
+
+/** an object by where it lives in the model (core/office floating::ObjectRef). */
+export type ObjectRef = { type: "textBox"; block: number } | { type: "image"; block: number; inline: number };
+
+export type ObjectOp =
+  | { op: "splitIntoTextBoxes"; block: number; offset: number }
+  | { op: "textBoxFromBlocks"; start: number; end: number }
+  | { op: "dissolveTextBox"; block: number; at: number }
+  | { op: "floatImage"; block: number; inline: number; hint: [number, number] | null; wrap: string }
+  | { op: "inlineImage"; block: number; inline: number; to: [number, number] | null }
+  | { op: "bringToFront"; object: ObjectRef }
+  | { op: "sendToBack"; object: ObjectRef }
+  | { op: "align"; objects: ObjectRef[]; edge: "left" | "center" | "right" | "top" | "middle" | "bottom" }
+  | { op: "distribute"; objects: ObjectRef[]; horizontal: boolean }
+  | { op: "applyFixes"; only?: number };
+
+export interface ObjectAnswer {
+  model: DocumentModel;
+  changed: boolean;
+  /** the blocks the command made or moved: start, end */
+  blocks: [number, number] | null;
+  /** a picture's new place after it went back in the line: block, inline */
+  image: [number, number] | null;
+  refused: string | null;
+}
+
+export function objectCommand(id: number, model: DocumentModel, op: ObjectOp): Promise<ObjectAnswer> {
+  return invoke("writer_objects", { id, model: forShell(model), op });
+}
+
+export interface EngineFeature {
+  key: string;
+  label: string;
+  support: "both" | "wordExact" | "odtExact" | "approximate";
+  note: string;
+}
+
+export interface CompatibilityIssue {
+  code: string;
+  message: string;
+  location?: { block: number; inline?: number };
+  fix?: { type: string; [field: string]: unknown };
+}
+
+/** the engine's feature table and what Word would show differently. */
+export function compatibility(id: number, model: DocumentModel): Promise<{ features: EngineFeature[]; report: { issues: CompatibilityIssue[] } }> {
+  return invoke("writer_compatibility", { id, model: forShell(model) });
+}
+
+export interface Copied {
+  html: string;
+  text: string;
+  /** a lone picture: its bytes (base64) and content type */
+  image: [string, string] | null;
+}
+
+/** the clipboard forms of some blocks (the copied part as the editor has it). */
+export function copyBlocks(id: number, model: DocumentModel, blocks: unknown[]): Promise<Copied> {
+  return invoke("writer_copy", { id, model: forShell(model), blocks });
+}
+
+export interface PastedPicture {
+  inline: Record<string, unknown>;
+  mediaId: string;
+  url: string;
+  note: string | null;
+}
+
+export function pastePicture(id: number, model: DocumentModel, base64: string, description: string | null): Promise<PastedPicture> {
+  return invoke("writer_paste_picture", { id, model: forShell(model), data: base64, description });
+}
+
+export interface PastedHtml {
+  blocks: unknown[];
+  numbering: { definitions?: unknown[]; instances?: unknown[] };
+  pictures: [string, string][];
+}
+
+export function pasteHtml(id: number, html: string): Promise<PastedHtml> {
+  return invoke("writer_paste_html", { id, html });
+}
+
+export interface FormatCapability {
+  format: "docx" | "odt" | "rtf" | "html" | "plainText" | "markdown" | "doc";
+  label: string;
+  extension: string;
+  canOpen: boolean;
+  canSave: boolean;
+  needsConverter: boolean;
+  summary: string;
+}
+
+/** the engine's format table, and which converters this computer has. */
+export function saveFormats(): Promise<{ formats: FormatCapability[]; word: boolean; libreOffice: boolean }> {
+  return invoke("writer_formats");
+}
+
+/** writes a copy in any of the engine's formats, chosen by the name; the document keeps its own file. */
 export function exportCopy(id: number, model: DocumentModel, path: string): Promise<string> {
   return invoke("writer_export_copy", { id, model: forShell(model), path });
 }
 
-/** a print-ready pdf through Word or LibreOffice, in the temp folder; fails when neither is installed. */
-export function printReadyPdf(id: number, model: DocumentModel): Promise<string> {
+/** a print-ready pdf through Word (exact) or LibreOffice (close, with a note), in the temp folder; fails when neither is installed. */
+export function printReadyPdf(id: number, model: DocumentModel): Promise<ExportedPdf> {
   return invoke("writer_print_pdf", { id, model: forShell(model) });
 }
 
@@ -184,9 +349,9 @@ export async function chooseFileToOpen(): Promise<string | null> {
   const chosen = await showOpenDialog({
     multiple: false,
     filters: [
-      { name: "PDFs and documents", extensions: ["pdf", "docx", "odt"] },
+      { name: "PDFs and documents", extensions: ["pdf", "docx", "odt", "rtf", "doc"] },
       { name: "PDF documents", extensions: ["pdf"] },
-      { name: "Word and OpenDocument", extensions: ["docx", "odt"] },
+      { name: "Word, OpenDocument and Rich Text", extensions: ["docx", "odt", "rtf", "doc"] },
     ],
   });
   return typeof chosen === "string" ? chosen : null;

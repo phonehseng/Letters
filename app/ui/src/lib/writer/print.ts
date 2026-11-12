@@ -62,9 +62,30 @@ function waitForImages(root: HTMLElement): Promise<void> {
   return Promise.all(images.map((image) => (image.complete ? Promise.resolve() : new Promise<void>((done) => ((image.onload = () => done()), (image.onerror = () => done())))))).then(() => {});
 }
 
+/**
+ * opens windows' own print dialog for the print view (the shell's
+ * writer_system_print); where that isn't there, the web view's printing.
+ * returns which one opened.
+ */
+export async function openPrintDialog(): Promise<"system" | "webview"> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("writer_system_print");
+    return "system";
+  } catch {
+    window.print();
+    return "webview";
+  }
+}
+
+/** how long a print view stays ready after the dialog opened: the system dialog says nothing when it is done. */
+const PRINT_VIEW_MINUTES = 3;
+
 /** prints pages the pdf engine draws, through the system's print dialog. */
-export async function printPages(documentId: number, pages: PageSize[], revision: number): Promise<void> {
+export async function printPages(documentId: number, pages: PageSize[], revision: number): Promise<"system" | "webview"> {
   const { tileUrl } = await import("../api");
+  // one print view at a time
+  document.querySelectorAll(".letters-print").forEach((old) => old.remove());
   const holder = document.createElement("div");
   holder.className = "letters-print";
   const style = document.createElement("style");
@@ -88,20 +109,25 @@ export async function printPages(documentId: number, pages: PageSize[], revision
     }
     holder.append(sheet);
   }
+  holder.dataset.pages = String(pages.length);
   document.body.append(holder);
   await waitForImages(holder);
-  // the print view goes once the dialog is done with it
+  // the print view goes once the dialog is done with it (the web view says
+  // so with afterprint; the system dialog doesn't, so a timer removes it)
   window.addEventListener("afterprint", () => holder.remove(), { once: true });
-  window.print();
+  setTimeout(() => holder.remove(), PRINT_VIEW_MINUTES * 60_000);
+  return openPrintDialog();
 }
 
 /** prints a pdf file: opened in the engine for its pages, printed, closed. */
-export async function printPdfFile(path: string): Promise<void> {
+export async function printPdfFile(path: string): Promise<"system" | "webview"> {
   const { closeDocument, openDocument } = await import("../api");
   const opened = await openDocument(path);
+  const close = () => closeDocument(opened.id).catch(() => {});
   try {
-    await printPages(opened.id, opened.pages, opened.revision);
+    return await printPages(opened.id, opened.pages, opened.revision);
   } finally {
-    window.addEventListener("afterprint", () => closeDocument(opened.id), { once: true });
+    window.addEventListener("afterprint", close, { once: true });
+    setTimeout(close, PRINT_VIEW_MINUTES * 60_000);
   }
 }

@@ -1,4 +1,6 @@
 <script lang="ts" module>
+  // a toolbar pull-down menu (Document, Style, Insert, View): a button that
+  // opens a short list of commands, each with its shortcut, for mouse and keyboard.
   export interface PullDownItem {
     label: string;
     run: () => void;

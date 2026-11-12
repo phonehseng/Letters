@@ -41,7 +41,7 @@
   const run = (make: Parameters<WriterSession["run"]>[0]) => session.run(make, false);
   const mode = $derived(session.settings.mode === "strict" ? "strict" : "free");
   // strict word mode turns off what word would show differently (strictMode.ts)
-  const columnsGate = $derived(gate("wColumns", mode));
+  const columnsGate = $derived(gate("wColumns", mode, session.features));
 
   function setMargin(side: "top" | "bottom" | "left" | "right", value: string) {
     const number = Number.parseFloat(value);
@@ -60,7 +60,13 @@
     <button class="segment" class:selected={mode === "free"} role="radio" aria-checked={mode === "free"} onclick={() => session.setSettings({ ...session.settings, mode: "free" })}>Free</button>
     <button class="segment" class:selected={mode === "strict"} role="radio" aria-checked={mode === "strict"} onclick={() => session.setSettings({ ...session.settings, mode: "strict" })}>Strict Word</button>
   </div>
-  <p class="hint">{mode === "strict" ? "Only what Microsoft Word keeps exactly. With Word installed, Word itself lays out the pages you see." : "Every Letters feature. Page breaks are estimated on screen."}</p>
+  <p class="hint">{mode === "strict" ? "Only what Microsoft Word keeps exactly. With Word installed, Word itself lays out the pages you see." : session.settings.layoutEngine ? "Every Letters feature. Letters’ own layout engine works out the pages." : "Every Letters feature. Page breaks are estimated on screen."}</p>
+  {#if mode === "free"}
+    <label class="row" title={tooltipFor("wLayoutEngine")}>
+      <input type="checkbox" checked={!!session.settings.layoutEngine} onchange={(event) => session.setSettings({ ...session.settings, layoutEngine: event.currentTarget.checked })} />
+      {tools.wLayoutEngine.label}
+    </label>
+  {/if}
 </section>
 
 <section aria-labelledby="w-page">

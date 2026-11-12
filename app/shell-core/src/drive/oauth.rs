@@ -76,7 +76,10 @@ impl Tokens {
 }
 
 pub fn now() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// percent-encodes a value for a url or a form.
@@ -84,7 +87,9 @@ pub fn encode(value: &str) -> String {
     let mut out = String::new();
     for byte in value.bytes() {
         match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(byte as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char)
+            }
             _ => out.push_str(&format!("%{byte:02X}")),
         }
     }
@@ -112,7 +117,13 @@ fn decode(value: &str) -> String {
 }
 
 /// the page the browser opens to sign in.
-pub fn authorization_url(endpoints: &Endpoints, client: &Client, redirect: &str, challenge: &str, state: &str) -> String {
+pub fn authorization_url(
+    endpoints: &Endpoints,
+    client: &Client,
+    redirect: &str,
+    challenge: &str,
+    state: &str,
+) -> String {
     format!(
         "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&code_challenge={}&code_challenge_method=S256&state={}&access_type=offline&prompt=consent",
         endpoints.authorize,
@@ -131,18 +142,25 @@ pub struct Loopback {
 
 impl Loopback {
     pub fn bind() -> Result<Loopback, String> {
-        let listener = TcpListener::bind("127.0.0.1:0").map_err(|error| format!("Letters couldn’t listen for the sign-in ({error})."))?;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .map_err(|error| format!("Letters couldn’t listen for the sign-in ({error})."))?;
         Ok(Loopback { listener })
     }
 
     pub fn redirect_uri(&self) -> String {
-        let port = self.listener.local_addr().map(|address| address.port()).unwrap_or(0);
+        let port = self
+            .listener
+            .local_addr()
+            .map(|address| address.port())
+            .unwrap_or(0);
         format!("http://127.0.0.1:{port}")
     }
 
     /// waits for the browser to come back with the code, checking `state`.
     pub fn wait_for_code(&self, state: &str, timeout: Duration) -> Result<String, String> {
-        self.listener.set_nonblocking(true).map_err(|error| error.to_string())?;
+        self.listener
+            .set_nonblocking(true)
+            .map_err(|error| error.to_string())?;
         let started = Instant::now();
         loop {
             match self.listener.accept() {
@@ -164,25 +182,40 @@ impl Loopback {
 }
 
 /// reads one browser request; None for requests that are not the answer (a favicon).
-fn answer_browser(stream: TcpStream, state: &str) -> Result<Option<Result<String, String>>, String> {
-    stream.set_nonblocking(false).map_err(|error| error.to_string())?;
+fn answer_browser(
+    stream: TcpStream,
+    state: &str,
+) -> Result<Option<Result<String, String>>, String> {
+    stream
+        .set_nonblocking(false)
+        .map_err(|error| error.to_string())?;
     stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
     let mut reader = BufReader::new(stream.try_clone().map_err(|error| error.to_string())?);
     let mut line = String::new();
-    reader.read_line(&mut line).map_err(|error| error.to_string())?;
+    reader
+        .read_line(&mut line)
+        .map_err(|error| error.to_string())?;
     let target = line.split_whitespace().nth(1).unwrap_or("");
     let Some((_, query)) = target.split_once('?') else {
         respond(stream, "404 Not Found", "");
         return Ok(None);
     };
     let parameters = parse_query(query);
-    let value = |name: &str| parameters.iter().find(|(key, _)| key == name).map(|(_, value)| value.clone());
+    let value = |name: &str| {
+        parameters
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.clone())
+    };
     let result = if value("state").as_deref() != Some(state) {
         Err("The sign-in answer didn’t match this sign-in, so it was ignored.".to_string())
     } else if let Some(code) = value("code") {
         Ok(code)
     } else {
-        Err(format!("Google didn’t sign you in ({}).", value("error").unwrap_or_else(|| "no reason given".into())))
+        Err(format!(
+            "Google didn’t sign you in ({}).",
+            value("error").unwrap_or_else(|| "no reason given".into())
+        ))
     };
     let page = if result.is_ok() {
         "You are signed in. You can close this tab and go back to Letters."
@@ -216,7 +249,11 @@ pub fn token_request_body(client: &Client, fields: &[(&str, &str)]) -> String {
         pairs.push(("client_secret", client.client_secret.as_str()));
     }
     pairs.extend_from_slice(fields);
-    pairs.iter().map(|(key, value)| format!("{}={}", encode(key), encode(value))).collect::<Vec<_>>().join("&")
+    pairs
+        .iter()
+        .map(|(key, value)| format!("{}={}", encode(key), encode(value)))
+        .collect::<Vec<_>>()
+        .join("&")
 }
 
 #[derive(Deserialize)]
@@ -234,8 +271,13 @@ fn an_hour() -> u64 {
 
 /// reads google's token answer into tokens, keeping an old refresh token
 /// when a refresh answer has none (google sends it only the first time).
-pub fn parse_token_answer(json: &str, previous_refresh: Option<String>, now: u64) -> Result<Tokens, String> {
-    let answer: TokenAnswer = serde_json::from_str(json).map_err(|error| format!("Google’s answer couldn’t be read ({error})."))?;
+pub fn parse_token_answer(
+    json: &str,
+    previous_refresh: Option<String>,
+    now: u64,
+) -> Result<Tokens, String> {
+    let answer: TokenAnswer = serde_json::from_str(json)
+        .map_err(|error| format!("Google’s answer couldn’t be read ({error})."))?;
     Ok(Tokens {
         access_token: answer.access_token,
         refresh_token: answer.refresh_token.or(previous_refresh),
@@ -248,21 +290,48 @@ fn post_form(url: &str, body: &str) -> Result<String, String> {
         .header("Content-Type", "application/x-www-form-urlencoded")
         .send(body.as_bytes())
         .map_err(|error| format!("Google couldn’t be reached or said no ({error})."))?;
-    response.body_mut().read_to_string().map_err(|error| error.to_string())
+    response
+        .body_mut()
+        .read_to_string()
+        .map_err(|error| error.to_string())
 }
 
-pub fn exchange_code(endpoints: &Endpoints, client: &Client, code: &str, verifier: &str, redirect: &str) -> Result<Tokens, String> {
+pub fn exchange_code(
+    endpoints: &Endpoints,
+    client: &Client,
+    code: &str,
+    verifier: &str,
+    redirect: &str,
+) -> Result<Tokens, String> {
     let body = token_request_body(
         client,
-        &[("grant_type", "authorization_code"), ("code", code), ("code_verifier", verifier), ("redirect_uri", redirect)],
+        &[
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("code_verifier", verifier),
+            ("redirect_uri", redirect),
+        ],
     );
     parse_token_answer(&post_form(&endpoints.token, &body)?, None, now())
 }
 
 pub fn refresh(endpoints: &Endpoints, client: &Client, tokens: &Tokens) -> Result<Tokens, String> {
-    let refresh_token = tokens.refresh_token.clone().ok_or("Sign in to Google Drive again.")?;
-    let body = token_request_body(client, &[("grant_type", "refresh_token"), ("refresh_token", &refresh_token)]);
-    parse_token_answer(&post_form(&endpoints.token, &body)?, Some(refresh_token), now())
+    let refresh_token = tokens
+        .refresh_token
+        .clone()
+        .ok_or("Sign in to Google Drive again.")?;
+    let body = token_request_body(
+        client,
+        &[
+            ("grant_type", "refresh_token"),
+            ("refresh_token", &refresh_token),
+        ],
+    );
+    parse_token_answer(
+        &post_form(&endpoints.token, &body)?,
+        Some(refresh_token),
+        now(),
+    )
 }
 
 #[cfg(test)]
@@ -271,8 +340,17 @@ mod tests {
 
     #[test]
     fn the_sign_in_address_asks_only_for_files_letters_makes() {
-        let client = Client { client_id: "id 1".into(), client_secret: String::new() };
-        let url = authorization_url(&Endpoints::google(), &client, "http://127.0.0.1:5000", "abc", "xyz");
+        let client = Client {
+            client_id: "id 1".into(),
+            client_secret: String::new(),
+        };
+        let url = authorization_url(
+            &Endpoints::google(),
+            &client,
+            "http://127.0.0.1:5000",
+            "abc",
+            "xyz",
+        );
         assert!(url.starts_with("https://accounts.google.com/o/oauth2/v2/auth?client_id=id%201"));
         assert!(url.contains("scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.file&"));
         assert!(url.contains("code_challenge=abc&code_challenge_method=S256&state=xyz"));
@@ -281,19 +359,38 @@ mod tests {
 
     #[test]
     fn tokens_are_refreshed_a_minute_early_and_keep_their_refresh_token() {
-        let tokens = parse_token_answer(r#"{"access_token":"a","refresh_token":"r","expires_in":3600}"#, None, 1000).unwrap();
+        let tokens = parse_token_answer(
+            r#"{"access_token":"a","refresh_token":"r","expires_in":3600}"#,
+            None,
+            1000,
+        )
+        .unwrap();
         assert_eq!(tokens.expires_at, 4600);
         assert!(!tokens.needs_refresh(4500));
         assert!(tokens.needs_refresh(4541));
-        let refreshed = parse_token_answer(r#"{"access_token":"b","expires_in":10}"#, tokens.refresh_token.clone(), 5000).unwrap();
+        let refreshed = parse_token_answer(
+            r#"{"access_token":"b","expires_in":10}"#,
+            tokens.refresh_token.clone(),
+            5000,
+        )
+        .unwrap();
         assert_eq!(refreshed.refresh_token.as_deref(), Some("r"));
     }
 
     #[test]
     fn token_requests_are_form_encoded_with_the_secret_only_when_set() {
-        let client = Client { client_id: "c".into(), client_secret: String::new() };
-        assert_eq!(token_request_body(&client, &[("code", "a b/c")]), "client_id=c&code=a%20b%2Fc");
-        let with_secret = Client { client_id: "c".into(), client_secret: "s".into() };
+        let client = Client {
+            client_id: "c".into(),
+            client_secret: String::new(),
+        };
+        assert_eq!(
+            token_request_body(&client, &[("code", "a b/c")]),
+            "client_id=c&code=a%20b%2Fc"
+        );
+        let with_secret = Client {
+            client_id: "c".into(),
+            client_secret: "s".into(),
+        };
         assert!(token_request_body(&with_secret, &[]).ends_with("client_secret=s"));
     }
 
@@ -303,12 +400,21 @@ mod tests {
         let address = loopback.redirect_uri().replace("http://", "");
         let browser = std::thread::spawn(move || {
             let mut stream = TcpStream::connect(&address).unwrap();
-            write!(stream, "GET /?state=s1&code=4%2Fabc HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
+            write!(
+                stream,
+                "GET /?state=s1&code=4%2Fabc HTTP/1.1\r\nHost: x\r\n\r\n"
+            )
+            .unwrap();
             let mut page = String::new();
             let _ = std::io::Read::read_to_string(&mut stream, &mut page);
             page
         });
-        assert_eq!(loopback.wait_for_code("s1", Duration::from_secs(5)).unwrap(), "4/abc");
+        assert_eq!(
+            loopback
+                .wait_for_code("s1", Duration::from_secs(5))
+                .unwrap(),
+            "4/abc"
+        );
         assert!(browser.join().unwrap().contains("You are signed in"));
 
         let loopback = Loopback::bind().unwrap();
@@ -317,6 +423,8 @@ mod tests {
             let mut stream = TcpStream::connect(&address).unwrap();
             write!(stream, "GET /?state=other&code=x HTTP/1.1\r\n\r\n").unwrap();
         });
-        assert!(loopback.wait_for_code("s1", Duration::from_secs(5)).is_err());
+        assert!(loopback
+            .wait_for_code("s1", Duration::from_secs(5))
+            .is_err());
     }
 }

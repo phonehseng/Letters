@@ -1,0 +1,289 @@
+/* the document's own content on the page surface (PageSurface.svelte):
+   paragraphs, lists, tables, pictures, free objects, tracked changes, page
+   gaps and printing. kept here so the component stays small; the rules sit
+   under .paper (the page) or .w-doc (the document's text), so nothing else
+   in the app is touched. */
+
+/* text flows around free objects through invisible floats (wrap.ts) */
+.paper .w-exclusion {
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* free objects are placed by the object layer (objectLayer.ts) */
+.paper .w-image-free,
+.paper .w-text-box {
+  position: absolute;
+  margin: 0;
+}
+
+.paper .w-text-box {
+  box-sizing: border-box;
+  overflow: visible;
+  text-indent: 0;
+}
+
+.paper .w-crop {
+  position: relative;
+  display: block;
+  overflow: hidden;
+}
+
+.paper .w-crop img {
+  position: absolute;
+  max-width: none;
+}
+
+/* strict word mode: lines break where word breaks them (wordLines.ts) */
+.paper .w-word-lines {
+  white-space: pre;
+}
+
+/* tracked formatting and tracked paragraph marks */
+.paper .w-format-change {
+  text-decoration: underline dotted #1a6fd4;
+}
+
+.paper .w-mark-inserted::after,
+.paper .w-mark-deleted::after {
+  content: "¶";
+  margin-left: 0.15em;
+  color: #1a6fd4;
+}
+
+.paper .w-mark-deleted::after {
+  color: #c4314b;
+  text-decoration: line-through;
+}
+
+/* --- the document's own content */
+
+.paper .ProseMirror {
+  outline: none;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  caret-color: #000000;
+}
+
+/* no specificity at all, so the document's own styles (css.ts) always win */
+:where(.w-doc) :where(p, h1, h2, h3, h4, h5, h6) {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  min-height: 1em;
+}
+
+/* the editor root is where free objects are placed from; its own
+   stacking context lets "behind text" objects sit under the words */
+.paper .ProseMirror.w-body {
+  position: relative;
+  z-index: 0;
+}
+
+/* the caret shows where the focus is; a ring around the whole text would
+   only cover the page */
+.paper .ProseMirror.w-body:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.paper .w-list-item::before {
+  content: attr(data-label);
+  display: inline-block;
+  min-width: var(--w-hang);
+  text-indent: 0;
+}
+
+.paper .w-tab {
+  white-space: pre;
+  tab-size: 48px;
+}
+
+.paper .w-note-ref::after {
+  content: attr(data-number);
+}
+
+.paper .w-field {
+  border-radius: 2px;
+  background: rgb(0 0 0 / 0.07);
+}
+
+.paper .w-comment {
+  background: rgb(255 200 0 / 0.3);
+  border-bottom: 1px solid rgb(220 160 0);
+}
+
+/* a small speech-bubble square where a comment's marker sits */
+.paper .w-comment-ref::before {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 0.45em;
+  margin: 0 0.1em;
+  border: 1px solid #c89000;
+  border-radius: 2px;
+  background: #ffd34d;
+  vertical-align: super;
+}
+
+.paper ins.w-insertion {
+  color: #1a6fd4;
+  text-decoration: underline;
+  text-decoration-color: #1a6fd4;
+}
+
+.paper del.w-deletion {
+  color: #c4314b;
+  text-decoration: line-through;
+}
+
+.paper .w-find {
+  background: rgb(255 214 0 / 0.55);
+}
+
+.paper .w-find-current {
+  background: rgb(255 150 0 / 0.75);
+}
+
+.paper .w-link {
+  color: #0b57d0;
+  text-decoration: underline;
+}
+
+.paper .w-hidden {
+  text-decoration: underline dotted;
+  opacity: 0.5;
+}
+
+.paper .w-chip {
+  display: inline-block;
+  padding: 0 0.4em;
+  border: 1px dashed #9a9aa0;
+  border-radius: 0.3em;
+  background: #f4f4f6;
+  color: #5a5a60;
+  font: 400 9pt/1.4 var(--font);
+  text-indent: 0;
+  user-select: none;
+}
+
+.paper div.w-chip {
+  display: block;
+  margin: 0.4em 0;
+  padding: 0.6em;
+  text-align: center;
+}
+
+.paper .ProseMirror-selectednode.w-chip,
+.paper .w-image.w-selected img {
+  outline: 2px solid var(--accent);
+}
+
+.paper .w-page-break,
+.paper .w-section-break {
+  margin: 0.6em 0;
+  border-top: 1px dashed #b0b0b5;
+  color: #8a8a8f;
+  font: 400 8pt/1 var(--font);
+  text-align: center;
+  user-select: none;
+}
+
+.paper .w-page-break span,
+.paper .w-section-break span {
+  position: relative;
+  top: -0.55em;
+  padding: 0 0.5em;
+  background: #ffffff;
+}
+
+.paper .w-image {
+  display: inline-block;
+  text-indent: 0;
+}
+
+.paper .w-image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.paper .w-image-floating {
+  display: block;
+  margin: 0.4em 0;
+}
+
+.paper .w-image-note {
+  display: block;
+  margin-top: 0.2em;
+  color: #6a6a70;
+  font: 400 8pt/1.2 var(--font);
+}
+
+.paper .w-image-missing {
+  min-width: 2em;
+  min-height: 2em;
+  background: repeating-linear-gradient(45deg, #eee, #eee 6px, #f8f8f8 6px, #f8f8f8 12px);
+}
+
+.paper table.w-table {
+  border-collapse: collapse;
+  margin: 0.3em 0;
+}
+
+.paper table.w-table td,
+.paper table.w-table th {
+  min-width: 2em;
+  padding: 0.15em 0.4em;
+  border: 0.5px solid #8a8a8f;
+  vertical-align: top;
+}
+
+.paper table.w-table .selectedCell::after {
+  background: rgb(0 136 255 / 0.15);
+}
+
+.paper .w-page-gap {
+  position: relative;
+  margin: 0 calc(-1 * var(--w-margin-right)) 0 calc(-1 * var(--w-margin-left));
+  user-select: none;
+  pointer-events: none;
+}
+
+.paper .w-gap-desk {
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--desk);
+  color: var(--label-tertiary);
+  font: 400 0.625rem/1 var(--font);
+}
+
+.paper .w-gap-header,
+.paper .w-gap-footer {
+  position: absolute;
+  left: var(--w-margin-left);
+  right: var(--w-margin-right);
+  opacity: 0.55;
+}
+
+@media print {
+  .paper {
+    box-shadow: none;
+    zoom: 1;
+  }
+  .paper .w-page-gap,
+  .add-part {
+    display: none;
+  }
+  .paper .w-page-break {
+    break-after: page;
+    border: 0;
+    visibility: hidden;
+  }
+}

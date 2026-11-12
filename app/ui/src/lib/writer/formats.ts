@@ -1,9 +1,13 @@
-// the formats Save As offers, each with one sentence on what it keeps and
-// loses. Word and OpenDocument become the document's own file; the others
-// are a copy, and the document stays what it was. RTF and Markdown wait
-// for the office engine's exporters and are shown as coming.
+// the formats Save As offers, from the office engine's table
+// (formats::format_capabilities, through writerApi.saveFormats), each with
+// the engine's sentence on what it keeps. Word and OpenDocument become the
+// document's own file; the others are a copy and the document stays what
+// it was. PDF is not a document format of the engine: Word or LibreOffice
+// make it (bridge::print_pdf), so its entry is added here.
 
-export type SaveFormatId = "docx" | "odt" | "pdf" | "html" | "txt" | "rtf" | "md";
+import type { FormatCapability } from "./writerApi";
+
+export type SaveFormatId = "docx" | "odt" | "pdf" | "html" | "txt" | "rtf" | "md" | "doc";
 
 export interface SaveFormat {
   id: SaveFormatId;
@@ -15,26 +19,56 @@ export interface SaveFormat {
   note: string;
 }
 
-export const SAVE_FORMATS: SaveFormat[] = [
-  { id: "docx", label: "Word Document", extension: "docx", becomes: "own", available: true, note: "Keeps everything, including what Letters can’t edit, so it opens in Word as it was." },
-  { id: "odt", label: "OpenDocument Text", extension: "odt", becomes: "own", available: true, note: "Keeps text, styles, lists, tables, notes and pictures; some Word-only items keep only their text." },
-  { id: "pdf", label: "PDF", extension: "pdf", becomes: "copy", available: true, note: "Looks the same everywhere and can’t be edited as a document. Word or LibreOffice makes it when installed." },
-  { id: "html", label: "Web Page", extension: "html", becomes: "copy", available: true, note: "Keeps text, headings, lists, tables and links; page layout, headers and footers are lost." },
-  { id: "txt", label: "Plain Text", extension: "txt", becomes: "copy", available: true, note: "Keeps only the words: all formatting, pictures and tables’ layout are lost." },
-  { id: "rtf", label: "Rich Text", extension: "rtf", becomes: "copy", available: false, note: "Coming with the office engine’s RTF export." },
-  { id: "md", label: "Markdown", extension: "md", becomes: "copy", available: false, note: "Coming with the office engine’s Markdown export." },
-];
+const ID_FOR_ENGINE: Record<FormatCapability["format"], SaveFormatId> = {
+  docx: "docx",
+  odt: "odt",
+  rtf: "rtf",
+  html: "html",
+  plainText: "txt",
+  markdown: "md",
+  doc: "doc",
+};
 
-/** the format a chosen file name stands for, or null for one Letters can't write. */
-export function formatForPath(path: string): SaveFormat | null {
+const PDF_NOTE = "Looks the same everywhere and can’t be edited as a document. Word makes it with Word’s exact pages; without Word, LibreOffice makes a close copy.";
+
+/** the engine's table as Save As shows it; `converter` is true when Word or LibreOffice is installed. */
+export function saveFormatsFrom(capabilities: FormatCapability[], converter: boolean): SaveFormat[] {
+  const formats: SaveFormat[] = capabilities
+    .filter((capability) => capability.canSave)
+    .map((capability) => {
+      const id = ID_FOR_ENGINE[capability.format];
+      const available = !capability.needsConverter || converter;
+      return {
+        id,
+        label: capability.label,
+        extension: capability.extension,
+        becomes: id === "docx" || id === "odt" ? "own" : "copy",
+        available,
+        note: available ? capability.summary : `${capability.summary} Word or LibreOffice isn’t on this computer, so this isn’t available.`,
+      };
+    });
+  // pdf goes after the two document formats, where people look for it
+  const at = Math.min(2, formats.length);
+  formats.splice(at, 0, { id: "pdf", label: "PDF", extension: "pdf", becomes: "copy", available: true, note: PDF_NOTE });
+  return formats;
+}
+
+/** the format a chosen file name stands for, or null for one Letters can't write here. */
+export function formatForPath(path: string, formats: SaveFormat[]): SaveFormat | null {
   const extension = (path.split(/[\\/]/).pop() ?? "").split(".").pop()?.toLowerCase() ?? "";
-  const format = SAVE_FORMATS.find((each) => each.extension === extension || (each.id === "html" && extension === "htm"));
+  const format = formats.find((each) => each.extension === extension || (each.id === "html" && extension === "htm") || (each.id === "md" && extension === "markdown"));
   return format?.available ? format : null;
 }
 
 /** the save panel's list: the document's own format first, then the others it can write. */
-export function saveFilters(own: "docx" | "odt"): { name: string; extensions: string[] }[] {
-  const available = SAVE_FORMATS.filter((format) => format.available);
+export function saveFilters(own: "docx" | "odt", formats: SaveFormat[]): { name: string; extensions: string[] }[] {
+  const available = formats.filter((format) => format.available);
   const first = available.filter((format) => format.id === own);
   return [...first, ...available.filter((format) => format.id !== own)].map((format) => ({ name: format.label, extensions: [format.extension] }));
+}
+
+/** the sentence after saving a copy: what was written and that the document stays itself. */
+export function copySavedSentence(format: SaveFormat, documentName: string): string {
+  const pictures = format.id === "md" ? " Its pictures are in the “images” folder beside it." : "";
+  return `Saved a copy as ${format.label}.${pictures} This document is still “${documentName}”.`;
 }

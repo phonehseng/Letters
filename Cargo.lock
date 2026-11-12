@@ -2796,6 +2796,8 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-single-instance",
+ "webview2-com",
+ "windows-core",
 ]
 
 [[package]]
@@ -2814,6 +2816,7 @@ dependencies = [
  "letters-exact",
  "letters-fonts",
  "letters-forms",
+ "letters-layout",
  "letters-ocr",
  "letters-office",
  "letters-pages",

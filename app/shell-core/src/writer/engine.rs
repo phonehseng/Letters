@@ -26,7 +26,8 @@ pub struct PresetDetails {
 }
 
 fn read(model: Value) -> Result<Document, String> {
-    serde_json::from_value(model).map_err(|error| format!("The document couldn’t be read. ({error})"))
+    serde_json::from_value(model)
+        .map_err(|error| format!("The document couldn’t be read. ({error})"))
 }
 
 /// the model after "MLA" or "APA" has been applied, for the editor to
@@ -86,11 +87,15 @@ mod tests {
             name: "Ada Lovelace".into(),
             ..Default::default()
         };
-        let after: Document = serde_json::from_value(apply_preset(model(), "mla", &details).unwrap()).unwrap();
+        let after: Document =
+            serde_json::from_value(apply_preset(model(), "mla", &details).unwrap()).unwrap();
         let normal = after.style("Normal").unwrap();
         assert_eq!(normal.paragraph.spacing.line.unwrap().value, 480);
         let header = after.header_footer("mla-header").unwrap();
-        assert_eq!(header.blocks[0].paragraph().unwrap().plain_text(), "Lovelace 1");
+        assert_eq!(
+            header.blocks[0].paragraph().unwrap().plain_text(),
+            "Lovelace 1"
+        );
     }
 
     #[test]
@@ -100,8 +105,12 @@ mod tests {
             add_heading: true,
             ..Default::default()
         };
-        let after: Document = serde_json::from_value(apply_preset(model(), "apa", &details).unwrap()).unwrap();
-        assert!(after.blocks.iter().any(|block| matches!(block, Block::PageBreak)));
+        let after: Document =
+            serde_json::from_value(apply_preset(model(), "apa", &details).unwrap()).unwrap();
+        assert!(after
+            .blocks
+            .iter()
+            .any(|block| matches!(block, Block::PageBreak)));
     }
 
     #[test]

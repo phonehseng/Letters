@@ -36,7 +36,8 @@ fn check_can_write(path: &Path) -> Result<(), String> {
 /// puts `bytes` at `destination` in one step.
 pub fn write_atomically(bytes: &[u8], destination: &Path) -> Result<(), String> {
     let temporary = temporary_path_beside(destination);
-    let result = write_and_flush(bytes, &temporary).and_then(|_| fs::rename(&temporary, destination));
+    let result =
+        write_and_flush(bytes, &temporary).and_then(|_| fs::rename(&temporary, destination));
     result.map_err(|error| {
         let _ = fs::remove_file(&temporary);
         format!("“{}” couldn’t be saved. ({error})", file_name(destination))
@@ -90,7 +91,12 @@ fn count_preserved(document: &Document) -> usize {
             count += paragraph
                 .content
                 .iter()
-                .filter(|inline| matches!(inline, Inline::Preserved { .. } | Inline::PreservedRun { .. }))
+                .filter(|inline| {
+                    matches!(
+                        inline,
+                        Inline::Preserved { .. } | Inline::PreservedRun { .. }
+                    )
+                })
                 .count();
         }
     });
@@ -101,10 +107,9 @@ fn has_date_field(document: &Document) -> bool {
     let mut found = false;
     visit_blocks(&document.blocks, &mut |block| {
         if let Some(paragraph) = block.paragraph() {
-            found |= paragraph
-                .content
-                .iter()
-                .any(|inline| matches!(inline, Inline::Field(field) if field.kind == FieldKind::Date));
+            found |= paragraph.content.iter().any(
+                |inline| matches!(inline, Inline::Field(field) if field.kind == FieldKind::Date),
+            );
         }
     });
     found
@@ -169,7 +174,9 @@ mod tests {
         let mut document = Document::new();
         assert_eq!(odt_losses(&document, FileKind::Odt), None);
         document.blocks = vec![
-            Block::Preserved { xml: "<w:sdt/>".into() },
+            Block::Preserved {
+                xml: "<w:sdt/>".into(),
+            },
             Block::Paragraph(Paragraph {
                 content: vec![Inline::Field(Field {
                     kind: FieldKind::Date,

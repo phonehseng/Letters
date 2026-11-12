@@ -15,11 +15,14 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::session::file_name;
+use crate::writer::clipboard::{Copied, PastedHtml, PastedPicture};
 use crate::writer::document::{ui_model, WriterDocument};
 use crate::writer::export::{export_pdf, ExportError, ExportMethod};
+use crate::writer::objects::{Compatibility, ObjectAnswer, ObjectOp};
 use crate::writer::recovery::{RecoveryInfo, RecoveryStore};
 use crate::writer::routing::save_kind_for_path;
 use crate::writer::save::{odt_losses, save_document};
+use letters_office::formats::{PrintPageSetup, SaveFormat};
 
 /// what the ui gets when a document opens.
 #[derive(Debug, Serialize)]
@@ -57,6 +60,12 @@ pub struct ExportedPdf {
     pub method: ExportMethod,
     /// the converter's name, for "Exported with Microsoft Word."
     pub method_label: &'static str,
+    /// made by word, so it matches word page for page
+    pub exact: bool,
+    /// a plain sentence when it is not exact
+    pub note: Option<String>,
+    /// each section's paper and margins, for the print dialog
+    pub pages: Vec<PrintPageSetup>,
 }
 
 pub fn kind_name(kind: FileKind) -> &'static str {
@@ -75,8 +84,8 @@ pub struct WriterSessions {
     open: Mutex<HashMap<u64, Arc<Mutex<OpenWriter>>>>,
     next_id: AtomicU64,
     recovery: RecoveryStore,
-    /// where exports write their temporary copies
-    work_dir: PathBuf,
+    /// where word's layouts are kept, by document fingerprint
+    layout_cache: PathBuf,
 }
 
 impl WriterSessions {
@@ -85,17 +94,18 @@ impl WriterSessions {
             open: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
             recovery: RecoveryStore::new(cache_dir.join("writer recovery")),
-            // word can't open files under the app's own cache folder
-            // (measured: "we couldn't find your file"), but it can in the
-            // system temp folder, so exports and layouts work there
-            work_dir: std::env::temp_dir().join("letters-writer-export"),
+            // the bridge hands word its copies in the system temp folder
+            // (word can't open files under the app's own cache folder);
+            // only the layout answers are kept here
+            layout_cache: cache_dir.join("word layouts"),
         }
     }
 
     /// opens a .docx or .odt. `recovered` opens the recovery copy instead
     /// of the file (it then starts with unsaved changes in the ui).
     pub fn open(&self, window: &str, path: &Path, recovered: bool) -> Result<OpenedWriter, String> {
-        let (mut writer, mut document) = WriterDocument::open(path).map_err(|error| error.to_string())?;
+        let (mut writer, mut document) =
+            WriterDocument::open(path).map_err(|error| error.to_string())?;
         if recovered {
             let copy = self
                 .recovery
@@ -146,7 +156,7 @@ impl WriterSessions {
             id,
             name: file_name(path),
             path: path.to_string_lossy().into_owned(),
-            kind: kind_name(writer.kind),
+            kind: kind_name(FileKind::Docx),
             model: ui_model(&document),
             media_ids: document.media.iter().map(|item| item.id.clone()).collect(),
             recovery: None,
@@ -224,7 +234,12 @@ impl WriterSessions {
     }
 
     /// a picture given as bytes (pasted or dropped); returns its media id and data address.
-    pub fn add_picture_bytes(&self, id: u64, name: &str, bytes: Vec<u8>) -> Result<(String, String), String> {
+    pub fn add_picture_bytes(
+        &self,
+        id: u64,
+        name: &str,
+        bytes: Vec<u8>,
+    ) -> Result<(String, String), String> {
         self.with(id, |open| {
             let media_id = open.document.add_picture(name, bytes);
             let url = open.document.media_data_url(&media_id).unwrap_or_default();
@@ -232,48 +247,143 @@ impl WriterSessions {
         })
     }
 
-    /// makes a pdf of the document as it is in the editor now.
-    pub fn export_pdf(&self, id: u64, model: Value, pdf: &Path) -> Result<ExportedPdf, ExportError> {
-        let docx = self.work_dir.join(format!("export-{id}.docx"));
-        self.with(id, |open| {
-            let document = open.document.merge(model)?;
-            std::fs::create_dir_all(&self.work_dir).map_err(|error| error.to_string())?;
-            save_document(&document, &docx, FileKind::Docx)
-        })
-        .map_err(ExportError::Failed)?;
-        let result = export_pdf(&docx, pdf, &self.work_dir);
-        let _ = std::fs::remove_file(&docx);
-        let method = result?;
+    /// makes a pdf of the document as it is in the editor now, through
+    /// word (exact) or libreoffice (close) by way of the engine's bridge.
+    pub fn export_pdf(
+        &self,
+        id: u64,
+        model: Value,
+        pdf: &Path,
+    ) -> Result<ExportedPdf, ExportError> {
+        let document = self
+            .with(id, |open| open.document.merge(model))
+            .map_err(ExportError::Failed)?;
+        let docx = letters_office::write_docx(&document)
+            .map_err(|error| ExportError::Failed(error.to_string()))?;
+        let made = export_pdf(&docx, pdf)?;
         Ok(ExportedPdf {
             path: pdf.to_string_lossy().into_owned(),
-            method,
-            method_label: method.label(),
+            method: made.method,
+            method_label: made.method.label(),
+            exact: made.exact,
+            note: made.note,
+            pages: letters_office::formats::page_setups(&document),
         })
     }
 
-    /// Word's page breaks for the document as it is in the editor.
-    pub fn word_layout(&self, id: u64, model: Value) -> Result<crate::writer::layout::WordLayout, String> {
-        let docx = self.work_dir.join(format!("layout-{id}.docx"));
+    /// Word's lines and page breaks for the document as it is in the
+    /// editor, cached by the document's bytes.
+    pub fn word_layout(
+        &self,
+        id: u64,
+        model: Value,
+    ) -> Result<crate::writer::layout::WordLayout, String> {
         let document = self.with(id, |open| open.document.merge(model))?;
-        std::fs::create_dir_all(&self.work_dir).map_err(|error| error.to_string())?;
-        save_document(&document, &docx, FileKind::Docx)?;
-        let result = crate::writer::layout::word_layout(&docx, &document.blocks, &self.work_dir.join(format!("layout-{id}")));
-        let _ = std::fs::remove_file(&docx);
-        result
+        crate::writer::layout::word_layout(&document, &self.layout_cache)
     }
 
-    /// writes a copy in another format (Export a Copy, the Drive folder):
-    /// .docx, .odt, .html or .txt by the name; the document stays its own.
+    /// Letters' own lines and pages (core/layout), the same answer as word's.
+    pub fn engine_layout(
+        &self,
+        id: u64,
+        model: Value,
+    ) -> Result<crate::writer::layout::WordLayout, String> {
+        let document = self.with(id, |open| open.document.merge(model))?;
+        Ok(crate::writer::engine_layout::engine_layout(&document))
+    }
+
+    /// writes a copy in another format (Save As for formats that don't
+    /// become the document's own file, Export a Copy, the Drive folder):
+    /// any of the engine's `save_as` formats, chosen by the name. markdown
+    /// puts its pictures in a folder beside the file.
     pub fn export_copy(&self, id: u64, model: Value, path: &Path) -> Result<(), String> {
         let document = self.with(id, |open| open.document.merge(model))?;
-        let extension = path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
-        match extension.as_str() {
-            "docx" => save_document(&document, path, FileKind::Docx),
-            "odt" => save_document(&document, path, FileKind::Odt),
-            "html" | "htm" => crate::writer::save::write_atomically(letters_office::export::to_html(&document).as_bytes(), path),
-            "txt" => crate::writer::save::write_atomically(letters_office::export::to_plain_text(&document).as_bytes(), path),
-            other => Err(format!("Letters can’t save as .{other} yet.")),
+        let format = save_format_for_path(path).ok_or_else(|| {
+            let extension = path
+                .extension()
+                .map(|e| e.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            format!("Letters can’t save as .{extension}.")
+        })?;
+        let saved = letters_office::formats::save_as(&document, format)
+            .map_err(|error| error.to_string())?;
+        crate::writer::save::write_atomically(&saved.bytes, path)?;
+        let folder = path.parent().unwrap_or(Path::new("."));
+        for (relative, bytes) in &saved.extra_files {
+            let target = folder.join(relative);
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            }
+            crate::writer::save::write_atomically(bytes, &target)?;
         }
+        Ok(())
+    }
+
+    /// runs one command on the page's objects (see objects.rs).
+    pub fn objects(&self, id: u64, model: Value, op: &ObjectOp) -> Result<ObjectAnswer, String> {
+        let mut document = self.with(id, |open| open.document.merge(model))?;
+        Ok(crate::writer::objects::apply(&mut document, op))
+    }
+
+    /// the engine's feature table and what word would show differently.
+    pub fn compatibility(&self, id: u64, model: Value) -> Result<Compatibility, String> {
+        let document = self.with(id, |open| open.document.merge(model))?;
+        Ok(crate::writer::objects::compatibility(&document))
+    }
+
+    /// the clipboard forms of some blocks of the document (`blocks` is the
+    /// copied part, as the editor has it).
+    pub fn copy(&self, id: u64, model: Value, blocks: Value) -> Result<Copied, String> {
+        let document = self.with(id, |open| open.document.merge(model))?;
+        let blocks = serde_json::from_value(blocks)
+            .map_err(|error| format!("The selection couldn’t be copied. ({error})"))?;
+        Ok(crate::writer::clipboard::copy(&document, blocks))
+    }
+
+    /// picture bytes from the clipboard or a dropped file, through the
+    /// engine (bitmaps become png, sizes fit the text width).
+    pub fn paste_picture(
+        &self,
+        id: u64,
+        model: Value,
+        bytes: &[u8],
+        description: Option<String>,
+    ) -> Result<PastedPicture, String> {
+        self.with(id, |open| {
+            let mut document = open.document.merge(model)?;
+            let (pasted, item) =
+                crate::writer::clipboard::paste_picture(&mut document, bytes, description)?;
+            open.document.adopt(item);
+            Ok(pasted)
+        })
+    }
+
+    /// html from the clipboard as blocks, its pictures added to the document.
+    pub fn paste_html(&self, id: u64, html: &str) -> Result<PastedHtml, String> {
+        self.with(id, |open| {
+            let taken: Vec<String> = open
+                .document
+                .media()
+                .iter()
+                .map(|item| item.id.clone())
+                .collect();
+            let (pasted, items) = crate::writer::clipboard::paste_html(html, &taken);
+            items.into_iter().for_each(|item| open.document.adopt(item));
+            Ok(pasted)
+        })
+    }
+    /// the document's file was moved or renamed (organising): saves and
+    /// recovery copies follow it to `to`.
+    pub fn follow_move(&self, id: u64, to: &Path) -> Result<SavedWriter, String> {
+        self.with(id, |open| {
+            let kind = open.document.kind;
+            open.document.follow_new_path(to, kind);
+            Ok(SavedWriter {
+                name: file_name(to),
+                path: to.to_string_lossy().into_owned(),
+                kind: kind_name(kind),
+            })
+        })
     }
 
     /// the bytes of the document in a format, for an upload.
@@ -307,18 +417,41 @@ impl WriterSessions {
     }
 
     fn map(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Arc<Mutex<OpenWriter>>>> {
-        self.open.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.open
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    fn with<T>(&self, id: u64, work: impl FnOnce(&mut OpenWriter) -> Result<T, String>) -> Result<T, String> {
+    fn with<T>(
+        &self,
+        id: u64,
+        work: impl FnOnce(&mut OpenWriter) -> Result<T, String>,
+    ) -> Result<T, String> {
         let entry = self
             .map()
             .get(&id)
             .cloned()
             .ok_or("This document is no longer open.")?;
-        let mut open = entry.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut open = entry
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         work(&mut open)
     }
+}
+
+/// the engine's format for a file name, by its extension.
+pub fn save_format_for_path(path: &Path) -> Option<SaveFormat> {
+    let extension = path.extension()?.to_string_lossy().to_ascii_lowercase();
+    Some(match extension.as_str() {
+        "docx" => SaveFormat::Docx,
+        "odt" => SaveFormat::Odt,
+        "rtf" => SaveFormat::Rtf,
+        "html" | "htm" => SaveFormat::Html,
+        "txt" => SaveFormat::PlainText,
+        "md" | "markdown" => SaveFormat::Markdown,
+        "doc" => SaveFormat::Doc,
+        _ => return None,
+    })
 }
 
 /// "Essay" saved from a docx becomes "Essay.docx"; "Essay.odt" stays.
@@ -327,142 +460,14 @@ pub fn with_writer_extension(path: &Path, current: FileKind) -> PathBuf {
         return path.to_path_buf();
     }
     let mut name = path.as_os_str().to_owned();
-    name.push(if current == FileKind::Odt { ".odt" } else { ".docx" });
+    name.push(if current == FileKind::Odt {
+        ".odt"
+    } else {
+        ".docx"
+    });
     PathBuf::from(name)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use letters_office::model::{Block, Document};
-    use std::fs;
-
-    fn folder(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir()
-            .join("letters-writer-tests")
-            .join(format!("sessions-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    fn docx_with(text: &str, path: &Path) {
-        let mut document = Document::new();
-        document.blocks = vec![Block::text(text)];
-        fs::write(path, letters_office::write_docx(&document).unwrap()).unwrap();
-    }
-
-    fn edited(model: &Value, text: &str) -> Value {
-        let mut model = model.clone();
-        model["blocks"] = serde_json::json!([{ "type": "paragraph", "content": [{ "type": "text", "text": text }] }]);
-        model
-    }
-
-    fn read_text(path: &Path) -> String {
-        let document = letters_office::open(&fs::read(path).unwrap()).unwrap();
-        document.blocks[0].paragraph().unwrap().plain_text()
-    }
-
-    #[test]
-    fn open_edit_save_and_save_as_odt() {
-        let dir = folder("save");
-        let path = dir.join("essay.docx");
-        docx_with("First draft", &path);
-        let sessions = WriterSessions::new(&dir.join("cache"));
-        let opened = sessions.open("window-1", &path, false).unwrap();
-        assert_eq!(opened.kind, "docx");
-        assert!(opened.recovery.is_none());
-        sessions.save(opened.id, edited(&opened.model, "Second draft"), None).unwrap();
-        assert_eq!(read_text(&path), "Second draft");
-
-        let saved = sessions
-            .save(opened.id, edited(&opened.model, "As odt"), Some(&dir.join("essay copy")))
-            .unwrap();
-        assert_eq!(saved.kind, "docx", "a name without an extension keeps the format");
-        let odt = sessions
-            .save(opened.id, edited(&opened.model, "As odt"), Some(&dir.join("essay.odt")))
-            .unwrap();
-        assert_eq!(odt.kind, "odt");
-        assert_eq!(letters_office::detect(&fs::read(dir.join("essay.odt")).unwrap()).unwrap(), FileKind::Odt);
-        assert_eq!(sessions.path_of(opened.id).unwrap(), dir.join("essay.odt"));
-    }
-
-    #[test]
-    fn a_crash_leaves_a_recovery_copy_that_the_next_open_offers() {
-        let dir = folder("recover");
-        let path = dir.join("essay.docx");
-        docx_with("Saved words", &path);
-        let cache = dir.join("cache");
-        let sessions = WriterSessions::new(&cache);
-        let opened = sessions.open("window-1", &path, false).unwrap();
-        sessions.autosave(opened.id, edited(&opened.model, "Unsaved words")).unwrap();
-        drop(sessions); // the app ends without saving
-
-        let next_run = WriterSessions::new(&cache);
-        let again = next_run.open("window-1", &path, false).unwrap();
-        assert!(again.recovery.is_some());
-        let recovered = next_run.open("window-1", &path, true).unwrap();
-        assert_eq!(recovered.model["blocks"][0]["content"][0]["text"], "Unsaved words");
-        // saving the recovered version makes the copy go away
-        next_run.save(recovered.id, recovered.model.clone(), None).unwrap();
-        assert!(next_run.open("window-1", &path, false).unwrap().recovery.is_none());
-        assert_eq!(read_text(&path), "Unsaved words");
-    }
-
-    #[test]
-    fn dont_save_discards_the_recovery_copy() {
-        let dir = folder("discard");
-        let path = dir.join("essay.docx");
-        docx_with("Saved", &path);
-        let sessions = WriterSessions::new(&dir.join("cache"));
-        let opened = sessions.open("w", &path, false).unwrap();
-        sessions.autosave(opened.id, edited(&opened.model, "Lost")).unwrap();
-        sessions.discard_recovery(opened.id).unwrap();
-        sessions.close(opened.id);
-        assert!(sessions.open("w", &path, false).unwrap().recovery.is_none());
-    }
-
-    #[test]
-    fn closing_a_window_closes_its_documents_only() {
-        let dir = folder("windows");
-        let path = dir.join("a.docx");
-        docx_with("A", &path);
-        let sessions = WriterSessions::new(&dir.join("cache"));
-        sessions.open("window-1", &path, false).unwrap();
-        let other = sessions.open("window-2", &path, false).unwrap();
-        sessions.close_window("window-1");
-        assert_eq!(sessions.open_count(), 1);
-        assert!(sessions.path_of(other.id).is_some());
-    }
-
-    #[test]
-    fn a_file_that_is_not_a_document_gives_a_sentence() {
-        let dir = folder("bad");
-        let path = dir.join("fake.docx");
-        fs::write(&path, b"not a zip").unwrap();
-        let error = WriterSessions::new(&dir.join("cache")).open("w", &path, false).unwrap_err();
-        assert!(error.contains("damaged") || error.contains("isn’t"), "{error}");
-    }
-
-    /// writes the ui models the editor's round-trip tests use
-    /// (app/ui/src/lib/writer/fixtures). run with LETTERS_FIXTURE_DOCX set
-    /// to a docx made by word and LETTERS_FIXTURE_DIR to the folder.
-    #[test]
-    #[ignore]
-    fn write_ui_fixtures() {
-        let docx = PathBuf::from(std::env::var("LETTERS_FIXTURE_DOCX").unwrap());
-        let out = PathBuf::from(std::env::var("LETTERS_FIXTURE_DIR").unwrap());
-        let document = letters_office::open(&fs::read(&docx).unwrap()).unwrap();
-        let pretty = |value: &Value| serde_json::to_string_pretty(value).unwrap();
-        fs::write(out.join("word-made.json"), pretty(&ui_model(&document))).unwrap();
-        let odt = letters_office::write_odt(&document).unwrap();
-        let from_odt = letters_office::open(&odt).unwrap();
-        fs::write(out.join("word-made-as-odt.json"), pretty(&ui_model(&from_odt))).unwrap();
-    }
-
-    #[test]
-    fn names_get_the_right_extension() {
-        assert_eq!(with_writer_extension(Path::new("a"), FileKind::Odt), PathBuf::from("a.odt"));
-        assert_eq!(with_writer_extension(Path::new("a.DOCX"), FileKind::Odt), PathBuf::from("a.DOCX"));
-    }
-}
+#[path = "sessions_tests.rs"]
+mod tests;
