@@ -6,19 +6,36 @@
 
 import type { Problem } from "../problems";
 import { problemAt } from "./positions";
+import { endsCasePattern, skipHeredocBodies, skipShellEscape } from "./shellSyntax";
 
 export const BASIC_SOURCE = "Letters (basic check)";
 
 interface Syntax {
   lineComment: string | null;
+  /** shell's "#" starts a comment only where a word starts, so $# and ${#name} aren't comments */
+  commentOnlyAtWordStart?: boolean;
   blockComment: [string, string] | null;
   /** quote characters that start a string or a character */
   quotes: string;
   /** python's """ and ''' strings run over several lines */
   tripleQuotes: boolean;
+  /** quotes inside which a backslash is an ordinary character, like shell's '...' */
+  rawQuotes?: string;
+  /** what else the language has that hides brackets: escapes, here-documents, raw strings */
+  skipSpecial?: (text: string, index: number) => number;
 }
 
 const C_LIKE: Syntax = { lineComment: "//", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: false };
+
+const SHELL: Syntax = {
+  lineComment: "#",
+  commentOnlyAtWordStart: true,
+  blockComment: null,
+  quotes: "\"'",
+  tripleQuotes: false,
+  rawQuotes: "'",
+  skipSpecial: (text, index) => skipHeredocBodies(text, skipShellEscape(text, index)),
+};
 
 const SYNTAX: Record<string, Syntax> = {
   c: C_LIKE,
@@ -29,7 +46,7 @@ const SYNTAX: Record<string, Syntax> = {
   // rust's ' is also a lifetime ('a), so only " counts as a string there
   rust: { ...C_LIKE, quotes: '"' },
   python: { lineComment: "#", blockComment: null, quotes: "\"'", tripleQuotes: true },
-  shell: { lineComment: "#", blockComment: null, quotes: "\"'", tripleQuotes: false },
+  shell: SHELL,
   sql: { lineComment: "--", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: false },
 };
 
@@ -60,7 +77,7 @@ export function checkBalance(text: string, language: string): Problem[] {
     }
     const char = text[index];
     if (char === "(" || char === "[" || char === "{") stack.push({ char, offset: index });
-    else if (char in PAIRS) closeBracket(text, index, stack, problems);
+    else if (char in PAIRS && !endsShellCasePattern(text, index, language, stack)) closeBracket(text, index, stack, problems);
     index++;
   }
   for (const open of stack) {
@@ -68,6 +85,13 @@ export function checkBalance(text: string, language: string): Problem[] {
   }
   if (language === "python") problems.push(...checkPythonIndentation(text));
   return problems;
+}
+
+/** "start)" in a shell case has no "(" of its own, so it closes nothing. */
+function endsShellCasePattern(text: string, index: number, language: string, stack: Opened[]): boolean {
+  if (language !== "shell" || text[index] !== ")") return false;
+  // a pattern may also be written "(start)", and then its "(" is the one on top
+  return stack[stack.length - 1]?.char !== "(" && endsCasePattern(text, index);
 }
 
 function closeBracket(text: string, index: number, stack: Opened[], problems: Problem[]) {
@@ -93,14 +117,21 @@ function findLast(stack: Opened[], char: string): number {
   return -1;
 }
 
+function startsLineComment(text: string, index: number, syntax: Syntax): boolean {
+  if (!syntax.lineComment || !text.startsWith(syntax.lineComment, index)) return false;
+  return !syntax.commentOnlyAtWordStart || index === 0 || /[\s;&|()]/.test(text[index - 1]);
+}
+
 function startsComment(text: string, index: number, syntax: Syntax): boolean {
-  if (syntax.lineComment && text.startsWith(syntax.lineComment, index)) return true;
+  if (startsLineComment(text, index, syntax)) return true;
   return syntax.blockComment !== null && text.startsWith(syntax.blockComment[0], index);
 }
 
 /** the offset after a comment or string starting at `index`, or `index` itself. */
 function skipCommentOrString(text: string, index: number, syntax: Syntax, problems: Problem[]): number {
-  if (syntax.lineComment && text.startsWith(syntax.lineComment, index)) {
+  const special = syntax.skipSpecial?.(text, index) ?? index;
+  if (special !== index) return special;
+  if (startsLineComment(text, index, syntax)) {
     const end = text.indexOf("\n", index);
     return end < 0 ? text.length : end;
   }
@@ -111,23 +142,25 @@ function skipCommentOrString(text: string, index: number, syntax: Syntax, proble
     return text.length;
   }
   const quote = text[index];
-  // a character literal such as '{' (rust has these too, beside its 'a lifetimes)
+  const isRaw = syntax.rawQuotes?.includes(quote) ?? false;
+  // a character literal such as '{' (rust has these too, beside its 'a lifetimes);
+  // a raw quote has no escapes, so there '\'' isn't one character
   const character = /^'(\\.[^']{0,8}|[^\\'\n])'/.exec(text.slice(index, index + 12));
-  if (quote === "'" && character) return index + character[0].length;
+  if (quote === "'" && character && !isRaw) return index + character[0].length;
   if (!syntax.quotes.includes(quote)) return index;
   if (syntax.tripleQuotes && text.startsWith(quote.repeat(3), index)) {
     const end = text.indexOf(quote.repeat(3), index + 3);
     return end < 0 ? text.length : end + 3;
   }
-  return skipString(text, index, quote, problems);
+  return skipString(text, index, quote, isRaw, problems);
 }
 
-function skipString(text: string, start: number, quote: string, problems: Problem[]): number {
+function skipString(text: string, start: number, quote: string, isRaw: boolean, problems: Problem[]): number {
   // template strings in javascript may run over lines; other strings end at the line
   const multiline = quote === "`";
   for (let index = start + 1; index < text.length; index++) {
     const char = text[index];
-    if (char === "\\") index++;
+    if (char === "\\" && !isRaw) index++;
     else if (char === quote) return index + 1;
     else if (char === "\n" && !multiline) {
       problems.push(problemAt(text, start, 1, "error", `This ${quote === "'" ? "character or string" : "string"} is missing its closing ${quote}.`, BASIC_SOURCE));

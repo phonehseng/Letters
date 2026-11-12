@@ -159,6 +159,26 @@ describe("the basic check", () => {
     expect(checkBalance('print("hello)\n', "python")[0].message).toContain("missing its closing");
   });
 
+  it("knows a shell case pattern ends with a ) that has no (", () => {
+    const script = '#!/bin/sh\ncase "$1" in\n  start) echo starting ;;\n  stop|halt) echo stopping ;;\n  (*) echo "usage: $0 start|stop" ;;\nesac\n';
+    expect(checkBalance(script, "shell")).toEqual([]);
+    expect(checkBalance("case $x in a) echo a;; esac\n", "shell")).toEqual([]);
+    // the same ) after esac, or in an ordinary command, is still a mistake
+    expect(checkBalance(`${script}echo done)\n`, "shell").map((problem) => problem.line)).toEqual([7]);
+    expect(checkBalance("echo hi)\n", "shell")[0].message).toBe("This “)” has no opening “(”.");
+  });
+
+  it("reads shell quoting: no escapes in '...', and a backslash outside quotes", () => {
+    expect(checkBalance("echo 'it'\\''s' \\( not a group\necho $# ${#name} ${#list[@]}\n", "shell")).toEqual([]);
+    expect(checkBalance("echo 'it'\\''s\n", "shell")[0].message).toContain("missing its closing '");
+    expect(checkBalance("echo \\( (\n", "shell").map((problem) => problem.column)).toEqual([9]);
+  });
+
+  it("skips shell here-documents but not a shift that only looks like one", () => {
+    expect(checkBalance("cat <<EOF\n( not code\nEOF\ncat <<-'END'\n\t{ also text\n\tEND\necho ok\n", "shell")).toEqual([]);
+    expect(checkBalance("echo $((1 << x)) (\n", "shell").map((problem) => problem.message)).toEqual(["This parenthesis “(” is never closed."]);
+  });
+
   it("knows rust lifetimes are not strings", () => {
     expect(checkBalance("fn f<'a>(x: &'a str) -> &'a str { x }", "rust")).toEqual([]);
   });
