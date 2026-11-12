@@ -1,0 +1,9 @@
+[package]
+name = "letters-sheets"
+description = "reads, calculates and writes spreadsheets (xlsx and ods) through one shared model"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"

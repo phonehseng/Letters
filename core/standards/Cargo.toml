@@ -1,0 +1,9 @@
+[package]
+name = "letters-standards"
+description = "checks and converts pdfs to archival standards such as pdf/a, and validates files before they leave the app"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"

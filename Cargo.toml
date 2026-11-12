@@ -17,6 +17,9 @@ members = [
     "core/layout",
     "core/fonts",
     "core/search",
+    "core/standards",
+    "core/sheets",
+    "core/slides",
     "app/shell-core",
     "app/shell",
 ]

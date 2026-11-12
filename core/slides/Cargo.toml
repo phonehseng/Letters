@@ -1,0 +1,9 @@
+[package]
+name = "letters-slides"
+description = "reads and writes presentations (pptx and odp) through one shared model"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"
