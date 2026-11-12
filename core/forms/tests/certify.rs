@@ -396,3 +396,59 @@ fn the_security_store_holds_chains_and_given_revocation_data() {
         .unwrap();
     assert_eq!(dss.get(b"CRLs").unwrap().as_array().unwrap().len(), 1);
 }
+
+/// redraws a field's appearance with other words, leaving its answer as
+/// it was: the field then shows text that isn't its answer.
+fn redraw_without_answer(bytes: &[u8], field: &str, words: &str) -> Vec<u8> {
+    let mut doc = load(bytes);
+    let id = doc
+        .objects
+        .iter()
+        .find(|(_, object)| {
+            object
+                .as_dict()
+                .ok()
+                .and_then(|dict| dict.get(b"T").ok())
+                .and_then(|title| title.as_str().ok())
+                == Some(field.as_bytes())
+        })
+        .map(|(id, _)| *id)
+        .expect("the field is in the form");
+    let drawing = format!("BT /Helv 10 Tf 2 4 Td ({words}) Tj ET");
+    let stream = doc.add_object(lopdf::Stream::new(
+        dictionary! { "Type" => "XObject", "Subtype" => "Form", "BBox" => vec![0.into(), 0.into(), 200.into(), 20.into()] },
+        drawing.into_bytes(),
+    ));
+    doc.get_dictionary_mut(id)
+        .unwrap()
+        .set("AP", dictionary! { "N" => Object::Reference(stream) });
+    save_incremental(bytes, &doc).unwrap()
+}
+
+#[test]
+fn a_field_redrawn_without_its_answer_changing_is_not_filling_in() {
+    // the "shadow attack": after certifying, only a field's drawing is
+    // replaced, so it shows words its answer doesn't hold
+    let certified = certify(CertificationLevel::FormFillingAndSigning);
+    let shadowed = redraw_without_answer(&certified, "name", "I AGREE TO PAY 1000");
+    let checked = verify_document(&shadowed).unwrap();
+    let changes = &checked.changes[0];
+    assert_eq!(
+        changes.verdict,
+        ChangeVerdict::NotAllowed,
+        "{}",
+        changes.sentence
+    );
+    assert_eq!(changes.not_allowed[0].kind, ChangeKind::FieldDrawing);
+    assert!(
+        changes
+            .sentence
+            .contains("redrawn without its answer changing"),
+        "{}",
+        changes.sentence
+    );
+
+    // filling the same field in, answer and drawing together, is still fine
+    let filled = fill(&certified, "name", "Ada");
+    assert_eq!(verdict_of(&filled, 0).0, ChangeVerdict::AsIntended);
+}

@@ -59,6 +59,7 @@ export interface SignatureDetails {
 
 export type ChangeKind =
   | "fieldValue"
+  | "fieldDrawing"
   | "signature"
   | "documentTimestamp"
   | "formDefinition"

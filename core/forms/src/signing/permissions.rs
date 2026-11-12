@@ -181,7 +181,10 @@ fn is_allowed(
     let Some(field) = &change.field else {
         return true;
     };
-    if change.kind != ChangeKind::FieldValue && change.kind != ChangeKind::FormDefinition {
+    if !matches!(
+        change.kind,
+        ChangeKind::FieldValue | ChangeKind::FieldDrawing | ChangeKind::FormDefinition
+    ) {
         return true;
     }
     !signed.iter().any(|other| {
