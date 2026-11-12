@@ -18,7 +18,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use letters_shell_core::updates::{short_notes, UpdateSchedule};
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::errors::CommandError;
@@ -27,6 +27,13 @@ use crate::settings_commands::SettingsState;
 /// a release to check against instead of the newest one, for trying an
 /// update before it is published (the address of a latest.json)
 const ENDPOINT_OVERRIDE: &str = "LETTERS_UPDATE_ENDPOINT";
+
+/// told to every window when an update is ready to install: each closes
+/// the way it always does, asking about unsaved changes first
+pub const CLOSE_FOR_UPDATE: &str = "letters-close-for-update";
+
+/// the settings window, which holds no document and closes for an update
+const SETTINGS_WINDOW: &str = "window-settings";
 
 pub struct UpdateState {
     schedule: UpdateSchedule,
@@ -113,10 +120,13 @@ pub async fn update_check(
     Ok(note)
 }
 
-/// downloads the update found and checks its signature, then marks it to
-/// be installed when the last window closes. the ui then closes the windows.
+/// downloads the update found and checks its signature, marks it to be
+/// installed when the last window closes, and asks every window to close.
 #[tauri::command]
-pub async fn update_prepare(state: State<'_, UpdateState>) -> Result<(), CommandError> {
+pub async fn update_prepare(
+    app: AppHandle,
+    state: State<'_, UpdateState>,
+) -> Result<(), CommandError> {
     let update = state.found.lock().unwrap().clone().ok_or_else(|| {
         CommandError::failed("There is no update to install. Choose Check for Updates… again.")
     })?;
@@ -128,6 +138,15 @@ pub async fn update_prepare(state: State<'_, UpdateState>) -> Result<(), Command
     })?;
     *state.downloaded.lock().unwrap() = Some(bytes);
     state.install_on_exit.store(true, Ordering::SeqCst);
+    // the settings window and other helpers hold no document: they close
+    // now; document windows are asked, and close the way they always do
+    for (label, window) in app.webview_windows() {
+        let document_window = label.starts_with("window-") && label != SETTINGS_WINDOW;
+        if !document_window {
+            let _ = window.close();
+        }
+    }
+    let _ = app.emit(CLOSE_FOR_UPDATE, ());
     Ok(())
 }
 
