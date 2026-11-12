@@ -12,6 +12,11 @@
   import HelpPanel from "./HelpPanel.svelte";
   import Icon from "./Icon.svelte";
   import ToolButton from "./ToolButton.svelte";
+  import { openLibrarySearch } from "./library/launcher";
+  // organising: choose documents with ctrl or shift and move, copy, rename them (lib/organise)
+  import { pinnedFolders } from "./api";
+  import { clickChoose, keepListed, NOTHING_CHOSEN, type Chosen } from "./organise/organise";
+  import OrganiseBar from "./organise/OrganiseBar.svelte";
 
   interface Props {
     onOpenPath: (path: string) => void;
@@ -39,6 +44,41 @@
   }
 
   loadFiles();
+
+  // --- organising (lib/organise)
+  let chosen = $state<Chosen>(NOTHING_CHOSEN);
+  let pinned = $state<string[]>([]);
+  /** goes up after a move so the pinned folders read their files again */
+  let foldersVersion = $state(0);
+  let organiseRequest = $state<{ action: "rename" | "move" | "recycle"; at: number } | null>(null);
+
+  async function loadPinned() {
+    pinned = (await pinnedFolders()).map((folder) => folder.path);
+  }
+  loadPinned();
+
+  /** a click on a tile: with ctrl, command or shift it chooses, plain it opens. */
+  function onTileClick(event: MouseEvent, path: string) {
+    const toggle = event.ctrlKey || event.metaKey;
+    const next = clickChoose(chosen, shownFiles.map((f) => f.path), path, { toggle, range: event.shiftKey });
+    if (next) chosen = next;
+    else onOpenPath(path);
+  }
+
+  async function afterOrganise() {
+    await loadFiles();
+    foldersVersion += 1;
+    chosen = keepListed(chosen, files.map((f) => f.path));
+  }
+
+  /** F2 renames, ctrl shift m moves, delete recycles (with a question first). */
+  function organiseKeys(event: KeyboardEvent) {
+    if (chosen.paths.length === 0 || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    const action = event.key === "F2" ? "rename" : event.key === "Delete" ? "recycle" : (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "m" ? "move" : null;
+    if (!action) return;
+    event.preventDefault();
+    organiseRequest = { action, at: performance.now() };
+  }
 
   // on this screen, find means the search box
   $effect(() =>
@@ -77,7 +117,7 @@
 
         {#each shownFiles as file (file.path)}
           <li>
-            <button class="document" title={file.path} onclick={() => onOpenPath(file.path)}>
+            <button class="document" class:chosen={chosen.paths.includes(file.path)} aria-pressed={chosen.paths.includes(file.path)} title={file.path} onclick={(event) => onTileClick(event, file.path)}>
               <span class="sheet">
                 <img src={thumbnailUrl(file)} alt="" loading="lazy" />
               </span>
@@ -102,8 +142,13 @@
         <p class="note">No recent document has “{search}” in its name.</p>
       {/if}
 
-      <FolderList {search} {now} {onOpenPath} />
+      <!-- organising: read again after a move so the folders show where files went -->
+      {#key foldersVersion}
+        <FolderList {search} {now} {onOpenPath} />
+      {/key}
     </main>
+
+    <OrganiseBar chosen={chosen.paths} {pinned} request={organiseRequest} onChanged={afterOrganise} onClear={() => (chosen = NOTHING_CHOSEN)} />
 
     <!-- accessibility: the toolbar sits in the window's banner, so every part is in a landmark -->
     <header>
@@ -121,6 +166,10 @@
           <span class="visually-hidden">Search recent documents and pinned folders</span>
           <input type="search" placeholder="Search" bind:value={search} bind:this={searchField} />
         </label>
+        <!-- search all documents: the scope switch; Everywhere searches inside documents (lib/library) -->
+        <div class="glass group" role="group" aria-label="Search in">
+          <ToolButton name="searchEverywhere" icon="search" onClick={() => openLibrarySearch(search)} />
+        </div>
         <div class="glass group">
           <!-- settings: the gear of Recents (lib/settings) -->
           <ToolButton name="settings" icon="tools" onClick={() => appCommands.dispatch("open-settings", "pointer")} />
@@ -137,9 +186,11 @@
   </div>
 
   {#if showExplain}
-    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "compareTwoPdfs", "newFromImages", "pinFolder", "settings", "explain"] }]} onClose={() => (showExplain = false)} />
+    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "compareTwoPdfs", "newFromImages", "pinFolder", "searchEverywhere", "moveToFolder", "copyToFolder", "renameDocument", "removeFromRecents", "moveToRecycleBin", "settings", "explain"] }]} onClose={() => (showExplain = false)} />
   {/if}
 </div>
+
+<svelte:window onkeydown={organiseKeys} />
 
 <style>
   .home {
@@ -273,6 +324,13 @@
   .document:hover .sheet {
     transform: translateY(-2px);
     box-shadow: var(--shadow-sheet-hover);
+  }
+
+  /* organising: a chosen document gets the accent ring, as a selection does */
+  .document.chosen .sheet {
+    box-shadow:
+      0 0 0 3px var(--accent),
+      var(--shadow-sheet);
   }
 
   .document:active .sheet {

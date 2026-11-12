@@ -43,6 +43,11 @@
   import RecognizedOverlay from "./ocr/RecognizedOverlay.svelte";
   import ScanBanner from "./ocr/ScanBanner.svelte";
   import { ScanSession } from "./ocr/scanSession.svelte";
+  // long documents: go to, back and forward, bookmarks, last position,
+  // progress, the scrubber, all matches; search results arriving (lib/reading, lib/library)
+  import { takeArrival } from "./library/arrival";
+  import ReadingChrome from "./reading/ReadingChrome.svelte";
+  import { ReadingSession } from "./reading/readingSession.svelte";
   import {
     asCommandError,
     chooseFile,
@@ -302,6 +307,65 @@
     notify: showNotice,
     showError: (message) => onError(message),
     openTool,
+  });
+
+  // long documents: where the reader stopped, bookmarks, back and forward,
+  // progress (see reading/readingSession.svelte.ts)
+  const reading = new ReadingSession({
+    path: () => doc.path,
+    documentId: () => doc.id,
+    pageCount: () => doc.pages.length,
+    currentPage: () => Math.min(currentIndex, doc.pages.length - 1),
+    goToPage: (page) => goToPage(page),
+    announce,
+  });
+  /** a search result's words, put in the Find bar when it opens (lib/library) */
+  let findStartQuery = $state("");
+  let readingStarted = false;
+  let readingReady = $state(false);
+
+  /** opens at a search result's page, or where the reader left off. */
+  async function startReading() {
+    const arrival = takeArrival(doc.path);
+    documentOutline(doc.id)
+      .then((items) => (reading.outline = items.map((item) => ({ title: item.title, page: item.page, level: item.level }))))
+      .catch(() => {});
+    const last = await reading.load().catch(() => null);
+    readingReady = true;
+    if (arrival) {
+      goToPage(arrival.page);
+      if (arrival.query) {
+        findStartQuery = arrival.query;
+        await tick();
+        openFind();
+      }
+      return;
+    }
+    if (last === null) return;
+    goToPage(last);
+    showNotice(`Opened where you left off, page ${last + 1}.`, { label: "Start from the Beginning", run: () => reading.startFromBeginning() });
+  }
+
+  // once the pages are laid out, so going to a page lands in the right place
+  $effect(() => {
+    if (readingStarted || !scroller || viewportHeight === 0) return;
+    readingStarted = true;
+    untrack(startReading);
+  });
+
+  $effect(() => {
+    const page = Math.min(currentIndex, doc.pages.length - 1);
+    if (readingReady) untrack(() => reading.notePage(page));
+  });
+
+  $effect(() => {
+    const takeBack = [
+      appCommands.register("go-to-page", () => (reading.goToOpen = !reading.goToOpen)),
+      appCommands.register("history-back", () => reading.back()),
+      appCommands.register("history-forward", () => reading.forward()),
+      appCommands.register("add-bookmark", () => reading.addBookmark()),
+    ];
+    return () => takeBack.forEach((unregister) => unregister());
   });
 
   // the one page tool in use: a Protect, Fill & Sign or Edit tool while one is picked, else the Annotate session's
@@ -1118,12 +1182,26 @@
       <ScanBanner session={scan} top={toolbarHeight} onOpen={() => openTool("recognizeText")} />
     {/if}
 
+    <!-- long documents: progress, scrubber, go to, all matches (lib/reading) -->
+    <ReadingChrome
+      session={reading}
+      currentPage={Math.min(currentIndex, doc.pages.length - 1)}
+      pageCount={doc.pages.length}
+      top={toolbarHeight}
+      matches={found.matches}
+      currentMatch={found.current}
+      onPickMatch={(index) => {
+        found = { matches: found.matches, current: index };
+        revealMatch(index);
+      }}
+    />
 
     <div class="visually-hidden" role="status" aria-live="polite">{announcement}</div>
 
     {#if findOpen}
       <FindBar
         bind:this={findBar}
+        initialQuery={findStartQuery}
         documentId={doc.id}
         currentPage={currentIndex}
         top={toolbarHeight}

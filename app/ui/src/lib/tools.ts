@@ -18,6 +18,7 @@ import { a11yTools } from "./a11y/a11yTools";
 import { editTools } from "./edit/editTools";
 import { ocrTools } from "./ocr/ocrTools";
 import { conversionTools } from "./export/conversionTools";
+import { libraryTools } from "./library/libraryTools";
 
 export interface ToolHelp {
   label: string;
@@ -435,6 +436,8 @@ export const tools = {
   ...ocrTools,
   // export, ai tools and settings: listed in export/conversionTools.ts
   ...conversionTools,
+  // search all documents, the page finder, reading and writing long documents: library/libraryTools.ts
+  ...libraryTools,
 } satisfies Record<string, ToolHelp>;
 
 export type ToolName = keyof typeof tools;

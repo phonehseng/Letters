@@ -11,9 +11,12 @@ use tauri::Wry;
 
 use crate::{
     a11y_commands, ai_commands, annotate_commands, associations, commands, compare_commands,
-    drive_commands, edit_commands, export_commands, fonts_commands, forms_commands, ocr_commands,
-    ocr_images_commands, page_commands, protect_commands, settings_commands, writer_commands,
+    drive_commands, edit_commands, export_commands, fonts_commands, forms_commands, ocr_commands, ocr_images_commands,
+    page_commands, protect_commands, reading_commands, search_commands, settings_commands,
+    writer_commands,
 };
+// moving, copying and renaming documents, on its own line for the same reason
+use crate::organise_commands;
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -66,6 +69,9 @@ fn features() -> Vec<Feature> {
         export(),
         ai_tools(),
         settings(),
+        library_search(),
+        reading_and_writing(),
+        organising(),
     ]
 }
 
@@ -355,6 +361,51 @@ fn settings() -> Feature {
     ]
 }
 
+/// search all documents.
+fn library_search() -> Feature {
+    feature![
+        search_commands::library_search,
+        search_commands::library_overview,
+        search_commands::library_refresh,
+        search_commands::library_change,
+        search_commands::library_control,
+    ]
+}
+
+/// reading and writing long documents.
+fn reading_and_writing() -> Feature {
+    feature![
+        reading_commands::reading_document,
+        reading_commands::reading_set_position,
+        reading_commands::reading_clear_position,
+        reading_commands::reading_add_bookmark,
+        reading_commands::reading_rename_bookmark,
+        reading_commands::reading_remove_bookmark,
+        reading_commands::reading_record_page_time,
+        reading_commands::reading_page_labels,
+        reading_commands::reading_save_bookmarks_to_pdf,
+        reading_commands::reading_resolve_jump,
+        reading_commands::writing_log,
+        reading_commands::writing_record_words,
+        reading_commands::writing_set_daily_goal,
+        reading_commands::writing_set_goals,
+        reading_commands::versions_list,
+        reading_commands::versions_save,
+        reading_commands::versions_restore,
+        reading_commands::versions_delete,
+    ]
+}
 
 
-
+/// organising documents: move, copy, rename, undo, recycle, reveal, new folder.
+fn organising() -> Feature {
+    feature![
+        organise_commands::organise_move,
+        organise_commands::organise_copy,
+        organise_commands::organise_rename,
+        organise_commands::organise_undo,
+        organise_commands::organise_recycle,
+        organise_commands::organise_reveal,
+        organise_commands::organise_new_folder,
+    ]
+}

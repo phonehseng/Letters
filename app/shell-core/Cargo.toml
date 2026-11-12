@@ -44,6 +44,8 @@ letters-convert = { path = "../../core/convert" }
 letters-ai = { path = "../../core/ai" }
 # the "exact match" word converter (see src/export/exact.rs)
 letters-exact = { path = "../../core/exact" }
+# search all documents and the page finder (see src/library_search and src/reading)
+letters-search = { path = "../../core/search" }
 
 [dev-dependencies]
 # the annotation engine, run through an edit session in the tests
@@ -51,3 +53,5 @@ letters-annotate = { path = "../../core/annotate" }
 # forms and signatures: signing and checking through an edit session in the tests
 letters-forms = { path = "../../core/forms" }
 png = "0.18"
+# throwaway folders for the search and reading tests (MIT or Apache-2.0)
+tempfile = "3"

@@ -41,6 +41,8 @@ letters-ocr = { path = "../../core/ocr" }
 letters-convert = { path = "../../core/convert" }
 letters-exact = { path = "../../core/exact" }
 letters-ai = { path = "../../core/ai" }
+# search all documents and the page finder (search_commands.rs, reading_commands.rs)
+letters-search = { path = "../../core/search" }
 letters-shell-core = { path = "../shell-core" }
 # the document type every edit closure receives (mit licence)
 lopdf = "0.47"

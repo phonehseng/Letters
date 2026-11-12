@@ -214,6 +214,24 @@ impl OpenDocuments {
         drop(removed);
     }
 
+    /// organise: every open document of `old` now belongs to `new`, so it
+    /// keeps working and Save writes to the new place. returns their ids.
+    pub fn follow_move(&self, old: &Path, new: &Path) -> Vec<DocumentId> {
+        let entries: Vec<(DocumentId, Arc<Mutex<OpenDocument>>)> =
+            self.map().iter().map(|(id, d)| (*id, Arc::clone(d))).collect();
+        let mut moved = Vec::new();
+        for (id, entry) in entries {
+            let mut document = entry.lock().unwrap_or_else(|p| p.into_inner());
+            let same = document.session.original_path().to_string_lossy().to_lowercase()
+                == old.to_string_lossy().to_lowercase();
+            if same {
+                document.session.follow_move(new);
+                moved.push(id);
+            }
+        }
+        moved
+    }
+
     fn map(&self) -> MutexGuard<'_, HashMap<DocumentId, Arc<Mutex<OpenDocument>>>> {
         self.open
             .lock()

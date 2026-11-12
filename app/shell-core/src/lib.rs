@@ -41,6 +41,12 @@ pub mod ai;
 pub mod settings_store;
 // which screen each kind of file opens in, see associations/mod.rs
 pub mod associations;
+// search all documents (the index's job and settings), see library_search/mod.rs
+pub mod library_search;
+// reading and writing long documents: positions, bookmarks, labels, versions
+pub mod reading;
+// moving, copying, renaming and recycling documents, see organise/mod.rs
+pub mod organise;
 
 #[cfg(test)]
 mod annotation_tools_tests;

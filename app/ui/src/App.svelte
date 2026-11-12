@@ -44,6 +44,13 @@
   import { openSettingsWindow, SETTINGS_WINDOW } from "./lib/settings/settingsApi";
   import SettingsScreen from "./lib/settings/SettingsScreen.svelte";
   import { chooseFile as choosePdf } from "./lib/api";
+  // search all documents: its own screen over the window (lib/library)
+  import { setArrival } from "./lib/library/arrival";
+  import { takePendingQuery } from "./lib/library/launcher";
+  import type { DocumentHit, PassageHit } from "./lib/library/libraryApi";
+  import LibrarySearchScreen from "./lib/library/LibrarySearchScreen.svelte";
+  import { listen } from "@tauri-apps/api/event";
+  import { documentState } from "./lib/api";
 
   let openedDocument = $state<DocumentState | null>(null);
   /** the Compare screen while it shows; the document (or Recents) waits underneath */
@@ -323,6 +330,35 @@
   // scan: New from Images… works from Recents and from a document
   $effect(() => appCommands.register("new-from-images", () => (newFromImages = [])));
 
+  // --- search all documents (lib/library)
+
+  /** the search screen while it shows, with the words it starts with */
+  let searchingAll = $state<string | null>(null);
+
+  $effect(() => appCommands.register("search-all-documents", () => (searchingAll = takePendingQuery())));
+
+  // organising: an open pdf whose file was moved shows its new name and saves there (lib/organise)
+  $effect(() => {
+    const stopListening = listen<{ ids: number[] }>("document-moved", async (event) => {
+      if (openedDocument && event.payload.ids.includes(openedDocument.id)) acceptState(await documentState(openedDocument.id));
+    });
+    return () => {
+      stopListening.then((stop) => stop());
+    };
+  });
+
+  /** a result opens at its page, with its words in the document's Find bar. */
+  function openHit(hit: DocumentHit, passage: PassageHit | null, query: string, inNewWindow: boolean) {
+    const page = hit.kind === "pdf" ? (passage?.page ?? 0) : 0;
+    setArrival(hit.path, { page, block: hit.kind === "word" ? (passage?.number ?? null) : null, query });
+    if (inNewWindow) {
+      newWindow(hit.path);
+      return;
+    }
+    searchingAll = null;
+    openPath(hit.path);
+  }
+
   // export and settings: Settings… and Open PDF as Document… work on every screen
   $effect(() => {
     const takeBack = [appCommands.register("open-settings", () => openSettingsWindow()), appCommands.register("open-pdf-as-document", chooseAndOpenAsDocument)];
@@ -401,7 +437,7 @@
 
 <!-- compare: the screen underneath stays as it was (scroll, tools, marks) but out of sight and out of reach -->
 <!-- accessibility: while the save question is open the screen behind is inert too, so Tab can't leave the sheet -->
-<div class="screen" class:waiting={!!comparing} inert={!!comparing || !!saveQuestion}>
+<div class="screen" class:waiting={!!comparing || searchingAll !== null} inert={!!comparing || !!saveQuestion || searchingAll !== null}>
   {#if getCurrentWindow().label === SETTINGS_WINDOW}
     <!-- the Settings window (lib/settings) -->
     <SettingsScreen />
@@ -428,6 +464,13 @@
     <Home onOpenPath={openPath} onChooseFile={chooseAndOpen} onNewWindow={() => newWindow()} />
   {/if}
 </div>
+
+<!-- search all documents: over the window like compare; Back returns to what was there -->
+{#if searchingAll !== null}
+  <div class="screen compare-screen">
+    <LibrarySearchScreen initialQuery={searchingAll} onClose={() => (searchingAll = null)} onOpen={openHit} />
+  </div>
+{/if}
 
 {#if comparing}
   <div class="screen compare-screen">

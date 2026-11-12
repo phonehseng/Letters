@@ -46,6 +46,11 @@ mod command_routes;
 mod conversion_menu;
 mod export_commands;
 mod settings_commands;
+// search all documents, and reading and writing long documents
+mod reading_commands;
+mod search_commands;
+// moving, copying, renaming and recycling documents (Recents and the library)
+mod organise_commands;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
@@ -100,12 +105,17 @@ fn manage_feature_states(app: &tauri::App) {
     app.manage(export_commands::ExportState::default());
     app.manage(ai_commands::AiState::default());
     app.manage(settings_commands::SettingsState::start(handle));
+    // search all documents: the index and its background job
+    app.manage(search_commands::SearchState::start(handle));
+    app.manage(reading_commands::ReadingState::start(handle));
 }
 
 fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
     if let RunEvent::Exit = &event {
         // ai tools: a model server Letters started stops with the app
         handle.state::<ai_commands::AiState>().stop_server();
+        // search: the index writes a last checkpoint before the app ends
+        handle.state::<search_commands::SearchState>().stop();
     }
     // a mac hands double clicked files over as an event, not arguments
     #[cfg(target_os = "macos")]

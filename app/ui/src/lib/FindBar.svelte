@@ -23,12 +23,14 @@
     onClose: () => void;
     /** Find a Topic…, which finds passages by subject on this computer (lib/ai) */
     onFindTopic?: (query: string) => void;
+    /** search all documents: a result opens with its words already found (lib/library) */
+    initialQuery?: string;
   }
 
-  let { documentId, currentPage, top, revision, onChange, onClose, onFindTopic }: Props = $props();
+  let { documentId, currentPage, top, revision, onChange, onClose, onFindTopic, initialQuery = "" }: Props = $props();
 
   let input = $state<HTMLInputElement>();
-  let query = $state("");
+  let query = $state(untrack(() => initialQuery));
   let result = $state<SearchResult | null>(null);
   let current = $state(-1);
   let failed = $state(false);
@@ -74,6 +76,8 @@
 
   onMount(() => {
     focus();
+    // search all documents: the words from the result are found at once
+    if (query) runner.update(query);
     return () => runner.cancel();
   });
 

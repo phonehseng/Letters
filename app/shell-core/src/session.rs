@@ -272,6 +272,12 @@ impl EditSession {
         &self.original
     }
 
+    /// organise: the file was moved or renamed in Letters while open, so
+    /// Save writes to its new place. the working copy is not touched.
+    pub fn follow_move(&mut self, new_path: &Path) {
+        self.original = new_path.to_path_buf();
+    }
+
     /// the file the engine should show.
     pub fn working_copy(&self) -> &Path {
         &self.current.path

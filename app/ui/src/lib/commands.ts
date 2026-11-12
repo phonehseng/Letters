@@ -14,6 +14,8 @@ import { A11Y_COMMANDS } from "./a11y/a11yCommands";
 import { EDIT_COMMANDS, EDIT_KEYS } from "./edit/editCommands";
 import { NEW_FROM_IMAGES, OCR_COMMANDS, OCR_KEYS } from "./ocr/ocrCommands";
 import { CONVERSION_COMMANDS, conversionCommandForKey } from "./export/conversionCommands";
+// search all documents and long documents (reading/readingCommands.ts)
+import { READING_COMMANDS, readingCommandForKey, readingPlainKey } from "./reading/readingCommands";
 
 export const COMMANDS = [
   "open",
@@ -72,6 +74,8 @@ export const COMMANDS = [
   NEW_FROM_IMAGES,
   // export, ai tools and settings (export/conversionCommands.ts)
   ...CONVERSION_COMMANDS,
+  // search all documents, go to, back and forward, bookmarks, focus (reading/readingCommands.ts)
+  ...READING_COMMANDS,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];
@@ -132,7 +136,8 @@ function plainKeyCommand(press: KeyPress): Command | null {
   // alt (option on a mac) + up or down moves the selected pages
   if (press.altKey && !press.shiftKey && press.key === "ArrowUp") return "move-pages-up";
   if (press.altKey && !press.shiftKey && press.key === "ArrowDown") return "move-pages-down";
-  return null;
+  // alt + left and right: back and forward (reading/readingCommands.ts)
+  return readingPlainKey(press);
 }
 
 /**
@@ -159,6 +164,9 @@ export function commandForKey(press: KeyPress): Command | null {
   // export, settings and find a topic (export/conversionCommands.ts)
   const conversion = conversionCommandForKey(key, !!press.shiftKey);
   if (conversion) return conversion;
+  // search all documents, go to, add bookmark, focus (reading/readingCommands.ts)
+  const reading = readingCommandForKey(press);
+  if (reading) return reading;
   if (key === "s") return press.shiftKey ? "save-as" : "save";
   if (key === "l") return "rotate-left";
   if (key === "r") return "rotate-right";
