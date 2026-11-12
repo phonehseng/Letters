@@ -27,6 +27,8 @@ mod protect_commands;
 mod protect_menu;
 // the font library (system, added, bundled and downloadable fonts)
 mod fonts_commands;
+// every command the interface can call, one block per feature
+mod command_routes;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
@@ -45,132 +47,8 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .register_asynchronous_uri_scheme_protocol("tile", tile_protocol::handle)
-        .invoke_handler(tauri::generate_handler![
-            commands::open_document,
-            commands::close_document,
-            commands::document_state,
-            commands::undo,
-            commands::redo,
-            commands::save_document,
-            commands::save_document_as,
-            page_commands::rotate_pages,
-            page_commands::move_pages,
-            page_commands::delete_pages,
-            page_commands::insert_blank_pages,
-            page_commands::insert_pages_from,
-            page_commands::crop_pages,
-            page_commands::uncrop_pages,
-            page_commands::add_page_numbers,
-            page_commands::add_header_footer,
-            page_commands::add_text_watermark,
-            page_commands::add_image_watermark,
-            page_commands::remove_stamps,
-            page_commands::extract_pages,
-            page_commands::split_document,
-            page_commands::merge_documents,
-            page_commands::pdf_page_count,
-            annotate_commands::add_text_markup,
-            annotate_commands::add_text_markups,
-            annotate_commands::add_note,
-            annotate_commands::add_reply,
-            annotate_commands::add_text_box,
-            annotate_commands::add_shape,
-            annotate_commands::add_line,
-            annotate_commands::add_polygon,
-            annotate_commands::add_ink,
-            annotate_commands::add_image,
-            annotate_commands::update_annotation,
-            annotate_commands::delete_annotation,
-            annotate_commands::flatten_annotations,
-            annotate_commands::list_annotations,
-            annotate_commands::list_all_annotations,
-            annotate_commands::flatten_explanation,
-            annotate_commands::page_text,
-            annotate_commands::picture_size,
-            annotate_commands::annotation_author,
-            annotate_commands::set_annotation_author,
-            commands::take_startup_file,
-            commands::new_window,
-            commands::recent_files,
-            commands::forget_recent_file,
-            commands::engine_stats,
-            commands::document_outline,
-            commands::search_text,
-            commands::pinned_folders,
-            commands::pin_folder,
-            commands::unpin_folder,
-            // word-processor mode
-            writer_commands::writer_open,
-            writer_commands::writer_close,
-            writer_commands::writer_save,
-            writer_commands::writer_odt_losses,
-            writer_commands::writer_autosave,
-            writer_commands::writer_discard_recovery,
-            writer_commands::writer_media,
-            writer_commands::writer_add_picture,
-            writer_commands::writer_apply_preset,
-            writer_commands::writer_describe_ruler,
-            writer_commands::writer_export_pdf,
-            writer_commands::writer_settings,
-            writer_commands::writer_set_settings,
-            writer_commands::writer_add_picture_data,
-            drive_commands::drive_status,
-            drive_commands::drive_sign_in,
-            drive_commands::drive_sign_out,
-            drive_commands::drive_upload,
-            drive_commands::open_link,
-            drive_commands::writer_word_available,
-            drive_commands::writer_word_layout,
-            drive_commands::writer_export_copy,
-            drive_commands::writer_print_pdf,
-            // forms and signatures (Fill & Sign)
-            forms_commands::forms_overview,
-            forms_commands::forms_set_value,
-            forms_commands::forms_add_fields,
-            forms_commands::forms_update_field,
-            forms_commands::forms_remove_field,
-            forms_commands::forms_detect_fields,
-            forms_commands::forms_flatten,
-            forms_commands::forms_place_signature,
-            forms_commands::forms_signature_pictures,
-            forms_commands::forms_keep_signature_picture,
-            forms_commands::forms_delete_signature_picture,
-            forms_commands::forms_read_picture,
-            forms_commands::forms_create_certificate,
-            forms_commands::forms_sign,
-            forms_commands::forms_release_signature_guard,
-            // redaction, hidden information and passwords (Protect)
-            protect_commands::find_redaction_text,
-            protect_commands::redaction_preview,
-            protect_commands::redaction_dry_run,
-            protect_commands::close_redaction_dry_run,
-            protect_commands::apply_redactions,
-            protect_commands::hidden_information,
-            protect_commands::remove_hidden_information,
-            protect_commands::protection_status,
-            protect_commands::unlock_document,
-            protect_commands::change_lock_on_save,
-            // the font library
-            fonts_commands::fonts_status,
-            fonts_commands::fonts_families,
-            fonts_commands::fonts_search,
-            fonts_commands::fonts_details,
-            fonts_commands::fonts_writing_systems,
-            fonts_commands::fonts_face_bytes,
-            fonts_commands::fonts_preview,
-            fonts_commands::fonts_add,
-            fonts_commands::fonts_remove,
-            fonts_commands::fonts_set_favourite,
-            fonts_commands::fonts_note_used,
-            fonts_commands::fonts_personal,
-            fonts_commands::fonts_accept_download_notice,
-            fonts_commands::fonts_download,
-            fonts_commands::fonts_cancel_download,
-            fonts_commands::fonts_fetch_preview,
-            fonts_commands::fonts_missing,
-            fonts_commands::fonts_resolve,
-            fonts_commands::fonts_similar,
-        ]);
+        // every feature's commands, listed per feature in command_routes.rs
+        .invoke_handler(command_routes::handler());
 
     // a menu bar only on macos: on windows it would sit inside every
     // window (see menu.rs)
@@ -180,11 +58,8 @@ pub fn run() {
     let app = builder
         .setup(|app| {
             let handle = app.handle();
-            app.manage(AppState::start(handle));
-            app.manage(writer_commands::WriterState::start(handle));
-            app.manage(forms_commands::FormsState::start(handle));
-            // the font library starts scanning system fonts on its own thread
-            app.manage(fonts_commands::FontsState::start(handle));
+            manage_feature_states(app);
+            // a window for each file the app was started with
             let arguments: Vec<String> = std::env::args().collect();
             windows::open_window(handle, file_argument(&arguments));
             Ok(())
@@ -192,18 +67,35 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("the app could not start");
 
-    app.run(|handle, event| {
-        if let RunEvent::WindowEvent {
-            label,
-            event: WindowEvent::Destroyed,
-            ..
-        } = event
-        {
-            // a closed window must not keep its documents (their cached
-            // tiles and working copies) alive. unsaved changes were
-            // already offered for saving by the window's close sheet
-            handle.state::<AppState>().close_documents_of_window(&label);
-            writer_commands::close_window(handle, &label);
-        }
-    });
+    app.run(on_run_event);
+}
+
+/// what each feature keeps while the app runs. AppState comes first:
+/// other features use its pdf engine and recents.
+fn manage_feature_states(app: &tauri::App) {
+    let handle = app.handle();
+    app.manage(AppState::start(handle));
+    app.manage(writer_commands::WriterState::start(handle));
+    app.manage(forms_commands::FormsState::start(handle));
+    // the font library starts scanning system fonts on its own thread
+    app.manage(fonts_commands::FontsState::start(handle));
+}
+
+fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
+    if let RunEvent::WindowEvent {
+        label,
+        event: WindowEvent::Destroyed,
+        ..
+    } = event
+    {
+        close_window_parts(handle, &label);
+    }
+}
+
+/// a closed window must not keep its documents (their cached tiles and
+/// working copies) alive. unsaved changes were already offered for saving
+/// by the window's close sheet.
+fn close_window_parts(handle: &tauri::AppHandle, label: &str) {
+    handle.state::<AppState>().close_documents_of_window(label);
+    writer_commands::close_window(handle, label);
 }
