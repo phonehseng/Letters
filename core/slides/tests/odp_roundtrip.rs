@@ -244,3 +244,29 @@ fn an_odp_edited_after_conversion_is_read_as_it_now_is() {
         .text()
         .is_some_and(|t| t.plain_text().contains("Respiration"))));
 }
+
+/// libreoffice's title-slide master keeps a subtitle placeholder that a
+/// pptx master can't have; it becomes a hidden text box, so its prompt
+/// isn't drawn over each title slide's own subtitle as libreoffice never does.
+#[test]
+fn a_masters_extra_placeholder_is_kept_but_not_drawn() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/decks/lo_theme_facet.odp");
+    let deck = read_odp(&std::fs::read(path).unwrap()).unwrap();
+    let prompts: Vec<&Object> = deck
+        .masters
+        .iter()
+        .flat_map(|master| &master.objects)
+        .filter(|object| {
+            object
+                .text()
+                .is_some_and(|t| t.plain_text().contains("subtitle"))
+        })
+        .collect();
+    assert!(!prompts.is_empty(), "the subtitle frame is kept");
+    for prompt in prompts {
+        let Object::Shape(shape) = prompt else {
+            panic!("a text box")
+        };
+        assert!(shape.hidden && shape.placeholder.is_none());
+    }
+}

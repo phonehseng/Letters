@@ -264,6 +264,11 @@ fn master_placeholders(mut objects: Vec<Object>) -> Vec<Object> {
             _ => {
                 shape.placeholder = None;
                 shape.text_box = true;
+                // it is still a placeholder to libreoffice, which never draws a
+                // master's placeholders on its slides; drawn as a plain text
+                // box its prompt ("Click to edit Master subtitle style") sat
+                // over every title slide's own subtitle (lo_theme_facet)
+                shape.hidden = true;
             }
         }
     }
