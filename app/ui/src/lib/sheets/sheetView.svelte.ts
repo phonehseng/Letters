@@ -84,6 +84,16 @@ export class SheetView {
     this.measure();
   }
 
+  /** reads the used rows and columns again, keeping the rest of the sheet's info. */
+  async refreshUsedSize() {
+    const sheet = this.sheet;
+    const info = await sheetInfo(this.id, sheet);
+    if (sheet !== this.sheet || !this.info) return;
+    if (info.usedRows === this.info.usedRows && info.usedCols === this.info.usedCols) return;
+    this.info = { ...this.info, usedRows: info.usedRows, usedCols: info.usedCols };
+    this.measure();
+  }
+
   async loadStyles() {
     const more = await styleLooks(this.id, this.styles.length);
     if (more.length > 0) this.styles = [...this.styles, ...more];
@@ -93,7 +103,13 @@ export class SheetView {
   async afterChange(outcome: EditOutcome) {
     this.cache.changed(outcome.revision);
     if (outcome.structure) await this.load();
-    else await this.loadStyles();
+    else {
+      // typing can grow the used part of the sheet (a value below the last
+      // row); Delete, Copy, Cut, Ctrl End and sorting a selection clamp to
+      // it, so a stale size cut new rows off (only A1 of A1:A3 was copied)
+      await this.refreshUsedSize();
+      await this.loadStyles();
+    }
     this.repaint();
   }
 
