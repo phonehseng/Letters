@@ -1,15 +1,93 @@
 # Letters
 
-A desktop PDF editor for students, for Windows and macOS. Every tool is
-explained in plain English, and the app is built to stay light: a 500 page
-file should feel the same as a 5 page one.
+A desktop PDF editor and office suite for students, for Windows and macOS.
+Every tool is explained in plain English, nothing leaves your computer
+unless you turn something on and are told first, and a 500 page file
+should feel the same as a 5 page one.
 
-Letters is early. Right now it is a fast viewer and file opener. See
-[CHANGELOG.md](CHANGELOG.md) for what works today and
-[ARCHITECTURE.md](ARCHITECTURE.md) for how it is put together. The design
-rules are in [docs/DESIGN.md](docs/DESIGN.md).
+![Letters opening a lab report, finding a word, and adding a sentence to a paragraph in the page's own font](docs/media/pdf-editor-demo.gif)
 
-## What you need
+*A lab report opened, searched for "light", and a sentence added to a
+paragraph in the PDF's own font, then saved. Recorded from the real app on
+Windows 11 ([MP4](docs/media/pdf-editor-demo.mp4)).*
+
+## Download
+
+Get the installer for your computer from the
+[Releases page](https://github.com/phonehseng/Letters/releases):
+
+| Computer | File | What it does |
+|---|---|---|
+| Windows 10 or 11 | `Letters_x.y.z_x64-setup.exe` | Installs for you alone, without administrator rights. It carries everything Letters needs: the PDF engine, text recognition (Tesseract with English), the fonts, and WebView2 if your computer lacks it. |
+| macOS 11 or later, Apple or Intel | `Letters_x.y.z_universal.dmg` | Open it and drag Letters to Applications. |
+
+Letters isn't code-signed yet. Windows shows "Windows protected your PC":
+choose **More info**, then **Run anyway**. macOS asks you to allow it once
+in **System Settings › Privacy & Security**.
+
+Two things are optional and found on their own if you have them:
+Microsoft Office or the free [LibreOffice](https://www.libreoffice.org)
+lets Letters turn Word, Excel and PowerPoint files into PDFs that look the
+way those programs lay them out. Without either, Letters still opens,
+edits and saves those files itself.
+
+## What it does
+
+**PDFs**
+
+- Read fast: pages are drawn in tiles, the ones you are looking at first.
+- Edit the page's own text and pictures, in the PDF's own fonts, rather
+  than covering it with a box.
+- Mark up: highlights, notes, drawing, shapes, stamps.
+- Pages: reorder, rotate, insert, extract, split and merge.
+- Forms: fill in, build your own with totals, formats and checks, and
+  export the answers.
+- Sign: signatures that stay valid after a field is filled in, trusted
+  time stamps, certifying, and an audit trail.
+- Redact for real, password-protect, and remove hidden information.
+- Text recognition for scans, so they can be searched and copied.
+- Compare two versions, PDF/A for archives, accessibility checks.
+
+**Converting**
+
+- PDF to Word with nothing moved: the exact converter keeps every line
+  where it was, measured to within 1/100 of a point on 12 of its 13 test documents,
+  so a line or two can be added to a corporate PDF without changing its
+  spacing, colours or fonts.
+- An "easy to edit" Word export when you'd rather have flowing text.
+- Word, OpenDocument, RTF and pictures to and from PDF.
+
+**Writing, sheets, slides and code**
+
+- A writer for Word and OpenDocument files.
+- Spreadsheets with Excel's shortcuts, formulas and tips.
+- A slide editor for PowerPoint and OpenDocument presentations.
+- A code editor for the code and text files handed in with a report, with
+  checks for HTML, CSS, JSON, JavaScript and more. Nothing is ever run.
+
+**Finding things**
+
+- Search across every document in a folder, inside PDFs, Word files and
+  sheets, without anything leaving the computer.
+- Organise files: rename, move and tidy them from inside Letters.
+
+The full list of what works, with measurements, is in
+[CHANGELOG.md](CHANGELOG.md). [ARCHITECTURE.md](ARCHITECTURE.md) explains
+how it is put together, [docs/DESIGN.md](docs/DESIGN.md) the design rules,
+and [docs/PRIVACY.md](docs/PRIVACY.md) what stays on your computer.
+
+## Status
+
+Letters is young. It is built and tested every day on Windows 11; the
+tests also run on macOS and Linux in CI, but the Mac app itself hasn't
+been tried by a person yet. Known problems are tracked in
+[the issues](https://github.com/phonehseng/Letters/issues). Reports are
+welcome, and [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) explains how
+changes land.
+
+## Building it yourself
+
+### What you need
 
 | | Windows | macOS |
 |---|---|---|
@@ -26,7 +104,7 @@ rules are in [docs/DESIGN.md](docs/DESIGN.md).
   added to `PATH` (no administrator rights), with
   `rustup default stable-x86_64-pc-windows-gnu`.
 
-## Build and run
+### Build and run
 
 From the repository root:
 
@@ -56,8 +134,8 @@ Other commands:
 
 The Rust tests need the PDF engine, so run the fetch script first.
 
-So far this has only been built and run on Windows 11 with the MinGW
-toolchain. The macOS steps are the expected ones but have not been run.
+The app is built and run every day on Windows 11 with the MinGW
+toolchain; CI builds and tests it on Windows, macOS and Linux.
 
 ## Packaging
 
@@ -137,9 +215,19 @@ Nothing for macOS could be built or run here. On the Mac:
 app/shell        the desktop program: windows, file opening, the bridge to the ui
 app/shell-core   the parts of the shell that can be tested without a window
 app/ui           the interface (Svelte + TypeScript)
-core/pdf         opens pdfs and renders pages as tiles (Rust, pdfium)
-docs             design notes
-tools            scripts: fetching pdfium, the icon source
+core/pdf         opens pdfs and renders pages as tiles (pdfium)
+core/edit        changing a page's own text and pictures
+core/exact       the exact pdf to word converter
+core/convert     conversion and export, office files to pdf
+core/office      word, opendocument and rtf documents (the writer)
+core/sheets      spreadsheets: cells, formulas, xlsx and ods
+core/slides      presentations: pptx and odp
+core/forms       form fields, form logic, signing and the audit trail
+core/standards   pdf/a, preflight and print checks
+core/...         annotate, redact, pages, compare, ocr, search, a11y,
+                 fonts, layout, ai
+docs             design notes, accessibility, privacy, worklogs
+tools            fetch scripts, the licence list, mac word checks, icons
 ```
 
 ## License
