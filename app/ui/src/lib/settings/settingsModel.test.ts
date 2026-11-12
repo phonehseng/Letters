@@ -63,9 +63,14 @@ describe("the AI Tools section", () => {
 
   it("the privacy summary names every way out and that there is no telemetry", () => {
     const items = privacyItems();
-    expect(items.map((item) => item.what)).toEqual(["Font downloads", "Google Drive", "AI Tools", "Trusted time stamps", "Everything else"]);
+    expect(items.map((item) => item.what)).toEqual(["Font downloads", "Google Drive", "AI Tools", "Trusted time stamps", "Updates", "Everything else"]);
     expect(items[3].when).toContain("fingerprint");
-    expect(items[4].when).toContain("no telemetry");
+    // the update check says when it happens and how to turn it off
+    expect(items[4].when).toContain("at most once a day");
+    expect(items[5].when).toContain("no telemetry");
+    // a settings file from before updates checks; one that turned it off doesn't
+    expect(fromStored({}).general.checkForUpdates).toBe(true);
+    expect(fromStored({ general: { checkForUpdates: false } }).general.checkForUpdates).toBe(false);
   });
 
   // forms round two

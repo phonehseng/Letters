@@ -16,6 +16,9 @@
   import * as api from "./settingsApi";
   import { ocrApi, type OcrLanguage } from "../ocr/ocrApi";
   import { ocrLanguageChoices, privacyItems, ZOOM_CHOICES, type AppSettings } from "./settingsModel";
+  import UpdateNoteView from "../updates/UpdateNote.svelte";
+  import { checkForUpdate, type UpdateNote } from "../updates/updatesApi";
+  import { asCommandError } from "../api";
 
   // "Search" is the library folders and the index (lib/library/LibrarySettingsPanel.svelte)
   // "Signing" is the time stamp server for digital signatures (lib/forms/SigningSettings.svelte)
@@ -57,6 +60,24 @@
       settings = await api.saveSettings(draft);
     } catch (problem) {
       message = String((problem as { message?: string })?.message ?? problem);
+    }
+  }
+
+  // updates: Check for Updates… asks now, whatever the once-a-day rule says
+  let checking = $state(false);
+  let updateAnswer = $state<string | null>(null);
+  let updateFound = $state<UpdateNote | null>(null);
+
+  async function checkNow() {
+    checking = true;
+    updateAnswer = null;
+    try {
+      updateFound = await checkForUpdate(false);
+      if (!updateFound) updateAnswer = "Letters is up to date.";
+    } catch (problem) {
+      updateAnswer = asCommandError(problem).message;
+    } finally {
+      checking = false;
     }
   }
 
@@ -127,6 +148,17 @@
         <input type="checkbox" checked={settings.general.openInNewWindows} onchange={(event) => change((draft) => (draft.general.openInNewWindows = event.currentTarget.checked))} />
         Open documents from Recents in new windows
       </label>
+      <div class="setting">
+        <span class="caption">Updates</span>
+        <label class="check">
+          <input type="checkbox" checked={settings.general.checkForUpdates} onchange={(event) => change((draft) => (draft.general.checkForUpdates = event.currentTarget.checked))} />
+          Check for updates when Letters starts (at most once a day)
+        </label>
+        <div class="row">
+          <button class="button" onclick={checkNow} disabled={checking}>{checking ? "Checking…" : "Check for Updates…"}</button>
+          {#if updateAnswer}<span class="hint" role="status">{updateAnswer}</span>{/if}
+        </div>
+      </div>
     {:else if section === "Typing"}
       {#if typing}
         <p class="hint">These are the same four switches as in the writer’s status bar.</p>
@@ -206,6 +238,10 @@
     {/if}
   </div>
 </div>
+
+{#if updateFound}
+  <UpdateNoteView note={updateFound} onLater={() => (updateFound = null)} />
+{/if}
 
 <style>
   .settings-window {
