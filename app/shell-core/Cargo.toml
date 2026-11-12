@@ -51,6 +51,8 @@ letters-exact = { path = "../../core/exact" }
 letters-search = { path = "../../core/search" }
 # presentation mode: reads, edits, draws and writes .pptx and .odp (see src/slides)
 letters-slides = { path = "../../core/slides" }
+# the spreadsheet screen (see src/sheets): reading, calculating and writing workbooks
+letters-sheets = { path = "../../core/sheets" }
 
 [dev-dependencies]
 # the annotation engine, run through an edit session in the tests

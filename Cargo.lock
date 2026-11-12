@@ -2825,6 +2825,7 @@ dependencies = [
  "letters-pdf",
  "letters-redact",
  "letters-search",
+ "letters-sheets",
  "letters-slides",
  "lopdf",
  "png",

@@ -49,6 +49,13 @@ opt-level = 2
 [profile.dev.package.ttf-parser]
 debug-assertions = false
 
+# the spreadsheet engine reads and calculates hundreds of thousands of
+# cells at a time; unoptimised, opening a 200,000-row workbook took 7.1 s
+# and inserting a row 4.2 s in the debug app; optimised, 1.7 s and 1.4 s
+# (the ignored timing test in app/shell-core/src/sheets/sessions_tests.rs)
+[profile.dev.package.letters-sheets]
+opt-level = 2
+
 # small, fast release builds: the app should start quickly and stay light
 [profile.release]
 codegen-units = 1
