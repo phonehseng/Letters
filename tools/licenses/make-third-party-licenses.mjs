@@ -2,8 +2,10 @@
 // from, with its license and its license text, and a list of licenses that
 // need a person to look at them.
 //
-// run from the repository root (needs cargo and node):
+// run it from anywhere (needs cargo and node):
 //   node tools/licenses/make-third-party-licenses.mjs
+// `tauri build` runs it first (app/shell/tauri.conf.json), so every
+// package carries a list made from the libraries it was built with.
 //
 // rust: `cargo metadata` gives the whole dependency graph; only what the
 // desktop program (letters-shell) uses at run time is listed, for windows
@@ -16,8 +18,10 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = process.cwd();
+// the repository is two folders up from this script, wherever it is run from
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const out = path.join(root, "THIRD-PARTY-LICENSES.txt");
 
 /** licenses that never restrict shipping the app. anything else is flagged. */
