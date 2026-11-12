@@ -24,6 +24,10 @@ pub(crate) const AUDIT_TRAIL_FILE: &str = "letters-audit-trail.json";
 pub enum ChangeKind {
     /// a field's answer (and its drawing)
     FieldValue,
+    /// a field's drawing changed while its answer didn't: the field then
+    /// shows words that aren't its answer (the "shadow attack" on signed
+    /// forms), so this is never counted as filling in
+    FieldDrawing,
     /// a signature added, or an empty signature field signed
     Signature,
     /// a document time stamp added
@@ -95,7 +99,7 @@ pub fn revisions(bytes: &[u8]) -> Vec<RevisionReport> {
 /// the objects that were added or changed from one revision to the next,
 /// sorted into kinds, one change per kind and field or page.
 fn compare(earlier: &Document, later: &Document) -> Vec<Change> {
-    let context = Context::read(later);
+    let context = Context::read(earlier, later);
     let mut changes: Vec<Change> = Vec::new();
     for (id, object) in &later.objects {
         let old = earlier.objects.get(id);
@@ -128,15 +132,30 @@ struct Context<'a> {
     /// for each object, the objects whose value refers to it
     referrers: HashMap<ObjectId, Vec<ObjectId>>,
     info: Option<ObjectId>,
+    /// fields whose answer (/V, inherited from a parent too) differs from
+    /// the earlier revision's: only their drawings may change as filling in
+    answered: HashSet<String>,
 }
 
 /// how far up the chain of referrers a stream's owner is looked for.
 const MAX_OWNER_DEPTH: usize = 6;
 
 impl<'a> Context<'a> {
-    fn read(doc: &'a Document) -> Self {
+    fn read(earlier: &Document, doc: &'a Document) -> Self {
+        let before: HashMap<String, Option<Object>> = collect_fields(earlier)
+            .into_iter()
+            .map(|field| {
+                let value = field.inherited(earlier, b"V").cloned();
+                (field.name, value)
+            })
+            .collect();
+        let mut answered = HashSet::new();
         let mut fields = HashMap::new();
         for field in collect_fields(doc) {
+            let value = field.inherited(doc, b"V").cloned();
+            if before.get(&field.name) != Some(&value) {
+                answered.insert(field.name.clone());
+            }
             let signature = kind_of(doc, &field) == Some(FieldKind::Signature);
             fields.insert(field.id, (field.name.clone(), signature));
             for widget in &field.widgets {
@@ -164,6 +183,7 @@ impl<'a> Context<'a> {
             annotation_pages: annotation_pages(doc),
             referrers,
             info,
+            answered,
         }
     }
 
@@ -238,10 +258,14 @@ impl<'a> Context<'a> {
 
     fn owner_kind(&self, owner: ObjectId, target: ObjectId, depth: usize) -> Option<Change> {
         if let Some((field, signature)) = self.fields.get(&owner) {
+            // a drawing (appearance stream) of a field counts as filling in
+            // only when the field's answer changed in the same revision
             let kind = if *signature {
                 ChangeKind::Signature
-            } else {
+            } else if self.answered.contains(field) {
                 ChangeKind::FieldValue
+            } else {
+                ChangeKind::FieldDrawing
             };
             return self.change(kind, Some(field.clone()), None);
         }
@@ -301,7 +325,18 @@ impl<'a> Context<'a> {
         if lock_only {
             return self.change(ChangeKind::Signature, field, None);
         }
-        let kind = if only_answers {
+        // a new drawing or appearance state with the same answer shows
+        // something the answer doesn't say
+        let drawing_keys: [&[u8]; 2] = [b"AP", b"AS"];
+        let drawing_only = changed_keys(old, dict)
+            .iter()
+            .all(|key| drawing_keys.contains(&key.as_slice()) || key.as_slice() == b"Ff");
+        let answered = field
+            .as_ref()
+            .is_some_and(|name| self.answered.contains(name));
+        let kind = if only_answers && drawing_only && !answered {
+            ChangeKind::FieldDrawing
+        } else if only_answers {
             ChangeKind::FieldValue
         } else {
             ChangeKind::FormDefinition
@@ -440,7 +475,7 @@ pub(crate) fn severity(kind: ChangeKind) -> u8 {
         ChangeKind::Signature | ChangeKind::FieldValue => 2,
         ChangeKind::Annotation => 3,
         ChangeKind::FormDefinition | ChangeKind::Other => 4,
-        ChangeKind::PageContent => 5,
+        ChangeKind::PageContent | ChangeKind::FieldDrawing => 5,
     }
 }
 
@@ -451,6 +486,12 @@ fn describe(kind: ChangeKind, field: Option<&str>, page: Option<u32>) -> String 
     match (kind, field) {
         (ChangeKind::FieldValue, Some(field)) => format!("the answer in “{field}” changed"),
         (ChangeKind::FieldValue, None) => "answers were drawn again".to_owned(),
+        (ChangeKind::FieldDrawing, Some(field)) => {
+            format!("what “{field}” shows was redrawn without its answer changing")
+        }
+        (ChangeKind::FieldDrawing, None) => {
+            "what a field shows was redrawn without its answer changing".to_owned()
+        }
         (ChangeKind::Signature, Some(field)) => format!("“{field}” was signed"),
         (ChangeKind::Signature, None) => "a signature was added".to_owned(),
         (ChangeKind::DocumentTimestamp, _) => "a document time stamp was added".to_owned(),

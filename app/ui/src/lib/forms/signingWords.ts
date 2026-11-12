@@ -28,6 +28,7 @@ export const VERDICT_LABELS: Record<ChangeVerdict, string> = {
 
 export const CHANGE_KIND_LABELS: Record<ChangeKind, string> = {
   fieldValue: "Answer",
+  fieldDrawing: "Field drawing",
   signature: "Signature",
   documentTimestamp: "Document time stamp",
   formDefinition: "Form fields",
