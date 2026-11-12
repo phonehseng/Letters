@@ -156,12 +156,37 @@ pub fn redact(
     Ok(apply(doc, plan))
 }
 
-/// works out what [`redact`] would remove, without changing anything.
+/// works out what [`redact`] with the default options would remove,
+/// without changing anything. see [`preview_with_options`].
 pub fn preview(doc: &Document, areas: &[RedactionArea]) -> Result<RedactionPreview, RedactError> {
+    preview_with_options(doc, areas, &RedactOptions::default())
+}
+
+/// works out what [`redact`] would remove and report, without changing
+/// the document.
+///
+/// the redaction is really carried out, on a copy of the document. that
+/// costs the memory of a second copy and the time of rewriting images,
+/// but it is the only way the warnings (which look for the removed text
+/// in the finished file) and the notes about things removed whole (which
+/// depend on actually decoding each image) come out exactly as `redact`
+/// gives them. a preview that disagreed with the result would be worse
+/// than none.
+pub fn preview_with_options(
+    doc: &Document,
+    areas: &[RedactionArea],
+    options: &RedactOptions,
+) -> Result<RedactionPreview, RedactError> {
     ensure_unlocked(doc)?;
     let flat = flatten_areas(doc, areas)?;
-    let plan = plan(doc, &flat, &RedactOptions::default(), WalkMode::Preview)?;
-    Ok(describe_plan(&flat, &plan))
+    let mut copy = doc.clone();
+    let plan = plan(&copy, &flat, options, WalkMode::Redact)?;
+    let previews = describe_areas(&flat, &plan);
+    let report = apply(&mut copy, plan);
+    Ok(RedactionPreview {
+        areas: previews,
+        report,
+    })
 }
 
 pub(crate) fn ensure_unlocked(doc: &Document) -> Result<(), RedactError> {
@@ -497,7 +522,8 @@ fn page_report(
     }
 }
 
-fn describe_plan(areas: &[FlatArea], plan: &Plan) -> RedactionPreview {
+/// what each area would remove, from a plan made before it is applied.
+fn describe_areas(areas: &[FlatArea], plan: &Plan) -> Vec<AreaPreview> {
     let mut previews: Vec<AreaPreview> = areas
         .iter()
         .map(|area| AreaPreview {
@@ -506,7 +532,6 @@ fn describe_plan(areas: &[FlatArea], plan: &Plan) -> RedactionPreview {
             ..Default::default()
         })
         .collect();
-    let mut report = RedactionReport::default();
     for page in &plan.pages {
         for (index, preview) in previews.iter_mut().enumerate() {
             let glyphs: Vec<GlyphRecord> = page
@@ -528,25 +553,9 @@ fn describe_plan(areas: &[FlatArea], plan: &Plan) -> RedactionPreview {
                 preview.form_values.extend(hit.field_value.clone());
             }
         }
-        let removal = annotations::AnnotationRemoval {
-            annotations: page.annotation_hits.len(),
-            field_values: page
-                .annotation_hits
-                .iter()
-                .filter(|hit| hit.field_value.is_some())
-                .count(),
-            ..Default::default()
-        };
-        report
-            .pages
-            .push(page_report(page.page, &page.findings, &removal));
     }
-    RedactionPreview {
-        areas: previews,
-        report,
-    }
+    previews
 }
-
 /// removed glyphs joined into lines of text.
 fn text_lines(glyphs: &[GlyphRecord]) -> Vec<String> {
     let placed: Vec<PlacedGlyph> = glyphs

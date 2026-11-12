@@ -196,23 +196,171 @@ pub fn open(bytes: &[u8]) -> Result<Document, RedactError> {
     Ok(doc)
 }
 
+/// which password opened a file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PasswordMatch {
+    /// the password needed to open the file
+    OpenPassword,
+    /// the owner password, which also lifts the permissions
+    OwnerPassword,
+    /// the file opens without a password (it has permissions only, or is
+    /// not locked at all) and no password was given
+    NoPasswordNeeded,
+}
+
+/// a document opened by `unlock_with_info`, and how.
+#[derive(Clone, Debug)]
+pub struct Unlocked {
+    pub document: Document,
+    pub matched: PasswordMatch,
+}
+
 /// opens a locked pdf with its password (the open password or the owner
-/// password). the document comes back decrypted.
+/// password). the document comes back decrypted. see `unlock_with_info`
+/// for which password matched.
 pub fn unlock(bytes: &[u8], password: &str) -> Result<Document, RedactError> {
+    unlock_with_info(bytes, password).map(|unlocked| unlocked.document)
+}
+
+/// opens a pdf with a password and says which password it was.
+///
+/// lopdf on its own tries the empty password first, so a file with
+/// permissions only would open with any password at all. here a password
+/// that was typed must really be the open or the owner password, or it
+/// is refused, because the app uses the owner password to decide whether
+/// the permissions may be lifted. an empty password is accepted only for
+/// a file that needs none.
+pub fn unlock_with_info(bytes: &[u8], password: &str) -> Result<Unlocked, RedactError> {
+    let doc = load(bytes)?;
+    if doc.is_encrypted() {
+        return unlock_open_password(bytes, &doc, password);
+    }
+    let Some(probe) = security_probe(&doc) else {
+        // not locked at all: only "no password" is right
+        return match password.is_empty() {
+            true => Ok(Unlocked {
+                document: doc,
+                matched: PasswordMatch::NoPasswordNeeded,
+            }),
+            false => Err(RedactError::WrongPassword),
+        };
+    };
+    let matched = if password.is_empty() {
+        PasswordMatch::NoPasswordNeeded
+    } else if probe.authenticate_owner_password(password).is_ok() {
+        PasswordMatch::OwnerPassword
+    } else if probe.authenticate_user_password(password).is_ok() {
+        PasswordMatch::OpenPassword
+    } else {
+        return Err(RedactError::WrongPassword);
+    };
+    Ok(Unlocked {
+        document: doc,
+        matched,
+    })
+}
+
+/// a file that cannot be opened without a password: the password is
+/// checked against both entries before the file is decrypted with it.
+fn unlock_open_password(
+    bytes: &[u8],
+    locked: &Document,
+    password: &str,
+) -> Result<Unlocked, RedactError> {
+    if password.is_empty() {
+        return Err(RedactError::WrongPassword);
+    }
+    let matched = if locked.authenticate_owner_password(password).is_ok() {
+        PasswordMatch::OwnerPassword
+    } else if locked.authenticate_user_password(password).is_ok() {
+        PasswordMatch::OpenPassword
+    } else {
+        return Err(RedactError::WrongPassword);
+    };
     match Document::load_mem_with_options(bytes, LoadOptions::with_password(password)) {
         Ok(doc) if doc.is_encrypted() => Err(RedactError::WrongPassword),
-        Ok(doc) => Ok(doc),
-        Err(lopdf::Error::InvalidPassword) => Err(RedactError::WrongPassword),
-        Err(lopdf::Error::Decryption(error)) => {
-            Err(RedactError::UnsupportedLock(error.to_string()))
-        }
-        Err(lopdf::Error::Unimplemented(what)) => {
-            Err(RedactError::UnsupportedLock(what.to_owned()))
-        }
-        Err(error) => Err(RedactError::Damaged(error.to_string())),
+        Ok(document) => Ok(Unlocked { document, matched }),
+        Err(error) => Err(describe_load_error(error)),
     }
 }
 
+/// lopdf decrypts a file with an empty open password while loading it and
+/// drops its /Encrypt dictionary. to check a password against such a file
+/// the dictionary is rebuilt from what lopdf kept, in a small document of
+/// its own that holds only the trailer and that dictionary.
+fn security_probe(doc: &Document) -> Option<Document> {
+    let state = doc.encryption_state.as_ref()?;
+    let dict = state.encode().ok()?;
+    let mut probe = Document::new();
+    probe.trailer = doc.trailer.clone();
+    probe.objects.insert((1, 0), Object::Dictionary(dict));
+    probe.trailer.set("Encrypt", Object::Reference((1, 0)));
+    Some(probe)
+}
+
+fn load(bytes: &[u8]) -> Result<Document, RedactError> {
+    Document::load_mem(bytes).map_err(describe_load_error)
+}
+
+fn describe_load_error(error: lopdf::Error) -> RedactError {
+    match error {
+        lopdf::Error::InvalidPassword => RedactError::WrongPassword,
+        lopdf::Error::Decryption(error) => RedactError::UnsupportedLock(error.to_string()),
+        lopdf::Error::Unimplemented(what) => RedactError::UnsupportedLock(what.to_owned()),
+        error => RedactError::Damaged(error.to_string()),
+    }
+}
+
+/// true when the file can't be opened without a password.
+///
+/// a file without /Encrypt is answered from its trailer alone. a locked
+/// file is loaded, which is quick when it needs a password (nothing can
+/// be decrypted yet) but decrypts a file that has permissions only.
+pub fn needs_password_to_open(bytes: &[u8]) -> Result<bool, RedactError> {
+    if !declares_encryption(bytes)? {
+        return Ok(false);
+    }
+    Ok(load(bytes)?.is_encrypted())
+}
+
+/// true when the file asks readers to limit printing, copying, editing,
+/// commenting, form filling or page assembly. such limits are a request
+/// that other programs may ignore (see the top of this file).
+pub fn has_restrictions(bytes: &[u8]) -> Result<bool, RedactError> {
+    if !declares_encryption(bytes)? {
+        return Ok(false);
+    }
+    let doc = load(bytes)?;
+    let bits = match doc.encryption_state.as_ref() {
+        Some(state) => state.permissions().bits(),
+        None => doc
+            .get_encrypted()
+            .ok()
+            .and_then(|dict| dict.get(b"P").ok())
+            .and_then(|p| p.as_i64().ok())
+            // /P is a signed 32 bit number; its low bits are the flags
+            .map(|p| p as u32 as u64)
+            .unwrap_or(0),
+    };
+    Ok(!Permissions::from_bits_truncate(bits).contains(ALL_PERMISSIONS))
+}
+
+/// every permission a reader can be asked to withhold.
+const ALL_PERMISSIONS: Permissions = Permissions::PRINTABLE
+    .union(Permissions::MODIFIABLE)
+    .union(Permissions::COPYABLE)
+    .union(Permissions::ANNOTABLE)
+    .union(Permissions::FILLABLE)
+    .union(Permissions::ASSEMBLABLE)
+    .union(Permissions::PRINTABLE_IN_HIGH_QUALITY);
+
+/// reads only the trailer and the info dictionary, which is cheap.
+fn declares_encryption(bytes: &[u8]) -> Result<bool, RedactError> {
+    Document::load_metadata_mem(bytes)
+        .map(|metadata| metadata.encrypted)
+        .map_err(describe_load_error)
+}
 /// how the file was locked when it was opened, if it was.
 pub fn lock_info(doc: &Document) -> Option<LockInfo> {
     let state = doc.encryption_state.as_ref()?;

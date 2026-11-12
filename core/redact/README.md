@@ -18,7 +18,7 @@ camelCase names, so the shell can pass them straight to and from the UI.
 | Function | What it does |
 |---|---|
 | `redact(&mut doc, &[RedactionArea], &RedactOptions) -> RedactionReport` | removes everything under the boxes, then draws the boxes |
-| `preview(&doc, &[RedactionArea]) -> RedactionPreview` | what `redact` would remove, per box; changes nothing |
+| `preview(&doc, &[RedactionArea]) -> RedactionPreview` | what `redact` (default options) would remove, per box, with exactly the report and warnings `redact` gives; changes nothing |
 | `find_text_areas(&doc, &TextQuery, &FindOptions) -> Vec<FoundText>` | boxes for a phrase, a regular expression, email addresses, phone numbers or long numbers |
 | `scrub(&mut doc, &ScrubOptions) -> ScrubReport` | removes the chosen kinds of hidden information |
 | `scrub_preview(&doc) -> ScrubReport` | lists what every kind would remove; changes nothing |
@@ -202,8 +202,13 @@ Places where content could survive, or where more is removed than asked:
   scrubbing. A file that only had permissions (no open password) is opened
   without asking and saved without its permissions unless locked again;
   this is reported as a warning.
-- `scrub_preview` works on a copy of the document, so it briefly needs
-  twice the memory of the open document.
+- `preview` and `scrub_preview` work on a copy of the document, so they
+  briefly need twice the memory of the open document, and `preview` takes
+  as long as a redaction (images are really rewritten).
+- A Flate stream that is damaged is decoded by lopdf as far as it goes
+  (often to nothing), so a damaged image under a box is rewritten from
+  that, padded with zeros, rather than reported as unreadable. Its original
+  data is still gone from the file.
 - A page whose content can't be read is refused rather than redacted.
 
 ## Where things are

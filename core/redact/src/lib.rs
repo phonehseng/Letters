@@ -36,12 +36,13 @@ pub use cleanup::save_clean;
 pub use error::RedactError;
 pub use find::{find_text_areas, FindOptions, FoundText, TextQuery, MAX_FOUND};
 pub use lock::{
-    encrypt, lock_info, open, unlock, LockInfo, LockOptions, PermissionOptions, PrintPermission,
+    encrypt, has_restrictions, lock_info, needs_password_to_open, open, unlock, unlock_with_info,
+    LockInfo, LockOptions, PasswordMatch, PermissionOptions, PrintPermission, Unlocked,
 };
 pub use page::PageRect;
 pub use redact::{
-    preview, redact, AreaPreview, PageReport, RedactOptions, RedactionArea, RedactionPreview,
-    RedactionReport, Rgb,
+    preview, preview_with_options, redact, AreaPreview, PageReport, RedactOptions, RedactionArea,
+    RedactionPreview, RedactionReport, Rgb,
 };
 pub use scrub::{scrub, scrub_preview, ScrubFinding, ScrubItem, ScrubOptions, ScrubReport};
 
