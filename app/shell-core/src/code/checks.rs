@@ -27,18 +27,25 @@ pub const CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 /// python's own parser, asked through its standard library. it parses and
 /// stops: `ast.parse` builds a tree and never runs the code. warnings the
 /// parser raises (an invalid escape) are printed in the same form
+// the file is read inside `with`, so python's own "unclosed file" warning
+// can't appear; and only warnings about the checked file are reported, as
+// any other one (from this script or python itself) would be printed
+// against a line of the student's file that it isn't about
 const PYTHON_SYNTAX_SCRIPT: &str = r#"import ast, sys, warnings
 path = sys.argv[1]
+with open(path, "rb") as source:
+    text = source.read()
 with warnings.catch_warnings(record=True) as caught:
     warnings.simplefilter("always")
     try:
-        ast.parse(open(path, "rb").read(), path)
+        ast.parse(text, path)
     except SyntaxError as problem:
         print("%s:%d:%d: error: %s" % (path, problem.lineno or 1, problem.offset or 1, problem.msg))
     except ValueError as problem:
         print("%s:1:1: error: %s" % (path, problem))
     for warning in caught:
-        print("%s:%d:1: warning: %s" % (path, warning.lineno or 1, warning.message))
+        if warning.filename == path:
+            print("%s:%d:1: warning: %s" % (path, warning.lineno or 1, warning.message))
 "#;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
