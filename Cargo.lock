@@ -2749,7 +2749,13 @@ dependencies = [
 name = "letters-search"
 version = "0.1.0"
 dependencies = [
+ "crc32fast",
+ "letters-office",
+ "serde",
+ "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
+ "unicode-normalization",
 ]
 
 [[package]]
