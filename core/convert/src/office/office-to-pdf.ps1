@@ -40,6 +40,34 @@ function ProcessOfWindow([long]$handle) {
     return [int]$id
 }
 
+# office answers "busy" for a moment after it starts, and while it lays a
+# file out: excel with 0x800AC472, com in general with "retry later"
+# (0x8001010A) or "call rejected" (0x80010001). such calls are tried again
+# for a while instead of failing the conversion; any other error fails at once
+$busyCodes = @(0x800AC472, 0x8001010A, 0x80010001)
+$busyLimit = [TimeSpan]::FromSeconds(30)
+
+function IsBusy($exception) {
+    # powershell wraps office's error in its own, so every layer is checked
+    while ($null -ne $exception) {
+        if ($busyCodes -contains $exception.HResult) { return $true }
+        $exception = $exception.InnerException
+    }
+    return $false
+}
+
+function WhenReady([scriptblock]$call) {
+    $started = Get-Date
+    while ($true) {
+        try { return & $call }
+        catch {
+            $waitedTooLong = ((Get-Date) - $started) -gt $busyLimit
+            if (-not (IsBusy $_.Exception) -or $waitedTooLong) { throw }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+}
+
 $processName = @{ Word = 'WINWORD'; Excel = 'EXCEL'; PowerPoint = 'POWERPNT' }[$App]
 $before = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
 $password = 'letters-no-password'
@@ -75,13 +103,13 @@ try {
     switch ($App) {
         'Word' {
             if ($ours) {
-                $office.Visible = $false
-                $office.DisplayAlerts = 0
+                WhenReady { $office.Visible = $false }
+                WhenReady { $office.DisplayAlerts = 0 }
             }
             # file, confirm conversions, read only, add to recent files,
             # password, template password, revert, write password,
             # template write password, format, encoding, visible
-            $document = $office.Documents.Open($InputPath, $false, $true, $false, $password, $password, $false, $password, $password, 0, $missing, $false)
+            $document = WhenReady { $office.Documents.Open($InputPath, $false, $true, $false, $password, $password, $false, $password, $password, 0, $missing, $false) }
             if ($processId -eq 0) {
                 # another copy of word started at the same moment, so the
                 # document's window says which one is ours
@@ -93,30 +121,33 @@ try {
                 catch {}
             }
             # 17 is pdf
-            $document.ExportAsFixedFormat($OutputPath, 17)
+            WhenReady { $document.ExportAsFixedFormat($OutputPath, 17) }
             $document.Close(0)
             $document = $null
         }
         'Excel' {
             if ($ours) {
-                $office.Visible = $false
-                $office.DisplayAlerts = $false
-                $office.AskToUpdateLinks = $false
-                $office.EnableEvents = $false
+                # an excel started for automation is already invisible, and
+                # setting Visible while it starts leaves it refusing every
+                # later call (0x800AC472), so it is left alone
+                WhenReady { $office.DisplayAlerts = $false }
+                WhenReady { $office.EnableEvents = $false }
             }
-            # file, update links (no), read only, format, password
-            $document = $office.Workbooks.Open($InputPath, 0, $true, $missing, $password)
+            # file, update links (no), read only, format, password. links are
+            # refused here rather than through AskToUpdateLinks, which excel
+            # won't set until a workbook is open (0x800AC472 every time)
+            $document = WhenReady { $office.Workbooks.Open($InputPath, 0, $true, $missing, $password) }
             # 0 is pdf
-            $document.ExportAsFixedFormat(0, $OutputPath)
+            WhenReady { $document.ExportAsFixedFormat(0, $OutputPath) }
             $document.Close($false)
             $document = $null
         }
         'PowerPoint' {
-            if ($ours) { $office.DisplayAlerts = 1 }
+            if ($ours) { WhenReady { $office.DisplayAlerts = 1 } }
             # read only, not untitled, no window
-            $document = $office.Presentations.Open($InputPath, -1, 0, 0)
+            $document = WhenReady { $office.Presentations.Open($InputPath, -1, 0, 0) }
             # 32 is pdf
-            $document.SaveAs($OutputPath, 32)
+            WhenReady { $document.SaveAs($OutputPath, 32) }
             $document.Close()
             $document = $null
         }
