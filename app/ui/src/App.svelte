@@ -184,7 +184,19 @@
     try {
       openedCode = await openCodeDocument(path);
     } catch (problem) {
-      errorMessage = isCodePath(path) ? asCommandError(problem).message : unsupportedMessage(path);
+      if (isCodePath(path)) {
+        errorMessage = asCommandError(problem).message;
+        return;
+      }
+      // a pdf whose name lost ".pdf" (renamed, or saved by a web form) is
+      // still a pdf: the engine reads what is inside, not the name
+      try {
+        openedDocument = await openDocument(path);
+      } catch (notPdf) {
+        const error = asCommandError(notPdf);
+        if (error.kind === "password-required") lockedPath = path;
+        else errorMessage = unsupportedMessage(path);
+      }
     }
   }
 

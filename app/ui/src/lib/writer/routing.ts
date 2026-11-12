@@ -31,7 +31,8 @@ export function unsupportedMessage(path: string): string {
   if (extensionOf(path) === "doc") {
     return `“${name}” is an older Word document. Open it in Word and save it as .docx, then open that here.`;
   }
-  return `Letters can’t open “${name}” yet. It opens PDFs and Word (.docx) or OpenDocument (.odt) documents.`;
+  // every screen letters has: the viewer, the writer, sheets, slides, new from images and the code editor
+  return `Letters can’t open “${name}”. It opens PDFs, Word and OpenDocument documents, Excel and PowerPoint files, pictures, and text and code files.`;
 }
 
 /** what kind of document a recent file is, in words people know. */

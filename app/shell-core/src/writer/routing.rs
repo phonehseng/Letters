@@ -49,10 +49,8 @@ pub fn unsupported_message(path: &Path) -> String {
     let name = crate::session::file_name(path);
     match extension(path).as_str() {
         "doc" => format!("“{name}” is an older Word document. Open it in Word and save it as .docx, then open that here."),
-        "txt" | "pages" | "xlsx" | "pptx" | "ods" | "odp" => {
-            format!("Letters can’t open “{name}” yet. It opens PDFs and Word (.docx) or OpenDocument (.odt) documents.")
-        }
-        _ => format!("Letters can’t open “{name}”. It opens PDFs and Word (.docx) or OpenDocument (.odt) documents."),
+        // the same sentence as the ui's (lib/writer/routing.ts): every kind of file letters opens
+        _ => format!("Letters can’t open “{name}”. It opens PDFs, Word and OpenDocument documents, Excel and PowerPoint files, pictures, and text and code files."),
     }
 }
 
@@ -93,6 +91,6 @@ mod tests {
     #[test]
     fn unsupported_files_get_a_sentence_that_says_what_to_do() {
         assert!(unsupported_message(Path::new("old.doc")).contains("save it as .docx"));
-        assert!(unsupported_message(Path::new("sheet.xlsx")).contains("yet"));
+        assert!(unsupported_message(Path::new("song.mp3")).contains("Excel and PowerPoint files"));
     }
 }
