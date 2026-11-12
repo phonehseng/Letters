@@ -6,4 +6,19 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+# every dependency is MIT or Apache-2.0 licensed (or both); ureq's rustls
+# support also brings in ring (Apache-2.0 and ISC-style) and webpki-roots
+# (CDLA-Permissive-2.0), both permissive
 thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# a small blocking http client. no gzip: the answers are short text
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+
+# a stand-in for a llama.cpp server, used only by the process manager tests.
+# it is never shipped: the desktop program depends on the library alone
+[[bin]]
+name = "letters-ai-stub-server"
+path = "tests/support/stub_server.rs"
+test = false
+doc = false
