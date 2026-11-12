@@ -61,6 +61,7 @@ everything worked, so **a failed edit leaves the document exactly as it was**.
 
 | Function | What it does to the file |
 |---|---|
+| `table_cell_of(objects, block_id)` | the ruled cell around a text block, or none: whether its text goes to `edit_table_cell` or `reflow_paragraph`; changes nothing |
 | `reflow_paragraph(doc, page, block_id, text, &ReflowOptions)` | re-sets the block wrapped to its width (a one-line block wraps at its column's edge), keeping its alignment (justified stays justified, no hyphens are added), then moves every text line, image, path and annotation inside the column band below it by the change in height: each show operator is rewritten with a shifted text matrix and the text state set back; each image or path is wrapped in `q <move> cm … Q`; annotation `/Rect`, `/QuadPoints`, `/InkList`, `/Vertices`, `/L` are moved. Shrinking pulls the content up only with `closeGap`. Overflow is handled as `ReflowOptions.overflow` says (below). |
 | `edit_table_cell(doc, page, block_id, text, &ReflowOptions)` | re-sets a cell's text to the cell's width (same inset both sides). When the text needs more height the row grows: rows, rules and content below inside the table's width move down, and vertical rules crossing the row's bottom edge get their lower end rewritten in their own coordinates, so line widths stay exact |
 | `add_text_matching(doc, page, &MatchedText, &options, &consent)` | adds a text box in the style of the nearest paragraph (or `likeBlock`): its font object (extended if a character is missing), size, character and word spacing, leading, alignment, and its fill colour in its own colour space (a spot or ICC colour is reused, not converted); the summary names what was matched |
@@ -269,7 +270,7 @@ glyph names from the pdf standard and the Adobe Glyph List.
 cargo test -p letters-edit
 ```
 
-122 tests: 38 unit tests and 84 integration tests in `tests/` (text, fonts,
+123 tests: 38 unit tests and 85 integration tests in `tests/` (text, fonts,
 images, structure from round one; paths, reflow, tables, corporate,
 font_extension, image_tools, page_boxes, scan, structure_upkeep, performance).
 The pdfs are built by hand. After each edit the tests save and reload the file,

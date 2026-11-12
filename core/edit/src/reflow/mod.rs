@@ -46,7 +46,7 @@ pub use column::LimitReason;
 use column::{Column, ColumnInputs};
 pub use match_style::{add_text_matching, MatchedText};
 use paragraph::{Paragraph, SetText, Spacing, Typesetter};
-pub use table::edit_table_cell;
+pub use table::{edit_table_cell, table_cell_of};
 
 /// what to do when the column can't hold the re-set paragraph.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

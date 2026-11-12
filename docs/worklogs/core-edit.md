@@ -276,3 +276,10 @@ the only donor, as before. `FontExtension` gained `matchMethod`,
 defaults). Measured on the corporate test: the installed Arial still draws
 the added lines with 0 of 2131 pixels different; Tahoma alone, now fitted,
 gives 97 of 2170 (4.5%) against 101 of 2151 with cap-height scaling.
+
+## 2026-11-12 telling a table cell from a paragraph
+
+`table_cell_of(objects, block_id)` finds the ruled cell around a block from
+the page objects alone, so the app sends a cell's text to `edit_table_cell`
+and any other text to `reflow_paragraph` without trying one and reading its
+error sentence.

@@ -64,8 +64,8 @@ pub use paths::{
     send_paths_to_back, set_path_points, set_path_style, NewPaint, PathStyle,
 };
 pub use reflow::{
-    add_text_matching, edit_table_cell, reflow_paragraph, LimitReason, MatchedText, OverflowChoice,
-    OverflowOption, OverflowReport, ReflowOptions, ReflowResult,
+    add_text_matching, edit_table_cell, reflow_paragraph, table_cell_of, LimitReason, MatchedText,
+    OverflowChoice, OverflowOption, OverflowReport, ReflowOptions, ReflowResult,
 };
 pub use same_font::extend_font;
 pub use scan::{

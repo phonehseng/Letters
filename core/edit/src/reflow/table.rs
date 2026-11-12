@@ -128,6 +128,20 @@ fn cell_around(rules: &[Rule], text: &Rect) -> Option<Cell> {
     })
 }
 
+/// the ruled cell around a text block (on screen), when it sits in one: the
+/// app uses this to send a cell's text to `edit_table_cell` and any other
+/// block's to `reflow_paragraph`. changes nothing.
+pub fn table_cell_of(objects: &PageObjects, block_id: &str) -> Option<Rect> {
+    let block = objects
+        .text_blocks
+        .iter()
+        .find(|block| block.id == block_id)?;
+    let rules: Vec<Rule> = (0..objects.paths.len())
+        .filter_map(|path| rule_of(objects, path))
+        .collect();
+    cell_around(&rules, &block.rect).map(|cell| cell.rect)
+}
+
 /// re-sets the text of a table cell (the text block `block_id`) and grows
 /// its row when the text needs more height.
 pub fn edit_table_cell(
