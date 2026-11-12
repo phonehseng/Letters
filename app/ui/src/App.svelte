@@ -33,6 +33,7 @@
   import WriterScreen from "./lib/writer/WriterScreen.svelte";
   // protect: the question before marks for redaction are lost (lib/protect)
   import { protectMayLeave } from "./lib/protect/protectGuard";
+  import { keepAnnotateDrafts } from "./lib/annotate/annotateGuard";
   // compare: its own screen over the document or Recents (lib/compare)
   import CompareScreen from "./lib/compare/CompareScreen.svelte";
   import { compareCommands } from "./lib/compare/compareKeys";
@@ -284,9 +285,11 @@
    * saves the document to its own file. returns false when it could not
    * be saved; the message then says what to do (often: Save As).
    */
-  function save(): Promise<boolean> {
+  async function save(): Promise<boolean> {
+    // a note still being typed is saved with the rest
+    await keepAnnotateDrafts();
     const shown = openedDocument;
-    if (!shown) return Promise.resolve(false);
+    if (!shown) return false;
     // scan: a pdf New from Images made has no file yet, so Save asks where
     if (newDocumentPath(shown.id)) return saveAs();
     return saveInQueue(shown, false).then((outcome) =>
@@ -358,6 +361,8 @@
 
   /** whether the document may be closed, after asking about unsaved changes. */
   async function mayLeaveDocument(): Promise<boolean> {
+    // a note still being typed becomes part of the document, so the question sees it
+    if (openedDocument) await keepAnnotateDrafts();
     // wait for edits still on their way, so the question sees them
     await documentChanges(async () => {});
     // code: the code screen answers through the same guard as the writer
@@ -435,7 +440,9 @@
     // the writer registers its own save, save as and print while it shows (and so does the code screen)
     if (!openedWriter && !openedCode && !openedSlides && !openedSheet) {
       takeBack.push(
-        appCommands.register("save", () => {
+        appCommands.register("save", async () => {
+          // a note still being typed makes the document one with changes to save
+          await keepAnnotateDrafts();
           if (openedDocument && isAvailable("save", openedDocument)) save();
         }),
         appCommands.register("save-as", () => {

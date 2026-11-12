@@ -118,6 +118,7 @@
   import type { ToolName } from "./tools";
   import ViewerToolbar from "./ViewerToolbar.svelte";
   // export, the ai tools panel and find a topic (lib/export, lib/ai)
+  import { annotateGuard } from "./annotate/annotateGuard";
   import ExportSheet from "./export/ExportSheet.svelte";
   // forms round two: Prepare & Check (lib/standards)
   import StandardsSheet from "./standards/StandardsSheet.svelte";
@@ -239,6 +240,15 @@
     change: (action) => change(null, action),
     announce,
     reveal: revealOnPage,
+  });
+
+  // a note still being typed is added before the window saves or leaves (annotate/annotateGuard.ts)
+  $effect(() => {
+    const keep = () => annotate.keepTypedNote();
+    annotateGuard.keepDrafts = keep;
+    return () => {
+      if (annotateGuard.keepDrafts === keep) annotateGuard.keepDrafts = null;
+    };
   });
 
   // the Fill & Sign tools' shared state (see forms/fillSignSession.svelte.ts)
