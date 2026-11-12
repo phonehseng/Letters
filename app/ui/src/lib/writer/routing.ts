@@ -2,7 +2,8 @@
 // (app/shell-core/src/writer/routing.rs); the ui asks first so it can open
 // the right screen without a wasted round trip.
 
-export type FileRoute = "viewer" | "writer" | "unsupported";
+// spreadsheets: "sheets" opens the spreadsheet screen (lib/sheets)
+export type FileRoute = "viewer" | "writer" | "sheets" | "unsupported";
 
 export function extensionOf(path: string): string {
   const name = path.split(/[\\/]/).pop() ?? "";
@@ -15,6 +16,8 @@ export function routeForPath(path: string): FileRoute {
   if (extension === "pdf") return "viewer";
   // rich text and old word files open by conversion (the shell makes a .docx beside them)
   if (["docx", "odt", "rtf", "doc"].includes(extension)) return "writer";
+  // spreadsheets: workbooks and delimited text open in the sheets screen (lib/sheets)
+  if (["xlsx", "xlsm", "ods", "csv", "tsv"].includes(extension)) return "sheets";
   return "unsupported";
 }
 
@@ -41,6 +44,10 @@ export function documentKind(path: string): string {
   // presentations (lib/slides)
   if (extension === "pptx") return "PowerPoint presentation";
   if (extension === "odp") return "OpenDocument presentation";
+  // spreadsheets (lib/sheets)
+  if (extension === "xlsx" || extension === "xlsm") return "Excel workbook";
+  if (extension === "ods") return "OpenDocument spreadsheet";
+  if (extension === "csv" || extension === "tsv") return "CSV file";
   return "PDF";
 }
 
@@ -48,5 +55,6 @@ export function documentKind(path: string): string {
 export function recentDetails(path: string, pageCount: number, pages: (count: number) => string): string {
   // presentations: Recents keeps their slide count (lib/slides)
   if (["pptx", "odp"].includes(extensionOf(path))) return pageCount === 1 ? "1 slide" : `${pageCount} slides`;
-  return routeForPath(path) === "writer" ? documentKind(path) : pages(pageCount);
+  // spreadsheets show their kind too (lib/sheets)
+  return routeForPath(path) === "writer" || routeForPath(path) === "sheets" ? documentKind(path) : pages(pageCount);
 }

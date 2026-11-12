@@ -104,7 +104,11 @@ describe("opening files", () => {
     expect(routeForPath("C:\\a\\essay.PDF")).toBe("viewer");
     expect(routeForPath("/a/essay.docx")).toBe("writer");
     expect(routeForPath("notes.odt")).toBe("writer");
-    expect(routeForPath("sheet.xlsx")).toBe("unsupported");
+    // spreadsheets open in the sheets screen (lib/sheets)
+    expect(routeForPath("sheet.xlsx")).toBe("sheets");
+    expect(routeForPath("data.CSV")).toBe("sheets");
+    expect(recentDetails("a.ods", 0, (n) => `${n} pages`)).toBe("OpenDocument spreadsheet");
+    expect(routeForPath("slides.pptx")).toBe("unsupported");
     expect(unsupportedMessage("C:\\old.doc")).toContain("save it as .docx");
     expect(recentDetails("a.docx", 0, (n) => `${n} pages`)).toBe("Word document");
     expect(recentDetails("a.pdf", 3, (n) => `${n} pages`)).toBe("3 pages");
