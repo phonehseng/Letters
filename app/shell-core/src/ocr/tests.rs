@@ -467,7 +467,10 @@ fn making_text_editable_replaces_the_hidden_layer_with_visible_text() {
         show,
     );
     let message = again.unwrap_err().to_string();
-    assert!(message.contains("Page 1 already has editable text"), "{message}");
+    assert!(
+        message.contains("Page 1 already has editable text"),
+        "{message}"
+    );
     assert_eq!(session.revision(), revision);
 }
 

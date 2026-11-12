@@ -186,9 +186,13 @@ mod tests {
     #[test]
     fn no_time_stamp_server_is_set_until_the_person_chooses_one() {
         assert_eq!(AppSettings::default().signing.timestamp_server, "");
-        let chosen = serde_json::json!({ "signing": { "timestampServer": "http://127.0.0.1:3180/tsr" } });
+        let chosen =
+            serde_json::json!({ "signing": { "timestampServer": "http://127.0.0.1:3180/tsr" } });
         let settings = AppSettings::from_json(chosen);
-        assert_eq!(settings.signing.timestamp_server, "http://127.0.0.1:3180/tsr");
+        assert_eq!(
+            settings.signing.timestamp_server,
+            "http://127.0.0.1:3180/tsr"
+        );
     }
 
     #[test]

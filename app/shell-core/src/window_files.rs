@@ -70,10 +70,16 @@ mod tests {
         let report = Path::new("/school/Lab Report.pdf");
         files.show("window-1", Some(report));
         files.show("window-2", Some(Path::new("/school/Essay.docx")));
-        assert_eq!(files.window_showing(report, None).as_deref(), Some("window-1"));
+        assert_eq!(
+            files.window_showing(report, None).as_deref(),
+            Some("window-1")
+        );
         // a window asking about its own file isn't sent to itself
         assert_eq!(files.window_showing(report, Some("window-1")), None);
-        assert_eq!(files.window_showing(Path::new("/school/Other.pdf"), None), None);
+        assert_eq!(
+            files.window_showing(Path::new("/school/Other.pdf"), None),
+            None
+        );
     }
 
     #[test]
@@ -94,7 +100,9 @@ mod tests {
         let mut files = WindowFiles::default();
         files.show("window-1", Some(Path::new(r"C:\School\Lab Report.pdf")));
         assert_eq!(
-            files.window_showing(Path::new("c:/school/lab report.PDF"), None).as_deref(),
+            files
+                .window_showing(Path::new("c:/school/lab report.PDF"), None)
+                .as_deref(),
             Some("window-1")
         );
     }
