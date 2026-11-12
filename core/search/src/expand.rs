@@ -113,7 +113,8 @@ impl Searcher<'_> {
             .keys_starting_with(&start)
             .map(|key| (key, self.index.terms[key].len()))
             .collect();
-        found.sort_by(|a, b| b.1.cmp(&a.1));
+        // the words used in the most passages first
+        found.sort_by_key(|(_, uses)| std::cmp::Reverse(*uses));
         found
             .into_iter()
             .take(MAX_PREFIX_WORDS)

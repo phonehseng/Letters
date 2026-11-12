@@ -40,7 +40,7 @@ fn generated_document(
     random: &mut Random,
 ) -> ExtractedDocument {
     // most student files are short; a few are long books
-    let pages = if number % 250 == 0 {
+    let pages = if number.is_multiple_of(250) {
         300
     } else if number == PLANTED_DOCUMENT {
         12

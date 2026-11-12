@@ -149,7 +149,7 @@ mod tests {
             let at = 132 + tag * 12;
             let offset = u32::from_be_bytes(profile[at + 4..at + 8].try_into().unwrap()) as usize;
             let length = u32::from_be_bytes(profile[at + 8..at + 12].try_into().unwrap()) as usize;
-            assert!(offset % 4 == 0 && offset + length <= profile.len());
+            assert!(offset.is_multiple_of(4) && offset + length <= profile.len());
         }
         assert_eq!(s15_fixed16(1.0), [0, 1, 0, 0]);
     }

@@ -342,7 +342,7 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 fn signature_dictionaries(bytes: &[u8]) -> Vec<(Vec<u8>, Vec<usize>)> {
     let doc = load(bytes);
     let mut found = Vec::new();
-    for (_, object) in doc.objects.iter() {
+    for object in doc.objects.values() {
         let Ok(dict) = object.as_dict() else { continue };
         let (Ok(contents), Ok(range)) = (dict.get(b"Contents"), dict.get(b"ByteRange")) else {
             continue;
