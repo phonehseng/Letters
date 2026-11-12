@@ -54,6 +54,12 @@ pub fn family_of(name: &str) -> Option<&'static str> {
 type FamilyCall = fn(&Evaluator, &str, &[Expr]) -> Option<CalcValue>;
 
 pub fn call(ev: &Evaluator, name: &str, args: &[Expr]) -> CalcValue {
+    // too few arguments: the functions below read their arguments by
+    // position, so a missing one would stop the calculation; excel refuses
+    // such a formula when it is typed, a workbook from elsewhere shows #VALUE!
+    if args.len() < crate::help::catalogue::required_arguments(name) {
+        return CalcValue::error(ErrorValue::Value);
+    }
     let families: [FamilyCall; 11] = [
         math::call,
         stats::call,
