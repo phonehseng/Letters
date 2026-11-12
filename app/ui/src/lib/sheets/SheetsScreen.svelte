@@ -318,6 +318,25 @@
     }
   }
 
+  // the active cell, said as excel says it when the arrows move ("B2,
+  // 93.5"): the grid is drawn on a canvas, so a screen reader heard the
+  // sheet's name and then nothing. a range says its corners and size.
+  // the cell's text arrives with the cache, so this follows repaints too;
+  // the same words twice aren't read again
+  const cellSpoken = $derived.by(() => {
+    void view.paints;
+    const range = view.selection.ranges[0];
+    const at = view.selection.active;
+    const name = cellName(at.row, at.col);
+    if (range && (range.start.row !== range.end.row || range.start.col !== range.end.col)) {
+      const cells = (range.end.row - range.start.row + 1) * (range.end.col - range.start.col + 1);
+      return `${cellName(range.start.row, range.start.col)} to ${cellName(range.end.row, range.end.col)}, ${cells} cells`;
+    }
+    const cell = view.cache.get(view.sheet, at.row, at.col);
+    const text = cell?.text ?? "";
+    return `${name}, ${text === "" ? "blank" : text}${cell?.isFormula ? ", formula" : ""}`;
+  });
+
   // a spoken message shows for a moment, then goes
   $effect(() => {
     if (!spoken) return;
@@ -414,6 +433,8 @@
       <SheetsFind id={session.id} sheet={session.activeSheet} sheetNames={tabs.map((tab) => tab.name)} bind:showReplace={finding.replace} onGo={goToFound} onReplaceOne={(f, a, b, o) => void replaceOne(f, a, b, o)} onReplaceAll={replaceAll} onClose={() => ((finding = null), grid?.focus())} />
     {/if}
     <p class="visually-hidden" aria-live="polite">{spoken}</p>
+    <!-- the active cell, for screen readers (cellSpoken); not while a cell is typed in -->
+    <p class="visually-hidden" aria-live="polite">{editor.active ? "" : cellSpoken}</p>
     {#if spoken}<div class="glass spoken" role="presentation">{spoken}<button class="button" onclick={() => (spoken = "")}>OK</button></div>{/if}
   </div>
 
