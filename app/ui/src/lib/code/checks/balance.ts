@@ -15,6 +15,8 @@ interface Syntax {
   /** shell's "#" starts a comment only where a word starts, so $# and ${#name} aren't comments */
   commentOnlyAtWordStart?: boolean;
   blockComment: [string, string] | null;
+  /** rust's block comments nest: each inner opening needs its own closing */
+  nestedBlockComments?: boolean;
   /** quote characters that start a string or a character */
   quotes: string;
   /** quotes that, tripled, start a string over several lines: python's """ and ''', java's """ text blocks */
@@ -22,7 +24,7 @@ interface Syntax {
   /** quotes inside which a backslash is an ordinary character, like shell's '...' */
   rawQuotes?: string;
   /** what else the language has that hides brackets: escapes, here-documents, raw strings */
-  skipSpecial?: (text: string, index: number) => number;
+  skipSpecial?: (text: string, index: number, problems: Problem[]) => number;
 }
 
 const C_LIKE: Syntax = { lineComment: "//", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: "" };
@@ -45,7 +47,7 @@ const SYNTAX: Record<string, Syntax> = {
   javascript: { ...C_LIKE, quotes: "\"'`" },
   typescript: { ...C_LIKE, quotes: "\"'`" },
   // rust's ' is also a lifetime ('a), so only " counts as a string there
-  rust: { ...C_LIKE, quotes: '"' },
+  rust: { ...C_LIKE, quotes: '"', nestedBlockComments: true, skipSpecial: skipRustRawString },
   python: { lineComment: "#", blockComment: null, quotes: "\"'", tripleQuotes: "\"'" },
   shell: SHELL,
   sql: { lineComment: "--", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: "" },
@@ -128,19 +130,55 @@ function startsComment(text: string, index: number, syntax: Syntax): boolean {
   return syntax.blockComment !== null && text.startsWith(syntax.blockComment[0], index);
 }
 
+// r"...", r#"..."# with any number of #, and the byte and c-string forms br"..." and cr"..."
+const RUST_RAW_STRING_START = /(b|c)?r(#*)"/y;
+
+/**
+ * the offset after a rust raw string starting at `index`, or `index` itself.
+ * a raw string has no escapes and ends only at a quote followed by as many
+ * # as it opened with, so r#"he said "}" "# is one string.
+ */
+function skipRustRawString(text: string, index: number, problems: Problem[]): number {
+  // the r of a name like "bar" is not the start of a raw string
+  if (index > 0 && /\w/.test(text[index - 1])) return index;
+  RUST_RAW_STRING_START.lastIndex = index;
+  const start = RUST_RAW_STRING_START.exec(text);
+  if (!start) return index;
+  const closing = `"${start[2]}`;
+  const end = text.indexOf(closing, index + start[0].length);
+  if (end >= 0) return end + closing.length;
+  problems.push(problemAt(text, index, start[0].length, "error", `This raw string is never closed. Add ${closing} where it ends.`, BASIC_SOURCE));
+  return text.length;
+}
+
+/** the offset after the block comment starting at `start`; with `nested`, each inner opening needs its own closing. */
+function skipBlockComment(text: string, start: number, [open, close]: [string, string], nested: boolean, problems: Problem[]): number {
+  let depth = 0;
+  let index = start;
+  while (index < text.length) {
+    if (text.startsWith(open, index) && (nested || depth === 0)) {
+      depth++;
+      index += open.length;
+    } else if (text.startsWith(close, index)) {
+      depth--;
+      index += close.length;
+      if (depth === 0) return index;
+    } else index++;
+  }
+  problems.push(problemAt(text, start, open.length, "error", `This comment is never closed. Add ${close}.`, BASIC_SOURCE));
+  return text.length;
+}
+
 /** the offset after a comment or string starting at `index`, or `index` itself. */
 function skipCommentOrString(text: string, index: number, syntax: Syntax, problems: Problem[]): number {
-  const special = syntax.skipSpecial?.(text, index) ?? index;
+  const special = syntax.skipSpecial?.(text, index, problems) ?? index;
   if (special !== index) return special;
   if (startsLineComment(text, index, syntax)) {
     const end = text.indexOf("\n", index);
     return end < 0 ? text.length : end;
   }
   if (syntax.blockComment && text.startsWith(syntax.blockComment[0], index)) {
-    const end = text.indexOf(syntax.blockComment[1], index + 2);
-    if (end >= 0) return end + syntax.blockComment[1].length;
-    problems.push(problemAt(text, index, 2, "error", `This comment is never closed. Add ${syntax.blockComment[1]}.`, BASIC_SOURCE));
-    return text.length;
+    return skipBlockComment(text, index, syntax.blockComment, syntax.nestedBlockComments ?? false, problems);
   }
   const quote = text[index];
   const isRaw = syntax.rawQuotes?.includes(quote) ?? false;

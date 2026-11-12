@@ -189,6 +189,18 @@ describe("the basic check", () => {
     ]);
   });
 
+  it("reads rust raw strings and nested block comments", () => {
+    const valid = 'fn main() {\n    let s = r#"he said "}" "#;\n    let t = r"C:\\path\\(";\n    let u = br##"a "# ( "##;\n    /* outer /* inner { */ still comment } */\n}\n';
+    expect(checkBalance(valid, "rust")).toEqual([]);
+    // one */ too few: the outer comment runs on and hides the closing brace
+    expect(checkBalance("fn main() {\n    /* outer /* inner */\n}\n", "rust").map((problem) => problem.message)).toEqual([
+      "This comment is never closed. Add */.",
+      "This brace “{” is never closed.",
+    ]);
+    // a # too few at the end: the string runs on to the end of the file
+    expect(checkBalance('let s = r#"text"; fn f() {}', "rust")[0].message).toBe('This raw string is never closed. Add "# where it ends.');
+  });
+
   it("knows rust lifetimes are not strings", () => {
     expect(checkBalance("fn f<'a>(x: &'a str) -> &'a str { x }", "rust")).toEqual([]);
   });
