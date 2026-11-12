@@ -361,6 +361,13 @@ impl EditSession {
         // dropping does the work (see the drop impl below)
     }
 
+    /// the document as it is shown now, loaded for reading. nothing is
+    /// changed and no undo step is made, which is what tools that make
+    /// other files (extract, split) need.
+    pub fn read_document(&self) -> Result<Document, SessionError> {
+        self.load_current()
+    }
+
     fn load_current(&self) -> Result<Document, SessionError> {
         let document = Document::load(&self.current.path).map_err(describe_load_error)?;
         if document.was_encrypted() || document.is_encrypted() {
