@@ -20,9 +20,12 @@ pub enum OpenRoute {
     Writer,
     /// a picture: offered as a new pdf, with text recognition if wanted
     Picture,
-
-    /// a spreadsheet or presentation: shown as a pdf made by Office or
-    /// LibreOffice, when one is installed
+    /// a workbook (.xlsx, .ods): the spreadsheet screen edits it
+    Sheets,
+    /// a presentation (.pptx, .odp): the slide editor edits it
+    Slides,
+    /// an old binary spreadsheet or presentation (.xls, .ppt): shown as a
+    /// pdf made by Office or LibreOffice, when one is installed
     OfficeAsPdf,
     Unsupported,
 }
@@ -59,17 +62,31 @@ pub const FILE_TYPES: &[FileType] = &[
         role: "Editor",
         route: OpenRoute::Writer,
     },
+    // spreadsheets and presentations: edited since the sheets screen and
+    // the slide editor came (they were shown as pdfs before)
+    FileType {
+        extensions: &["xlsx"],
+        name: "Excel Workbook",
+        role: "Editor",
+        route: OpenRoute::Sheets,
+    },
     FileType {
         extensions: &["ods"],
         name: "OpenDocument Spreadsheet",
-        role: "Viewer",
-        route: OpenRoute::OfficeAsPdf,
+        role: "Editor",
+        route: OpenRoute::Sheets,
+    },
+    FileType {
+        extensions: &["pptx"],
+        name: "PowerPoint Presentation",
+        role: "Editor",
+        route: OpenRoute::Slides,
     },
     FileType {
         extensions: &["odp"],
         name: "OpenDocument Presentation",
-        role: "Viewer",
-        route: OpenRoute::OfficeAsPdf,
+        role: "Editor",
+        route: OpenRoute::Slides,
     },
     FileType {
         extensions: &["rtf"],
@@ -115,9 +132,9 @@ pub const FILE_TYPES: &[FileType] = &[
     },
 ];
 
-/// where a file opens, by its extension. spreadsheets and presentations
-/// Letters doesn't register for (.xlsx, .pptx) still open as pdfs when
-/// dropped on the window.
+/// where a file opens, by its extension. old binary spreadsheets and
+/// presentations Letters doesn't register for (.xls, .ppt) still open as
+/// pdfs when dropped on the window.
 pub fn route_for(path: &Path) -> OpenRoute {
     let extension = path
         .extension()
@@ -130,7 +147,8 @@ pub fn route_for(path: &Path) -> OpenRoute {
         return found.route;
     }
     match extension.as_str() {
-        "xlsx" | "xls" | "pptx" | "ppt" => OpenRoute::OfficeAsPdf,
+        "xlsm" | "csv" | "tsv" => OpenRoute::Sheets,
+        "xls" | "ppt" => OpenRoute::OfficeAsPdf,
         "doc" => OpenRoute::Writer,
         _ => OpenRoute::Unsupported,
     }
@@ -166,9 +184,11 @@ mod tests {
         assert_eq!(route_for(Path::new("essay.PDF")), OpenRoute::Viewer);
         assert_eq!(route_for(Path::new("essay.docx")), OpenRoute::Writer);
         assert_eq!(route_for(Path::new("notes.odt")), OpenRoute::Writer);
-        assert_eq!(route_for(Path::new("data.ods")), OpenRoute::OfficeAsPdf);
-        assert_eq!(route_for(Path::new("talk.odp")), OpenRoute::OfficeAsPdf);
-        assert_eq!(route_for(Path::new("data.xlsx")), OpenRoute::OfficeAsPdf);
+        assert_eq!(route_for(Path::new("data.ods")), OpenRoute::Sheets);
+        assert_eq!(route_for(Path::new("talk.odp")), OpenRoute::Slides);
+        assert_eq!(route_for(Path::new("data.xlsx")), OpenRoute::Sheets);
+        assert_eq!(route_for(Path::new("talk.PPTX")), OpenRoute::Slides);
+        assert_eq!(route_for(Path::new("old.xls")), OpenRoute::OfficeAsPdf);
         assert_eq!(route_for(Path::new("old.rtf")), OpenRoute::Writer);
         for picture in [
             "a.png", "b.jpg", "c.JPEG", "d.tif", "e.tiff", "f.bmp", "g.gif", "h.webp",

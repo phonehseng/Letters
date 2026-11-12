@@ -76,7 +76,7 @@ export function openPdfFileAsDocument(path: string): Promise<WriterOpened> {
   return invoke("open_pdf_file_as_document", { path });
 }
 
-export type OpenRoute = "viewer" | "writer" | "picture" | "officeAsPdf" | "unsupported";
+export type OpenRoute = "viewer" | "writer" | "picture" | "sheets" | "slides" | "officeAsPdf" | "unsupported";
 
 /** where a file opens, by its kind (shell-core/src/associations). */
 export function openRoute(path: string): Promise<OpenRoute> {
