@@ -251,6 +251,58 @@ fn sort_by_two_keys_with_a_header() {
 }
 
 #[test]
+fn sorting_through_merged_cells_is_refused_and_changes_nothing() {
+    // a merge stays where it is, so sorted rows would slide values under it
+    let mut book = Workbook::new();
+    type_into(
+        &mut book,
+        0,
+        &[
+            ("A1", "b"),
+            ("B1", "1"),
+            ("A2", "c"),
+            ("B2", "2"),
+            ("A3", "a"),
+            ("B3", "3"),
+        ],
+    );
+    book.sheets[0].merged.push(range("A2:B2"));
+    let sorted = apply(
+        &mut book,
+        &Operation::Sort {
+            sheet: 0,
+            range: range("A1:B3"),
+            keys: vec![SortKey {
+                column: 0,
+                descending: false,
+            }],
+            has_header: false,
+        },
+    );
+    let message = sorted.unwrap_err().to_string();
+    assert!(message.contains("merged cells"), "{message}");
+    assert_eq!(book.value(0, 0, 0), Value::text("b"), "nothing moved");
+    // a merge in the header row, outside the rows sorted, is fine
+    let mut book = Workbook::new();
+    type_into(&mut book, 0, &[("A1", "Title"), ("A2", "b"), ("A3", "a")]);
+    book.sheets[0].merged.push(range("A1:B1"));
+    apply(
+        &mut book,
+        &Operation::Sort {
+            sheet: 0,
+            range: range("A1:B3"),
+            keys: vec![SortKey {
+                column: 0,
+                descending: false,
+            }],
+            has_header: true,
+        },
+    )
+    .unwrap();
+    assert_eq!(book.value(0, 1, 0), Value::text("a"));
+}
+
+#[test]
 fn sheets_rename_duplicate_and_delete() {
     let mut book = sample();
     apply_and_check_undo(

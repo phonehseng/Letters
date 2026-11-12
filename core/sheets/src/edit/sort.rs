@@ -39,6 +39,30 @@ fn value_of(cells: &[Option<Cell>], column: u32) -> Value {
         .unwrap_or_default()
 }
 
+/// moving rows under merged cells would leave each merge where it was
+/// and hide the moved values beneath it, so sorting (or removing
+/// duplicates, which closes gaps) a range a merge reaches into is refused,
+/// as excel refuses it.
+fn refuse_merged(
+    book: &Workbook,
+    sheet: usize,
+    first: u32,
+    last: u32,
+    range: Range,
+) -> Result<(), SheetError> {
+    let rows = Range::from_bounds(first, range.start.col, last, range.end.col);
+    if book.sheets[sheet]
+        .merged
+        .iter()
+        .any(|merged| merged.intersects(&rows))
+    {
+        return Err(SheetError::Invalid(
+            "This range has merged cells, which can’t move with sorted rows. Choose rows without merged cells, or unmerge them first.".into(),
+        ));
+    }
+    Ok(())
+}
+
 pub fn sort(
     book: &mut Workbook,
     sheet: usize,
@@ -55,6 +79,7 @@ pub fn sort(
             "Choose a column inside the range to sort by.".into(),
         ));
     }
+    refuse_merged(book, sheet, first, last, range)?;
     let undo = snapshot(book, sheet);
     let mut rows: Vec<(u32, Vec<Option<Cell>>)> = (first..=last)
         .map(|row| (row, row_cells(book, sheet, row, range)))
@@ -184,6 +209,7 @@ pub fn remove_duplicates(
     let Some((first, last)) = data_rows(range, has_header) else {
         return Err(SheetError::Invalid("There are no rows to check.".into()));
     };
+    refuse_merged(book, sheet, first, last, range)?;
     let undo = snapshot(book, sheet);
     let keys: Vec<u32> = if columns.is_empty() {
         (0..range.cols()).collect()
