@@ -49,6 +49,14 @@ describe("html", () => {
     expect(messages.some((message) => message.startsWith("<ul> can’t go inside <p>"))).toBe(true);
   });
 
+  it("checks the content of a <template> as a fragment of its own", () => {
+    expect(checkHtml("<html><body><template><li>row</li><li>two<li>three</template></body></html>")).toEqual([]);
+    expect(checkHtml("<a href=\"#\"><template><a href=\"#x\">x</a></template></a>")).toEqual([]);
+    // inside the fragment the usual rules hold
+    const messages = checkHtml("<template><div><li>row</li></div><a><a>x</a></a></template>").map((problem) => problem.message);
+    expect(messages).toEqual(["<li> belongs inside <ul> or <ol>.", "A link can’t be inside another link."]);
+  });
+
   it("doesn't read tags inside a script", () => {
     expect(checkHtml("<script>if (a < b && c > d) { x = '<div>'; }</script>")).toEqual([]);
   });

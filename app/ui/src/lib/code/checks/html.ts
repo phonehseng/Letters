@@ -57,12 +57,26 @@ function openElement(text: string, tag: Tag, name: string, stack: OpenElement[],
   if (name === "tr" && (current === "td" || current === "th")) stack.pop();
   if (name === "tr" && stack[stack.length - 1]?.name === "tr") stack.pop();
   if (name === "option" && current === "option") stack.pop();
-  if (name === "a" && stack.some((open) => open.name === "a")) problems.push(tagProblem(text, tag, "warning", "A link can’t be inside another link."));
-  if (name === "li" && !stack.some((open) => LIST_PARENTS.has(open.name))) {
+  const fragment = currentFragment(stack);
+  if (name === "a" && fragment.some((open) => open.name === "a")) problems.push(tagProblem(text, tag, "warning", "A link can’t be inside another link."));
+  // directly inside a <template> the list it will be put in isn't known yet;
+  // the parent is read again because an <li> before it may have just closed
+  const isTemplateTop = stack[stack.length - 1]?.name === "template";
+  if (name === "li" && !isTemplateTop && !fragment.some((open) => LIST_PARENTS.has(open.name))) {
     problems.push(tagProblem(text, tag, "warning", "<li> belongs inside <ul> or <ol>."));
   }
   if (VOID_ELEMENTS.has(name) || tag.selfClosing) return;
   stack.push({ name, tag });
+}
+
+/**
+ * the open elements that count as parents: the content of a <template> is
+ * a fragment of its own, put into the page later by a script, so the
+ * elements around the template aren't its parents.
+ */
+function currentFragment(stack: OpenElement[]): OpenElement[] {
+  const template = findOpen(stack, "template");
+  return stack.slice(template + 1);
 }
 
 function closeElement(text: string, tag: Tag, name: string, stack: OpenElement[], problems: Problem[]) {
