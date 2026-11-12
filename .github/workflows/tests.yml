@@ -1,0 +1,76 @@
+# every test that can run without microsoft office or libreoffice, on
+# windows, macos and linux. tests that need those applications are
+# ignored with a reason, so they show as skipped here, not as failures.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    strategy:
+      # a failure on one system shouldn't hide the result on the others
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # the compiler the project is built and its hashes recorded with
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.1
+      - uses: Swatinem/rust-cache@v2
+
+      # pdfium and tesseract come from the project's own pinned scripts
+      - name: fetch pdfium and tesseract (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./tools/fetch-pdfium.ps1
+          ./tools/fetch-tesseract.ps1
+      - name: fetch pdfium and tesseract (macos)
+        if: runner.os == 'macOS'
+        run: |
+          brew install tesseract
+          sh tools/fetch-pdfium.sh
+          sh tools/fetch-tesseract.sh
+      - name: fetch pdfium and tesseract (linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          sh tools/fetch-pdfium.sh
+          sh tools/fetch-tesseract.sh
+
+      # the desktop shell only wires the crates to windows; its testable
+      # logic lives in app/shell-core, which is tested here
+      - name: test every crate
+        run: cargo test --workspace --exclude letters-shell --no-fail-fast
+
+  interface:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: app/ui
+    steps:
+      - uses: actions/checkout@v4
+      # the node version the project is developed with
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: app/ui/package-lock.json
+      - run: npm ci
+      - name: type check
+        run: npx svelte-check --threshold error
+      - name: unit tests
+        run: npx vitest run
+      - name: production build
+        run: npx vite build

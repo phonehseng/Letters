@@ -102,7 +102,7 @@ mod tests {
 
     /// runs the real word through the bridge: `cargo test -p letters-shell-core word_exports -- --ignored`
     #[test]
-    #[ignore]
+    #[ignore = "needs Microsoft Word on windows"]
     fn word_exports_a_document_to_pdf() {
         let dir = std::env::temp_dir().join(format!("letters-export-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();

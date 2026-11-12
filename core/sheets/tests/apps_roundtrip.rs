@@ -144,7 +144,7 @@ fn edit_one_cell(book: &mut Workbook) {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs Microsoft Excel on windows"]
 fn excel_files_survive_a_letters_edit() {
     if !apps::excel_available() {
         println!("excel is not installed; skipped");
@@ -177,7 +177,7 @@ fn excel_files_survive_a_letters_edit() {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs LibreOffice"]
 fn libreoffice_files_survive_a_letters_edit() {
     if apps::libreoffice_path().is_none() {
         println!("libreoffice is not installed; skipped");
@@ -237,7 +237,7 @@ fn libreoffice_files_survive_a_letters_edit() {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs LibreOffice"]
 fn xlsx_and_ods_convert_both_ways_through_libreoffice() {
     if apps::libreoffice_path().is_none() {
         return;

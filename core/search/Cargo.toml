@@ -17,6 +17,12 @@ unicode-normalization = "0.1"
 # the quick content check that tells a changed file from a touched one. MIT or Apache-2.0
 crc32fast = "1.5"
 
+# macos only: asks a volume whether it tells upper and lower case apart,
+# so paths on it are compared the way the file system compares them.
+# MIT or Apache-2.0
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 # a throwaway folder per test. MIT or Apache-2.0
 tempfile = "3"

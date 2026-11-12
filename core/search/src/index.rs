@@ -55,15 +55,9 @@ pub struct Index {
     recovered: bool,
 }
 
-/// paths are compared without regard to case on windows, where the file
-/// system does the same, so "C:\Notes" and "c:\notes" are one document.
-pub fn path_key(path: &str) -> String {
-    if cfg!(windows) {
-        path.replace('/', "\\").to_lowercase()
-    } else {
-        path.to_string()
-    }
-}
+/// the key a document's path is kept under (see paths.rs). it stays
+/// reachable here because the app's library code imports it from here.
+pub use crate::paths::path_key;
 
 impl Index {
     /// opens the index in `folder`, or starts an empty one. a damaged

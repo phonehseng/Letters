@@ -5,7 +5,9 @@ mod support;
 
 use std::path::PathBuf;
 
-use letters_pdf::{DocumentId, OutlineItem, PdfError, RenderWorker, MAX_SEARCH_MATCHES};
+use letters_pdf::{
+    DocumentId, OutlineItem, PageText, PdfError, RenderWorker, TextRect, MAX_SEARCH_MATCHES,
+};
 use support::{
     pdfium_dir, temp_dir, write_rotated_text_pdf, write_text_pdf, Bookmark, Target, TextLine,
 };
@@ -164,6 +166,59 @@ fn search_ignores_case() {
     assert_eq!(pages_of(&worker, id, "pHoToSyNtHeSiS"), [0]);
 }
 
+/// the size every test line here is set at.
+const LINE_SIZE: f32 = 24.0;
+
+/// the box covering the letters of `word` where it first appears on a page,
+/// from pdfium's own box for each letter.
+///
+/// these boxes are loose: each starts at the letter's pen position and spans
+/// the font's full height, so they don't depend on which font draws the text.
+/// that matters here because the test pdfs use helvetica without embedding
+/// it, and pdfium draws it with whatever the system offers (arial on windows,
+/// another sans on linux and macos).
+fn letter_boxes(page: &PageText, word: &str) -> TextRect {
+    let letters: Vec<char> = word.chars().collect();
+    let chars: Vec<char> = page.chars.iter().map(|c| c.ch).collect();
+    let start = chars
+        .windows(letters.len())
+        .position(|window| window == letters.as_slice())
+        .expect("the word is on the page");
+    let boxes = page.chars[start..start + letters.len()]
+        .iter()
+        .map(|c| c.rect);
+    let left = boxes.clone().map(|r| r.x).fold(f32::MAX, f32::min);
+    let top = boxes.clone().map(|r| r.y).fold(f32::MAX, f32::min);
+    let right = boxes
+        .clone()
+        .map(|r| r.x + r.width)
+        .fold(f32::MIN, f32::max);
+    let bottom = boxes.map(|r| r.y + r.height).fold(f32::MIN, f32::max);
+    TextRect {
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+    }
+}
+
+/// a match is the letters' tight ink box: inside their loose boxes, and
+/// most of their length, so it covers every letter and not just one.
+fn assert_covers_the_letters(found: TextRect, letters: TextRect) {
+    // half a point for rounding where ink touches the edge of its box
+    let slack = 0.5;
+    let inside = found.x >= letters.x - slack
+        && found.y >= letters.y - slack
+        && found.x + found.width <= letters.x + letters.width + slack
+        && found.y + found.height <= letters.y + letters.height + slack;
+    let long_side = |r: TextRect| r.width.max(r.height);
+    let covers = long_side(found) >= 0.9 * long_side(letters);
+    assert!(
+        inside && covers,
+        "the match {found:?} doesn't cover the letters {letters:?}"
+    );
+}
+
 #[test]
 fn match_rectangles_are_measured_from_the_top_left_and_cover_the_text() {
     let (worker, id) = open_notes("search-rects");
@@ -172,19 +227,38 @@ fn match_rectangles_are_measured_from_the_top_left_and_cover_the_text() {
     let rects = &results.matches[0].rects;
     assert_eq!(rects.len(), 1);
     let rect = rects[0];
+    let letters = letter_boxes(&worker.page_text(id, 0).unwrap(), "Photosynthesis");
+    assert_covers_the_letters(rect, letters);
 
-    // the word starts at x = 72, and its baseline is 100 points from the
-    // top. in helvetica at 24 points the capitals reach about 17 points
-    // above the baseline and the "y" hangs about 5 points below it
-    let tolerance = 2.0;
-    assert!((rect.x - 72.0).abs() < tolerance, "x was {}", rect.x);
-    let top = rect.y;
-    let bottom = rect.y + rect.height;
-    assert!((76.0..=88.0).contains(&top), "top was {top}");
-    assert!((99.0..=107.0).contains(&bottom), "bottom was {bottom}");
-    // "Photosynthesis" is 162.7 points wide in helvetica at 24 points
+    // and it is where the pdf put the word, measured from the top left: the
+    // letters start at the pen, x = 72, whatever the font, and the baseline
+    // is 100 points from the top. a letter's side bearing is a small part of
+    // its size, the ink rises above the baseline by less than the size, and
+    // the "y" hangs below it
     assert!(
-        (150.0..=166.0).contains(&rect.width),
+        (letters.x - 72.0).abs() < 0.5,
+        "the letters start at {}",
+        letters.x
+    );
+    let baseline = 100.0;
+    assert!(
+        (71.0..72.0 + 0.25 * LINE_SIZE).contains(&rect.x),
+        "x was {}",
+        rect.x
+    );
+    assert!(
+        (baseline - LINE_SIZE..baseline).contains(&rect.y),
+        "top was {}",
+        rect.y
+    );
+    let bottom = rect.y + rect.height;
+    assert!(
+        (baseline..baseline + 0.5 * LINE_SIZE).contains(&bottom),
+        "bottom was {bottom}"
+    );
+    // fourteen letters of a sans serif are between 0.4 and 0.8 of the size wide each
+    assert!(
+        (14.0 * 0.4 * LINE_SIZE..14.0 * 0.8 * LINE_SIZE).contains(&rect.width),
         "width was {}",
         rect.width
     );
@@ -194,7 +268,7 @@ fn match_rectangles_are_measured_from_the_top_left_and_cover_the_text() {
 fn match_rectangles_follow_a_rotated_page() {
     let dir = temp_dir("search-rotated");
     let path = dir.join("sideways.pdf");
-    let lines = vec![TextLine::new(72.0, 100.0, 24.0, "Photosynthesis")];
+    let lines = vec![TextLine::new(72.0, 100.0, LINE_SIZE, "Photosynthesis")];
     write_rotated_text_pdf(&path, &[lines], &[], 90);
     let worker = start_worker();
     let info = worker.open(&path, None).unwrap();
@@ -202,18 +276,35 @@ fn match_rectangles_follow_a_rotated_page() {
     assert_eq!(info.page_sizes[0].width_pt, 792.0);
 
     let rect = worker.search(info.id, "Photosynthesis").unwrap().matches[0].rects[0];
+    let letters = letter_boxes(&worker.page_text(info.id, 0).unwrap(), "Photosynthesis");
+    assert_covers_the_letters(rect, letters);
 
     // the baseline, 100 points from the top of the unturned page, is now
-    // 692 points from the left, and the word runs downward from y = 72
-    assert!((684.0..=694.0).contains(&rect.x), "x was {}", rect.x);
+    // 692 points from the left. the letters rise to the right of it and the
+    // "y" hangs to its left, and the word runs downward from the pen at y = 72
     assert!(
-        (703.0..=716.0).contains(&(rect.x + rect.width)),
-        "right was {}",
-        rect.x + rect.width
+        (letters.y - 72.0).abs() < 0.5,
+        "the letters start at {}",
+        letters.y
     );
-    assert!((rect.y - 72.0).abs() < 2.0, "y was {}", rect.y);
+    let baseline = 692.0;
+    let right = rect.x + rect.width;
     assert!(
-        (150.0..=166.0).contains(&rect.height),
+        (baseline - 0.5 * LINE_SIZE..baseline).contains(&rect.x),
+        "x was {}",
+        rect.x
+    );
+    assert!(
+        (baseline..baseline + LINE_SIZE).contains(&right),
+        "right was {right}"
+    );
+    assert!(
+        (71.0..72.0 + 0.25 * LINE_SIZE).contains(&rect.y),
+        "y was {}",
+        rect.y
+    );
+    assert!(
+        (14.0 * 0.4 * LINE_SIZE..14.0 * 0.8 * LINE_SIZE).contains(&rect.height),
         "height was {}",
         rect.height
     );

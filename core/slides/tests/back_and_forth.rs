@@ -100,7 +100,7 @@ fn scores(reference: &Path, candidate: &Path) -> Vec<Score> {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs Microsoft PowerPoint on windows and LibreOffice"]
 fn back_and_forth_matrix() {
     let mut report = String::new();
     report.push_str(&forward());

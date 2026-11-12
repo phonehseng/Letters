@@ -56,7 +56,7 @@ fn column_values(book: &Workbook, sheet: &str, count: usize) -> Vec<Value> {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs Microsoft Excel on windows and LibreOffice"]
 fn formulas_agree_with_excel_and_libreoffice() {
     let cases = all_cases();
     let book = cases_workbook(&cases);
@@ -207,7 +207,7 @@ fn csv_fields(line: &str) -> Vec<String> {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs Microsoft Excel on windows and LibreOffice"]
 fn number_formats_show_what_excel_and_libreoffice_show() {
     let cases = format_cases();
     let mut book = Workbook::new();

@@ -151,7 +151,7 @@ fn a_file_that_is_not_a_document_gives_a_sentence() {
 /// (app/ui/src/lib/writer/fixtures). run with LETTERS_FIXTURE_DOCX set
 /// to a docx made by word and LETTERS_FIXTURE_DIR to the folder.
 #[test]
-#[ignore]
+#[ignore = "writes the interface's fixtures from a word-made docx in LETTERS_FIXTURE_DOCX"]
 fn write_ui_fixtures() {
     let docx = PathBuf::from(std::env::var("LETTERS_FIXTURE_DOCX").unwrap());
     let out = PathBuf::from(std::env::var("LETTERS_FIXTURE_DIR").unwrap());

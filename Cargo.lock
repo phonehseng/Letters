@@ -2751,6 +2751,7 @@ version = "0.1.0"
 dependencies = [
  "crc32fast",
  "letters-office",
+ "libc",
  "serde",
  "serde_json",
  "tempfile",

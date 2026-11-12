@@ -255,7 +255,7 @@ mod tests {
     /// LETTERS_VERIFY_DOCX (the file) and LETTERS_VERIFY_OUT (the report):
     /// `cargo test -p letters-shell-core word_report_for_a_file -- --ignored`
     #[test]
-    #[ignore]
+    #[ignore = "needs Microsoft Word on windows and a file in LETTERS_VERIFY_DOCX"]
     fn word_report_for_a_file() {
         let path = std::path::PathBuf::from(std::env::var("LETTERS_VERIFY_DOCX").unwrap());
         let out = std::path::PathBuf::from(std::env::var("LETTERS_VERIFY_OUT").unwrap());
@@ -292,7 +292,7 @@ mod tests {
     /// the same as letters reads from the rtf: LETTERS_VERIFY_DOCX (the
     /// .rtf) and LETTERS_VERIFY_OUT (the report).
     #[test]
-    #[ignore]
+    #[ignore = "needs Microsoft Word on windows and a file in LETTERS_VERIFY_DOCX"]
     fn word_opens_rich_text() {
         let path = std::path::PathBuf::from(std::env::var("LETTERS_VERIFY_DOCX").unwrap());
         let out = std::path::PathBuf::from(std::env::var("LETTERS_VERIFY_OUT").unwrap());
@@ -315,7 +315,7 @@ mod tests {
     /// runs the real word through the bridge:
     /// `cargo test -p letters-shell-core word_lays_out -- --ignored`
     #[test]
-    #[ignore]
+    #[ignore = "needs Microsoft Word on windows"]
     fn word_lays_out_a_page_break() {
         let mut document = Document::new();
         document.blocks = vec![
