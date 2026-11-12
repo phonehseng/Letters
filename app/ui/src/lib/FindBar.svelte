@@ -5,7 +5,7 @@
   // whenever the matches or the current one change, so the viewer can
   // draw highlights and scroll. the waiting and the throwing away of
   // stale answers is done by createSearchRunner in search.ts.
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { searchText, type SearchMatch, type SearchResult } from "./api";
   import Icon from "./Icon.svelte";
   import { createSearchRunner, firstMatchFrom, matchCountLabel, nextMatch, previousMatch } from "./search";
@@ -17,11 +17,13 @@
     currentPage: number;
     /** distance from the top of the document area, in css pixels */
     top: number;
+    /** changes after every edit: the matches then have to be found again */
+    revision: number;
     onChange: (matches: SearchMatch[], current: number) => void;
     onClose: () => void;
   }
 
-  let { documentId, currentPage, top, onChange, onClose }: Props = $props();
+  let { documentId, currentPage, top, revision, onChange, onClose }: Props = $props();
 
   let input = $state<HTMLInputElement>();
   let query = $state("");
@@ -71,6 +73,15 @@
   onMount(() => {
     focus();
     return () => runner.cancel();
+  });
+
+  // after an edit the words may sit somewhere else on the page (a turned
+  // page puts them sideways), so the same query is searched again
+  let searchedRevision = untrack(() => revision);
+  $effect(() => {
+    if (revision === searchedRevision) return;
+    searchedRevision = revision;
+    untrack(() => runner.update(query));
   });
 </script>
 

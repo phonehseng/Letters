@@ -8,6 +8,12 @@
 export const COMMANDS = [
   "open",
   "new-window",
+  "save",
+  "save-as",
+  "undo",
+  "redo",
+  "rotate-left",
+  "rotate-right",
   "zoom-in",
   "zoom-out",
   "fit-width",
@@ -31,6 +37,7 @@ export interface KeyPress {
   ctrlKey: boolean;
   metaKey: boolean;
   altKey: boolean;
+  shiftKey?: boolean;
   /** true for the AltGr key, which windows reports as ctrl + alt */
   altGraph?: boolean;
   /** true when the focus is in a text field */
@@ -62,6 +69,11 @@ export function commandForKey(press: KeyPress): Command | null {
   if (press.altKey) return DIGIT_COMMANDS[press.code] ?? null;
 
   const key = press.key.toLowerCase();
+  const history = historyCommand(press, key);
+  if (history !== undefined) return history;
+  if (key === "s") return press.shiftKey ? "save-as" : "save";
+  if (key === "l") return "rotate-left";
+  if (key === "r") return "rotate-right";
   if (key === "o") return "open";
   if (key === "n") return "new-window";
   if (key === "f") return "find";
@@ -71,22 +83,45 @@ export function commandForKey(press: KeyPress): Command | null {
   return null;
 }
 
+/**
+ * undo and redo: ctrl (or command) + z, with shift for redo, and ctrl + y
+ * for redo as windows apps also accept. returns undefined for other keys.
+ *
+ * in a text field these keys belong to the field, which undoes its own
+ * typing, so null is returned and the browser does what it always does.
+ */
+function historyCommand(press: KeyPress, key: string): Command | null | undefined {
+  // ctrl + y is redo on windows; command + y means nothing on a mac
+  const isRedoY = key === "y" && press.ctrlKey && !press.metaKey;
+  if (key !== "z" && !isRedoY) return undefined;
+  if (press.typing) return null;
+  return press.shiftKey || isRedoY ? "redo" : "undo";
+}
+
+/** true for elements that keep their own undo history, like text fields. */
+export function isTextField(element: Element | null): boolean {
+  if (!element) return false;
+  const tag = element.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || (element as HTMLElement).isContentEditable === true;
+}
+
 /** reads a browser keyboard event into a KeyPress. */
 export function keyPressOf(event: KeyboardEvent): KeyPress {
   const target = event.target as HTMLElement | null;
-  const tag = target?.tagName;
   return {
     key: event.key,
     code: event.code,
     ctrlKey: event.ctrlKey,
     metaKey: event.metaKey,
     altKey: event.altKey,
+    shiftKey: event.shiftKey,
     altGraph: event.getModifierState?.("AltGraph") ?? false,
-    typing: tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable === true,
+    typing: isTextField(target),
   };
 }
 
-export type CommandSource = "menu" | "keyboard";
+/** where a command came from: the menu bar, a shortcut, or a click in a menu of the window. */
+export type CommandSource = "menu" | "keyboard" | "pointer";
 
 export interface Dispatcher {
   /** says what a command does on the current screen. returns a function that takes it back. */

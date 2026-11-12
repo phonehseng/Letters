@@ -5,6 +5,7 @@ import {
   createDispatcher,
   ECHO_WINDOW_MS,
   isCommand,
+  isTextField,
   keyPressOf,
   type KeyPress,
 } from "./commands";
@@ -50,6 +51,41 @@ describe("commandForKey", () => {
     expect(commandForKey(press("k"))).toBeNull();
     // alt changes the meaning: ctrl + alt + f is not find
     expect(commandForKey(press("f", { altKey: true, code: "KeyF" }))).toBeNull();
+  });
+});
+
+describe("commandForKey for document commands", () => {
+  it("maps save, save as and rotation", () => {
+    expect(commandForKey(press("s"))).toBe("save");
+    expect(commandForKey(press("S", { shiftKey: true }))).toBe("save-as");
+    expect(commandForKey(press("l"))).toBe("rotate-left");
+    expect(commandForKey(press("r"))).toBe("rotate-right");
+  });
+
+  it("maps undo and redo, including ctrl + y on windows", () => {
+    expect(commandForKey(press("z"))).toBe("undo");
+    expect(commandForKey(press("Z", { shiftKey: true }))).toBe("redo");
+    expect(commandForKey(press("y"))).toBe("redo");
+    expect(commandForKey(press("z", { ctrlKey: false, metaKey: true }))).toBe("undo");
+    // command + y is not redo on a mac
+    expect(commandForKey(press("y", { ctrlKey: false, metaKey: true }))).toBeNull();
+  });
+
+  it("leaves undo and redo to a text field while typing in it", () => {
+    expect(commandForKey(press("z", { typing: true }))).toBeNull();
+    expect(commandForKey(press("y", { typing: true }))).toBeNull();
+    // saving still works from a text field
+    expect(commandForKey(press("s", { typing: true }))).toBe("save");
+  });
+});
+
+describe("isTextField", () => {
+  it("knows which elements undo their own typing", () => {
+    expect(isTextField({ tagName: "INPUT" } as Element)).toBe(true);
+    expect(isTextField({ tagName: "TEXTAREA" } as Element)).toBe(true);
+    expect(isTextField({ tagName: "DIV", isContentEditable: true } as unknown as Element)).toBe(true);
+    expect(isTextField({ tagName: "BUTTON", isContentEditable: false } as unknown as Element)).toBe(false);
+    expect(isTextField(null)).toBe(false);
   });
 });
 

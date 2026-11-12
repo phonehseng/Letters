@@ -19,13 +19,16 @@
     pages: PageSize[];
     currentRow: { first: number; last: number };
     pixelRatio: number;
+    /** changes after every edit */
+    revision: number;
     /** null while the outline is still being read */
     outline: OutlineItem[] | null;
     onModeChange: (mode: SidebarMode) => void;
     onGoToPage: (index: number) => void;
   }
 
-  let { mode, documentId, pages, currentRow, pixelRatio, outline, onModeChange, onGoToPage }: Props = $props();
+  let { mode, documentId, pages, currentRow, pixelRatio, revision, outline, onModeChange, onGoToPage }: Props =
+    $props();
 
   const modes: SidebarMode[] = ["thumbnails", "outline"];
   let tabs: HTMLButtonElement[] = $state([]);
@@ -64,7 +67,7 @@
 
   <div id="sidebar-panel" class="panel" role="tabpanel" aria-labelledby={`sidebar-tab-${mode}`}>
     {#if mode === "thumbnails"}
-      <Thumbnails {documentId} {pages} {currentRow} {pixelRatio} {onGoToPage} />
+      <Thumbnails {documentId} {pages} {currentRow} {pixelRatio} {revision} {onGoToPage} />
     {:else}
       <Outline
         items={outline}

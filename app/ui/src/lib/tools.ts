@@ -18,16 +18,23 @@ export interface ToolHelp {
   whenToUse: string;
   /** what happens to the file on disk */
   fileEffect: string;
+  /** the tooltip when the tool can't be used right now, saying why */
+  unavailable?: string;
 }
 
 const NOTHING_CHANGES = "Nothing. The file is not changed.";
+
+// every edit changes the working copy, a private copy Letters keeps
+// while the document is open. these words must stay exact: the person's
+// file changes only through Save and Save As
+const ONLY_THE_WORKING_COPY = "The file on disk changes only when you choose Save.";
 
 export const tools = {
   recents: {
     label: "Recents",
     tooltip: "Close this document and show recent documents",
     whenToUse: "When you are done with this document and want to open another one in this window.",
-    fileEffect: NOTHING_CHANGES,
+    fileEffect: "Nothing. If there are changes you haven’t saved, Letters asks whether to save them first.",
   },
   open: {
     label: "Open…",
@@ -135,6 +142,59 @@ export const tools = {
     tooltip: "Choose a folder whose PDFs always show here",
     whenToUse: "For a folder you open often, such as the one for a course. Its PDFs appear under Folders.",
     fileEffect: "Nothing. The folder and its files are not changed or moved.",
+  },
+  documentMenu: {
+    label: "Document",
+    tooltip: "Save the document, undo changes or rotate pages",
+    whenToUse: "Click the document's name to save it, save a copy, undo a change or rotate the page you are on.",
+    fileEffect: "Nothing by itself. Each command in the menu says what it does.",
+  },
+  save: {
+    label: "Save",
+    tooltip: "Save the changes to this document",
+    shortcut: "Ctrl S",
+    whenToUse: "When you are happy with your changes and want the file to keep them.",
+    fileEffect:
+      "Replaces the file on disk with the document as you see it now. The file is written in one step, so it is never left half saved.",
+    unavailable: "There are no changes to save",
+  },
+  saveAs: {
+    label: "Save As…",
+    tooltip: "Save the document as a new file",
+    shortcut: "Ctrl Shift S",
+    whenToUse: "To keep the file you opened as it is and put your changes in a copy, or when the file is locked.",
+    fileEffect:
+      "Writes a new file with the document as you see it. The file you opened stays as it is on disk, and from then on Save writes to the new file.",
+  },
+  undo: {
+    label: "Undo",
+    tooltip: "Take back the last change",
+    shortcut: "Ctrl Z",
+    whenToUse: "Right after a change you didn’t mean to make. You can undo many changes in a row.",
+    fileEffect: `Takes the change back in your working copy. ${ONLY_THE_WORKING_COPY}`,
+    unavailable: "Nothing to undo",
+  },
+  redo: {
+    label: "Redo",
+    tooltip: "Make the change you just undid again",
+    shortcut: "Ctrl Shift Z",
+    whenToUse: "When you undid one change too many.",
+    fileEffect: `Makes the change again in your working copy. ${ONLY_THE_WORKING_COPY}`,
+    unavailable: "Nothing to redo",
+  },
+  rotateLeft: {
+    label: "Rotate Left",
+    tooltip: "Turn this page a quarter turn to the left",
+    shortcut: "Ctrl L",
+    whenToUse: "When a scanned page is on its side or upside down.",
+    fileEffect: `Rotates the page in your working copy. ${ONLY_THE_WORKING_COPY}`,
+  },
+  rotateRight: {
+    label: "Rotate Right",
+    tooltip: "Turn this page a quarter turn to the right",
+    shortcut: "Ctrl R",
+    whenToUse: "When a scanned page is on its side or upside down.",
+    fileEffect: `Rotates the page in your working copy. ${ONLY_THE_WORKING_COPY}`,
   },
   explain: {
     label: "Explain",

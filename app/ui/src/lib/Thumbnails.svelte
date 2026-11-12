@@ -19,10 +19,12 @@
     /** the pages of the current row: one page, or a pair in two page mode */
     currentRow: { first: number; last: number };
     pixelRatio: number;
+    /** changes after every edit, so the pictures are fetched again */
+    revision: number;
     onGoToPage: (index: number) => void;
   }
 
-  let { documentId, pages, currentRow, pixelRatio, onGoToPage }: Props = $props();
+  let { documentId, pages, currentRow, pixelRatio, revision, onGoToPage }: Props = $props();
 
   let list = $state<HTMLDivElement>();
   let scrollTop = $state(0);
@@ -99,7 +101,7 @@
         <span class="sheet" style:width="{thumbnail.width}px" style:height="{thumbnail.height}px">
           {#each thumbnail.tiles as tile (`${thumbnail.scale}/${tile.column}/${tile.row}`)}
             <img
-              src={tileUrl(documentId, slot.index, thumbnail.scale, tile.column, tile.row)}
+              src={tileUrl(documentId, slot.index, thumbnail.scale, tile.column, tile.row, revision)}
               alt=""
               draggable="false"
               onerror={retryTile}

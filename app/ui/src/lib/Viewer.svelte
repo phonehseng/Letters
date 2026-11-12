@@ -8,9 +8,25 @@
   // the toolbar floats above the pages instead of sitting in its own
   // strip, so the document reaches the top of the window (docs/DESIGN.md).
   // this file holds the viewer's state; the parts are their own components.
+  //
+  // the document can change (rotate, undo, redo). every change comes back
+  // from the shell as a new DocumentState, which the window passes down
+  // again as `document`; page sizes, tiles, thumbnails, the outline and
+  // find all redraw from it, and the reader's place is kept.
   import { tick, untrack } from "svelte";
-  import { documentOutline, type OpenedDocument, type OutlineItem, type SearchMatch } from "./api";
+  import {
+    asCommandError,
+    documentOutline,
+    redo,
+    rotatePages,
+    undo,
+    type DocumentState,
+    type OutlineItem,
+    type SearchMatch,
+  } from "./api";
   import { appCommands, type Command } from "./commands";
+  import { isAvailable } from "./documentMenu";
+  import { documentChanges, placeAfterEdit, rotation } from "./documentState";
   import { remInPixels } from "./dom";
   import FindBar from "./FindBar.svelte";
   import HelpPanel from "./HelpPanel.svelte";
@@ -48,12 +64,16 @@
   import ViewerToolbar from "./ViewerToolbar.svelte";
 
   interface Props {
-    document: OpenedDocument;
+    document: DocumentState;
+    /** the shell answered a change with this new state */
+    onDocumentChange: (next: DocumentState) => void;
+    /** a change failed; the message says what to do */
+    onError: (message: string) => void;
     onRecents: () => void;
     onNewWindow: () => void;
   }
 
-  let { document: doc, onRecents, onNewWindow }: Props = $props();
+  let { document: doc, onDocumentChange, onError, onRecents, onNewWindow }: Props = $props();
 
   let scroller = $state<HTMLDivElement>();
   let zoom = $state(1);
@@ -73,7 +93,8 @@
   // true until the reader picks their own zoom. while it is true the
   // page keeps filling the width, even when the window is resized.
   let followsWidth = true;
-  let outlineRequested = false;
+  // the revision the outline was read at; it is read again after an edit
+  let outlineRevision = -1;
   // on a high density screen one css pixel is several real pixels;
   // tiles are rendered at the real size so text stays sharp
   let pixelRatio = $state(window.devicePixelRatio || 1);
@@ -99,6 +120,13 @@
     "thumbnails",
     "outline",
     "recents",
+    "documentMenu",
+    "save",
+    "saveAs",
+    "undo",
+    "redo",
+    "rotateLeft",
+    "rotateRight",
     "goToPage",
     "zoomOut",
     "zoomIn",
@@ -211,6 +239,49 @@
     if (x !== null) scroller.scrollLeft = x;
   }
 
+  /**
+   * runs one change to the document (an edit, undo or redo) and shows
+   * the result.
+   *
+   * whether the command can run is checked when its turn comes, not
+   * when the key was pressed, so pressing undo twice with one step left
+   * undoes once and then quietly does nothing, as on a mac.
+   */
+  function change(command: Command, action: () => Promise<DocumentState>) {
+    // changes run one after another, so their answers arrive in order
+    return documentChanges(async () => {
+      if (!isAvailable(command, doc)) return;
+      try {
+        await showState(await action());
+      } catch (problem) {
+        onError(asCommandError(problem).message);
+      }
+    });
+  }
+
+  /**
+   * shows a new state of the document: new page sizes (a turned page is
+   * wider than tall), new tiles, and the reader still at the same spot
+   * of the same page when that page still exists.
+   */
+  async function showState(next: DocumentState) {
+    const anchor = anchorAt(layout.pages, scrollTop + toolbarHeight);
+    onDocumentChange(next);
+    await tick();
+    if (followsWidth) zoom = zoomToFitWidth(next.pages, viewportWidth, pageMode);
+    await tick();
+    if (scroller) {
+      scroller.scrollTop = positionOf(layout.pages, placeAfterEdit(anchor, next.pages.length)) - toolbarHeight;
+    }
+  }
+
+  function rotateCurrentPage(direction: "left" | "right") {
+    const command = direction === "left" ? "rotate-left" : "rotate-right";
+    // the page is chosen now, when the reader asked, not when it runs
+    const { pages, degrees } = rotation(direction, currentIndex);
+    change(command, () => rotatePages(doc.id, pages, degrees));
+  }
+
   function onWindowKeyDown(event: KeyboardEvent) {
     // escape closes find from anywhere in the viewer, not only its field
     if (event.key === "Escape" && findOpen && !event.defaultPrevented) closeFind();
@@ -228,15 +299,21 @@
       ["toggle-outline", () => setSidebar(toggleSidebarMode(sidebar, "outline"))],
       ["toggle-two-pages", toggleTwoPages],
       ["toggle-night-mode", () => (nightMode = !nightMode)],
+      ["undo", () => change("undo", () => undo(doc.id))],
+      ["redo", () => change("redo", () => redo(doc.id))],
+      ["rotate-left", () => rotateCurrentPage("left")],
+      ["rotate-right", () => rotateCurrentPage("right")],
     ];
     const takeBack = handlers.map(([command, handler]) => appCommands.register(command, handler));
     return () => takeBack.forEach((unregister) => unregister());
   });
 
-  // the outline is read the first time it is shown, then kept
+  // the outline is read the first time it is shown, then kept until an
+  // edit changes the document, when it is read again the next time it shows
   $effect(() => {
-    if (!sidebar.open || sidebar.mode !== "outline" || outlineRequested) return;
-    outlineRequested = true;
+    const revision = doc.revision;
+    if (!sidebar.open || sidebar.mode !== "outline" || outlineRevision === revision) return;
+    outlineRevision = revision;
     untrack(() =>
       documentOutline(doc.id)
         .then((items) => (outline = items))
@@ -291,6 +368,7 @@
       pages={doc.pages}
       {currentRow}
       {pixelRatio}
+      revision={doc.revision}
       {outline}
       onModeChange={(mode: SidebarMode) => setSidebar({ open: true, mode })}
       onGoToPage={goToPage}
@@ -318,6 +396,7 @@
             left={pageLeft(page.left)}
             {scale}
             tiles={tilesOf(page.index, page.top)}
+            revision={doc.revision}
           />
           {#if matchesOnPages.has(page.index)}
             <SearchHighlights
@@ -333,9 +412,8 @@
     </div>
 
     <ViewerToolbar
-      name={doc.name}
-      path={doc.path}
-      pageCount={doc.pages.length}
+      document={doc}
+      onDocumentCommand={(command) => appCommands.dispatch(command, "pointer")}
       currentPage={currentIndex + 1}
       {zoom}
       {hidden}
@@ -364,6 +442,7 @@
         documentId={doc.id}
         currentPage={currentIndex}
         top={toolbarHeight}
+        revision={doc.revision}
         onChange={onFindChange}
         onClose={closeFind}
       />

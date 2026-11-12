@@ -11,9 +11,11 @@
     left: number;
     scale: number;
     tiles: TileSpot[];
+    /** changes after every edit, so the tiles are fetched again */
+    revision: number;
   }
 
-  let { documentId, page, left, scale, tiles }: Props = $props();
+  let { documentId, page, left, scale, tiles, revision }: Props = $props();
 </script>
 
 <div
@@ -27,7 +29,7 @@
 >
   {#each tiles as tile (`${scale}/${tile.column}/${tile.row}`)}
     <img
-      src={tileUrl(documentId, page.index, scale, tile.column, tile.row)}
+      src={tileUrl(documentId, page.index, scale, tile.column, tile.row, revision)}
       alt=""
       draggable="false"
       onerror={retryTile}

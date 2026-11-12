@@ -5,15 +5,18 @@
   //
   // on a narrow window parts give way in the order set in toolbar.ts;
   // everything hidden keeps its keyboard shortcut.
+  import type { DocumentState } from "./api";
+  import type { Command } from "./commands";
+  import DocumentMenu from "./DocumentMenu.svelte";
   import ToolButton from "./ToolButton.svelte";
   import type { ToolbarPart } from "./toolbar";
   import { tooltipFor, tools } from "./tools";
   import ViewMenu from "./ViewMenu.svelte";
 
   interface Props {
-    name: string;
-    path: string;
-    pageCount: number;
+    document: DocumentState;
+    /** a command picked in the document menu */
+    onDocumentCommand: (command: Command) => void;
     /** counted from 1, as people count pages */
     currentPage: number;
     zoom: number;
@@ -38,9 +41,8 @@
   }
 
   let {
-    name,
-    path,
-    pageCount,
+    document: doc,
+    onDocumentCommand,
     currentPage,
     zoom,
     hidden,
@@ -64,6 +66,7 @@
   }: Props = $props();
 
   const hideLabel = $derived(hidden.has("labels"));
+  const pageCount = $derived(doc.pages.length);
 
   function onPageInput(event: KeyboardEvent) {
     if (event.key !== "Enter") return;
@@ -83,7 +86,7 @@
       <ToolButton name="sidebar" icon="sidebar" {hideLabel} pressed={sidebarOpen} onClick={onSidebar} />
       <ToolButton name="recents" icon="back" symbolOnly onClick={onRecents} />
       <div class="title">
-        <span class="name" title={path}>{name}</span>
+        <DocumentMenu document={doc} onCommand={onDocumentCommand} />
         <label class="page-jump" title={tooltipFor("goToPage")}>
           <span class:visually-hidden={hidden.has("pageWord")}>{tools.goToPage.label}</span>
           <input type="number" min="1" max={pageCount} value={currentPage} onkeydown={onPageInput} />
@@ -183,13 +186,6 @@
        the page field's focus ring inside the clipped area */
     padding: 0.25rem 0.75rem 0.25rem 0.375rem;
     overflow: hidden;
-  }
-
-  .name {
-    overflow: hidden;
-    font: var(--headline);
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .page-jump {
