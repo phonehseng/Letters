@@ -10,8 +10,9 @@ use tauri::ipc::Invoke;
 use tauri::Wry;
 
 use crate::{
-    a11y_commands, annotate_commands, commands, compare_commands, drive_commands, fonts_commands,
-    forms_commands, page_commands, protect_commands, writer_commands,
+    a11y_commands, annotate_commands, commands, compare_commands, drive_commands, edit_commands,
+    fonts_commands, forms_commands, ocr_commands, ocr_images_commands, page_commands,
+    protect_commands, writer_commands,
 };
 
 /// one feature's commands: its handler, and the names it answers to.
@@ -60,6 +61,8 @@ fn features() -> Vec<Feature> {
         fonts(),
         compare(),
         accessibility(),
+        edit(),
+        scan(),
     ]
 }
 
@@ -263,7 +266,47 @@ fn accessibility() -> Feature {
     ]
 }
 
+/// editing page text and pictures (the Edit tab).
+fn edit() -> Feature {
+    feature![
+        edit_commands::edit_page_objects,
+        edit_commands::edit_replace_text,
+        edit_commands::edit_insert_text,
+        edit_commands::edit_delete_chars,
+        edit_commands::edit_delete_text,
+        edit_commands::edit_set_text_style,
+        edit_commands::edit_add_text,
+        edit_commands::edit_add_image,
+        edit_commands::edit_replace_image,
+        edit_commands::edit_move_image,
+        edit_commands::edit_resize_image,
+        edit_commands::edit_rotate_image,
+        edit_commands::edit_delete_image,
+        edit_commands::edit_restack_image,
+        edit_commands::edit_save_image,
+        edit_commands::edit_font_face,
+    ]
+}
 
+/// text recognition and new from images (the Scan tab).
+fn scan() -> Feature {
+    feature![
+        ocr_commands::ocr_status,
+        ocr_commands::ocr_scan_overview,
+        ocr_commands::ocr_start,
+        ocr_commands::ocr_job_status,
+        ocr_commands::ocr_cancel,
+        ocr_commands::ocr_discard,
+        ocr_commands::ocr_apply,
+        ocr_commands::ocr_remove_text,
+        ocr_commands::ocr_overlay,
+        ocr_commands::ocr_correct_word,
+        ocr_images_commands::ocr_images_to_pdf,
+        ocr_images_commands::ocr_images_status,
+        ocr_images_commands::ocr_images_cancel,
+        ocr_images_commands::ocr_open_new_document,
+    ]
+}
 
 
 

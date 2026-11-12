@@ -11,6 +11,8 @@ import { PROTECT_COMMANDS, PROTECT_KEYS } from "./protect/protectCommands";
 import { FONT_COMMANDS, fontKey, registerFontCommands } from "./fonts/fontCommands";
 import { COMPARE_COMMANDS } from "./compare/compareCommands";
 import { A11Y_COMMANDS } from "./a11y/a11yCommands";
+import { EDIT_COMMANDS, EDIT_KEYS } from "./edit/editCommands";
+import { NEW_FROM_IMAGES, OCR_COMMANDS, OCR_KEYS } from "./ocr/ocrCommands";
 
 export const COMMANDS = [
   "open",
@@ -62,6 +64,11 @@ export const COMMANDS = [
   ...COMPARE_COMMANDS,
   // the accessibility checker (a11y/a11yCommands.ts)
   ...A11Y_COMMANDS,
+  // editing page text and pictures (edit/editCommands.ts)
+  ...EDIT_COMMANDS,
+  // text recognition and new from images (ocr/ocrCommands.ts)
+  ...OCR_COMMANDS,
+  NEW_FROM_IMAGES,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];
@@ -137,10 +144,11 @@ export function commandForKey(press: KeyPress): Command | null {
   // wins; anywhere else ctrl + alt + 3 is still the shortcut
   if (press.altGraph && press.typing) return null;
   if (press.altKey) {
-    return DIGIT_COMMANDS[press.code] ?? ANNOTATE_KEYS[press.code] ?? FILL_SIGN_KEYS[press.code] ?? PROTECT_KEYS[press.code] ?? null;
+    // edit: W edits the page's text, O recognises it (edit/editCommands.ts, ocr/ocrCommands.ts)
+    return DIGIT_COMMANDS[press.code] ?? ANNOTATE_KEYS[press.code] ?? FILL_SIGN_KEYS[press.code] ?? PROTECT_KEYS[press.code] ?? EDIT_KEYS[press.code] ?? OCR_KEYS[press.code] ?? null;
   }
   // control and command together, as Preview's annotation keys are on a mac
-  if (press.ctrlKey && press.metaKey) return ANNOTATE_KEYS[press.code] ?? PROTECT_KEYS[press.code] ?? null;
+  if (press.ctrlKey && press.metaKey) return ANNOTATE_KEYS[press.code] ?? PROTECT_KEYS[press.code] ?? EDIT_KEYS[press.code] ?? OCR_KEYS[press.code] ?? null;
 
   const key = press.key.toLowerCase();
   const history = historyCommand(press, key);

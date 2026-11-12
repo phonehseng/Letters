@@ -64,6 +64,16 @@
             <span class="details">or drop one anywhere</span>
           </button>
         </li>
+        <!-- scan: photos or scans to a new pdf (lib/ocr/NewFromImagesSheet.svelte) -->
+        <li>
+          <button class="document" onclick={() => appCommands.dispatch("new-from-images", "pointer")} title="Make a PDF from photos or scans">
+            <span class="sheet placeholder quiet">
+              <Icon name="plus" size={1.75} />
+            </span>
+            <span class="name">New from Images…</span>
+            <span class="details">photos or scans to a PDF</span>
+          </button>
+        </li>
 
         {#each shownFiles as file (file.path)}
           <li>
@@ -125,7 +135,7 @@
   </div>
 
   {#if showExplain}
-    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "compareTwoPdfs", "pinFolder", "explain"] }]} onClose={() => (showExplain = false)} />
+    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "compareTwoPdfs", "newFromImages", "pinFolder", "explain"] }]} onClose={() => (showExplain = false)} />
   {/if}
 </div>
 
@@ -289,6 +299,12 @@
   .document:hover .sheet.placeholder {
     box-shadow: none;
     filter: brightness(0.97);
+  }
+
+  /* scan: New from Images is a second way in, so it stays quiet: no accent */
+  .sheet.placeholder.quiet {
+    background: var(--control);
+    color: var(--label-secondary);
   }
 
   .name {

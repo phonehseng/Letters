@@ -16,6 +16,8 @@ import type { CropBox } from "./cropRect";
 import type { FillSignSession } from "./forms/fillSignSession.svelte";
 import type { ProtectSession } from "./protect/protectSession.svelte";
 import type { A11ySession } from "./a11y/a11ySession.svelte";
+import type { EditSession } from "./edit/editSession.svelte";
+import type { ScanSession } from "./ocr/scanSession.svelte";
 import { tools, type ToolName } from "./tools";
 
 /** what every tool in the inspector can see and do. */
@@ -51,6 +53,10 @@ export interface ToolContext {
   protect?: ProtectSession;
   /** the Accessibility tab's shared state: the report, the fix wizard, what is outlined (see a11y/a11ySession.svelte.ts) */
   a11y?: A11ySession;
+  /** the Edit tab's shared state: text edited in place, pictures (see edit/editSession.svelte.ts) */
+  edit?: EditSession;
+  /** the Scan tab's shared state: recognition runs and recognized words (see ocr/scanSession.svelte.ts) */
+  scan?: ScanSession;
 }
 
 export interface InspectorTabProps {
@@ -152,6 +158,22 @@ export const INSPECTOR_TABS: InspectorTab[] = [
     tooltip: "Check how well this PDF works with screen readers, and fix what Letters can",
     tools: ["checkAccessibility", "fixAccessibility", "addTagsAutomatically", "markPdfUa", "saveAccessibilityReport", "showOnPage"],
     load: () => import("./inspector/AccessibilityTab.svelte"),
+  },
+  // editing the page's own text and pictures (see edit/editSession.svelte.ts)
+  {
+    id: "edit",
+    label: "Edit",
+    tooltip: "Change the words on the page in place, add text, and move, resize or replace pictures",
+    tools: ["editText", "editTextStyle", "deletePageText", "addPageText", "pageImages", "addPageImage"],
+    load: () => import("./inspector/EditTab.svelte"),
+  },
+  // text recognition for scans and photos (see ocr/scanSession.svelte.ts)
+  {
+    id: "scan",
+    label: "Scan",
+    tooltip: "Make scanned pages searchable, check what was read, and make a PDF from pictures",
+    tools: ["recognizeText", "showRecognizedText", "removeRecognizedText", "newFromImages"],
+    load: () => import("./inspector/ScanTab.svelte"),
   },
 ];
 

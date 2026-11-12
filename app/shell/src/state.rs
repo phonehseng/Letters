@@ -40,6 +40,8 @@ pub struct AppState {
     pub thumbnail_dir: PathBuf,
     /// protect: each open document's password settings and review copies
     pub protection: letters_shell_core::protect::protection::ProtectionTable,
+    /// scan: text recognition runs, the words they found, new from images
+    pub ocr: crate::ocr_commands::OcrState,
 }
 
 impl AppState {
@@ -58,6 +60,7 @@ impl AppState {
             settings: Mutex::new(Settings::load(data_dir.join("settings.json"))),
             thumbnail_dir: cache_dir.join("thumbnails"),
             protection: Default::default(),
+            ocr: crate::ocr_commands::OcrState::start(app),
         }
     }
 
@@ -122,6 +125,8 @@ impl AppState {
         drop(by_window);
         // protect: review copies live in the session's folder, so they close first
         crate::protect_commands::forget_document(self, id);
+        // scan: a recognition run of the document stops with it
+        crate::ocr_commands::forget_document(self, id);
         self.documents.close(self.worker.as_ref().ok(), id);
     }
 
@@ -129,6 +134,7 @@ impl AppState {
         let ids = self.documents_by_window.lock().unwrap().remove(window);
         for id in ids.unwrap_or_default() {
             crate::protect_commands::forget_document(self, id);
+            crate::ocr_commands::forget_document(self, id);
             self.documents.close(self.worker.as_ref().ok(), id);
         }
     }

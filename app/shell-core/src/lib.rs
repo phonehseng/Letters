@@ -29,6 +29,10 @@ pub mod fonts;
 pub mod compare;
 // the accessibility checker and fix wizard, see a11y/mod.rs
 pub mod a11y;
+// direct editing of page text and images (the Edit tab), see edit/mod.rs
+pub mod edit;
+// text recognition for scans and photos (the Scan tab), see ocr/mod.rs
+pub mod ocr;
 
 #[cfg(test)]
 mod annotation_tools_tests;

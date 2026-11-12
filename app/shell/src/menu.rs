@@ -175,6 +175,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .build(app)?;
     let file_menu = SubmenuBuilder::new(app, "File")
         .items(&as_items(&menu_items(app, &FILE_COMMANDS)?))
+        // scan: New from Images…, see content_menu.rs
+        .items(&as_items(&crate::content_menu::file_items(app)?))
         .separator()
         // compare and accessibility (compare_commands.rs, a11y_commands.rs)
         .items(&as_items(&menu_items(app, &COMPARE_COMMANDS)?))
@@ -224,6 +226,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let forms_menu = crate::forms_menu::forms_menu(app)?;
     // the Protect menu (redaction and passwords), see protect_menu.rs
     let protect_menu = crate::protect_menu::protect_menu(app)?;
+    // the Content menu (editing page text and pictures, recognising text), see content_menu.rs
+    let content_menu = crate::content_menu::content_menu(app)?;
 
     MenuBuilder::new(app)
         .items(&[
@@ -237,6 +241,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &insert_menu,
             &forms_menu,
             &protect_menu,
+            &content_menu,
         ])
         .build()
 }
@@ -300,6 +305,7 @@ fn is_window_command(id: &str) -> bool {
         || crate::writer_menu::is_writer_command(id)
         || crate::forms_menu::is_forms_command(id)
         || crate::protect_menu::is_protect_command(id)
+        || crate::content_menu::is_content_command(id)
 }
 
 fn focused_window(app: &AppHandle) -> Option<WebviewWindow> {

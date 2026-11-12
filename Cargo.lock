@@ -2777,8 +2777,10 @@ dependencies = [
  "letters-a11y",
  "letters-annotate",
  "letters-compare",
+ "letters-edit",
  "letters-fonts",
  "letters-forms",
+ "letters-ocr",
  "letters-pages",
  "letters-pdf",
  "letters-redact",
@@ -2797,12 +2799,15 @@ name = "letters-shell-core"
 version = "0.1.0"
 dependencies = [
  "getrandom 0.4.3",
+ "image",
  "keyring",
  "letters-a11y",
  "letters-annotate",
  "letters-compare",
+ "letters-edit",
  "letters-fonts",
  "letters-forms",
+ "letters-ocr",
  "letters-office",
  "letters-pages",
  "letters-pdf",
@@ -2812,6 +2817,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.1",
+ "ttf-parser",
  "ureq",
 ]
 

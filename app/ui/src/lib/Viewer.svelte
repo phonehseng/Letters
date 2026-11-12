@@ -35,6 +35,14 @@
   // the accessibility checker and fix wizard (the Accessibility tab)
   import { A11ySession } from "./a11y/a11ySession.svelte";
   import A11yMarks from "./a11y/A11yMarks.svelte";
+  // editing page text and pictures in place (the Edit tab), and text
+  // recognition for scans (the Scan tab)
+  import EditChrome from "./edit/EditChrome.svelte";
+  import EditOverlay from "./edit/EditOverlay.svelte";
+  import { EditSession } from "./edit/editSession.svelte";
+  import RecognizedOverlay from "./ocr/RecognizedOverlay.svelte";
+  import ScanBanner from "./ocr/ScanBanner.svelte";
+  import { ScanSession } from "./ocr/scanSession.svelte";
   import {
     asCommandError,
     chooseFile,
@@ -249,8 +257,41 @@
     showError: (message) => onError(message),
   });
 
-  // the one page tool in use: a Protect or Fill & Sign tool while one is picked, else the Annotate session's
-  const activePageTool = $derived(protect.pageTool ?? fillSign.pageTool ?? annotate.pageTool);
+  // the Edit tab's shared state: text typed in place, the selected picture
+  // (see edit/editSession.svelte.ts)
+  const edit = new EditSession({
+    documentId: () => doc.id,
+    pageSize: (page) => doc.pages[page],
+    currentPage: () => Math.min(currentIndex, doc.pages.length - 1),
+    viewCentre,
+    change: (action) => change(null, action),
+    undo: () => change("undo", () => undo(doc.id)),
+    announce,
+    notify: showNotice,
+    showError: (message) => onError(message),
+    focusDocument,
+    openTool,
+    takePageTool: () => {
+      annotate.setTool("select");
+      fillSign.setTool("none");
+      protect.dropTool();
+    },
+  });
+
+  // the Scan tab's shared state: recognition runs, the banner, recognized
+  // words (see ocr/scanSession.svelte.ts)
+  const scan = new ScanSession({
+    documentId: () => doc.id,
+    pageCount: () => doc.pages.length,
+    change: (action) => change(null, action),
+    announce,
+    notify: showNotice,
+    showError: (message) => onError(message),
+    openTool,
+  });
+
+  // the one page tool in use: a Protect, Fill & Sign or Edit tool while one is picked, else the Annotate session's
+  const activePageTool = $derived(protect.pageTool ?? fillSign.pageTool ?? edit.pageTool ?? annotate.pageTool);
 
   /** the selected text's boxes on one page, or none. */
   function selectionOn(page: number): Rect[] {
@@ -640,6 +681,8 @@
     fillSign,
     protect,
     a11y,
+    edit,
+    scan,
   });
 
   function onWindowKeyDown(event: KeyboardEvent) {
@@ -649,6 +692,7 @@
     // then it lets go of what the page tools hold, one thing per press
     else if (protect.escape()) event.preventDefault();
     else if (fillSign.escape()) event.preventDefault();
+    else if (edit.escape()) event.preventDefault();
     else if (annotate.escape()) event.preventDefault();
   }
 
@@ -753,6 +797,28 @@
     if (annotate.tool !== "select" || fillSign.tool !== "none") untrack(() => protect.dropTool());
   });
   $effect(() => untrack(() => protect.attach(appCommands)));
+
+  // edit and scan: both read the pages again after every change; another
+  // tool picked puts an Edit tool away; their commands are registered
+  // while the viewer is shown; the text and pictures (or recognized words)
+  // of the pages on screen are fetched once scrolling rests
+  $effect(() => {
+    const revision = doc.revision;
+    untrack(() => (edit.setRevision(revision), scan.setRevision(revision)));
+  });
+  $effect(() => {
+    if (annotate.tool !== "select" || fillSign.tool !== "none" || protect.tool !== null) untrack(() => edit.dropTool());
+  });
+  $effect(() => untrack(() => edit.attach(appCommands)));
+  $effect(() => untrack(() => scan.attach(appCommands)));
+  $effect(() => {
+    const pages = shownPages.map((page) => page.index);
+    const wanted = edit.tool !== "none";
+    const words = scan.showText && scan.overview !== null;
+    void doc.revision;
+    const timer = setTimeout(() => untrack(() => (wanted && edit.objects.ensure(pages), words && scan.ensureOverlays(pages))), 120);
+    return () => clearTimeout(timer);
+  });
 
   // the text of the pages on screen is fetched once scrolling rests, so
   // selecting can start at once without slowing down a fast scroll
@@ -922,6 +988,8 @@
           <FormsOverlay session={fillSign} {frame} quiet={annotate.tool !== "select" || protect.pageTool !== null} onFocusDocument={focusDocument} />
           <RedactionMarks session={protect} {frame} onFocusDocument={focusDocument} />
           <A11yMarks session={a11y} {frame} />
+          <RecognizedOverlay session={scan} {frame} />
+          <EditOverlay session={edit} {frame} onFocusDocument={focusDocument} />
         {/each}
         {#if selectionBarAt}
           <SelectionBar
@@ -976,6 +1044,12 @@
 
     <FormsChrome session={fillSign} onShowSignatures={() => openTool("signatures")} />
     <ProtectSheets session={protect} document={doc} />
+    <!-- edit: paste and drop pictures; scan: the banner on scanned documents -->
+    <EditChrome session={edit} />
+    {#if !notice}
+      <ScanBanner session={scan} top={toolbarHeight} onOpen={() => openTool("recognizeText")} />
+    {/if}
+
 
     <div class="visually-hidden" role="status" aria-live="polite">{announcement}</div>
 

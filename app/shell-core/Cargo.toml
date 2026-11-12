@@ -31,6 +31,13 @@ letters-fonts = { path = "../../core/fonts" }
 letters-compare = { path = "../../core/compare" }
 letters-a11y = { path = "../../core/a11y" }
 png = "0.18"
+# direct editing of page content (see src/edit) and text recognition (see
+# src/ocr). ttf-parser checks an embedded font draws the text before the
+# editor uses it; image holds a page drawn for recognition. MIT or Apache-2.0
+letters-edit = { path = "../../core/edit" }
+letters-ocr = { path = "../../core/ocr" }
+ttf-parser = "0.25"
+image = { version = "0.25", default-features = false }
 
 [dev-dependencies]
 # the annotation engine, run through an edit session in the tests

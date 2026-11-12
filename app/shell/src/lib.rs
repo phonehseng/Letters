@@ -31,6 +31,12 @@ mod fonts_commands;
 mod compare_commands;
 // the accessibility checker and fix wizard (the Accessibility tab)
 mod a11y_commands;
+// editing page text and pictures (the Edit tab), text recognition and
+// new from images (the Scan tab), and their macos menu items
+mod content_menu;
+mod edit_commands;
+mod ocr_commands;
+mod ocr_images_commands;
 // every command the interface can call, one block per feature
 mod command_routes;
 

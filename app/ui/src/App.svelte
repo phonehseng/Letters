@@ -33,6 +33,10 @@
   import CompareScreen from "./lib/compare/CompareScreen.svelte";
   import { compareCommands } from "./lib/compare/compareKeys";
   import { EMPTY_SETUP, setupFromDocument, type CompareSetup } from "./lib/compare/setup";
+  // scan: New from Images, and pictures opened or dropped (lib/ocr)
+  import { isPicturePath, picturePathsAmong } from "./lib/ocr/imagesToPdf";
+  import NewFromImagesSheet from "./lib/ocr/NewFromImagesSheet.svelte";
+  import { forgetNewDocument, newDocumentPath } from "./lib/ocr/newDocuments";
 
   let openedDocument = $state<DocumentState | null>(null);
   /** the Compare screen while it shows; the document (or Recents) waits underneath */
@@ -47,12 +51,31 @@
   let wrongPassword = $state(false);
   /** the unsaved changes question while it is showing, with who is waiting for the answer */
   let saveQuestion = $state<{ name: string; answer: (choice: SaveChoice) => void } | null>(null);
+  /** scan: the New from Images sheet while it shows, with the pictures it starts with */
+  let newFromImages = $state<string[] | null>(null);
+
+  /** scan: the pdf New from Images made is open (unsaved); it takes this window's place */
+  async function showNewDocument(next: DocumentState) {
+    newFromImages = null;
+    if (openedDocument && !(await mayLeaveDocument())) {
+      await closeDocument(next.id);
+      return;
+    }
+    if (openedDocument) await closeDocument(openedDocument.id);
+    openedWriter = null;
+    openedDocument = next;
+  }
 
   /**
    * opens a file in this window, or in a new window if this one already
    * shows a document: every window keeps its own document.
    */
   async function openPath(path: string, withPassword?: string) {
+    // scan: a picture is offered as a new pdf (New from Images)
+    if (isPicturePath(path)) {
+      newFromImages = [path];
+      return;
+    }
     if (openedDocument || openedWriter) {
       await newWindow(path);
       return;
@@ -115,6 +138,8 @@
   function save(): Promise<boolean> {
     const shown = openedDocument;
     if (!shown) return Promise.resolve(false);
+    // scan: a pdf New from Images made has no file yet, so Save asks where
+    if (newDocumentPath(shown.id)) return saveAs();
     return documentChanges(async () => {
       try {
         acceptState(await saveDocument(shown.id));
@@ -130,11 +155,12 @@
   async function saveAs(): Promise<boolean> {
     const shown = openedDocument;
     if (!shown) return false;
-    const path = await chooseSaveLocation(shown.path);
+    const path = await chooseSaveLocation(newDocumentPath(shown.id) ?? shown.path);
     if (!path) return false;
     return documentChanges(async () => {
       try {
         acceptState(await saveDocumentAs(shown.id, path));
+        forgetNewDocument(shown.id);
         return true;
       } catch (problem) {
         errorMessage = asCommandError(problem).message;
@@ -252,6 +278,9 @@
     return () => takeBack.forEach((unregister) => unregister());
   });
 
+  // scan: New from Images… works from Recents and from a document
+  $effect(() => appCommands.register("new-from-images", () => (newFromImages = [])));
+
   // the menu bar (macOS only) sends its commands as events
   $effect(() =>
     listenForMenuCommands((command) => {
@@ -302,6 +331,12 @@
         return;
       }
       if (target?.drop(payload.paths, point)) return;
+      // scan: pictures dropped together become one new pdf
+      const pictures = picturePathsAmong(payload.paths);
+      if (pictures.length > 0 && pictures.length === payload.paths.length) {
+        newFromImages = [...(newFromImages ?? []), ...pictures];
+        return;
+      }
       const [first, ...others] = payload.paths;
       if (first) openPath(first);
       others.forEach((path) => newWindow(path));
@@ -369,6 +404,12 @@
 
 {#if saveQuestion}
   <SaveChangesSheet name={saveQuestion.name} onChoose={saveQuestion.answer} />
+{/if}
+
+{#if newFromImages}
+  {#key newFromImages.join("|")}
+    <NewFromImagesSheet initial={newFromImages} onOpened={showNewDocument} onClose={() => (newFromImages = null)} />
+  {/key}
 {/if}
 
 <style>

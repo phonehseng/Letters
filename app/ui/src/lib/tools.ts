@@ -15,6 +15,8 @@ import { protectTools } from "./protect/protectTools";
 import { fontTools } from "./fonts/fontTools";
 import { compareTools } from "./compare/compareTools";
 import { a11yTools } from "./a11y/a11yTools";
+import { editTools } from "./edit/editTools";
+import { ocrTools } from "./ocr/ocrTools";
 
 export interface ToolHelp {
   label: string;
@@ -426,6 +428,10 @@ export const tools = {
   ...compareTools,
   // the accessibility checker and fix wizard: listed in a11y/a11yTools.ts
   ...a11yTools,
+  // editing page text and pictures in place: listed in edit/editTools.ts
+  ...editTools,
+  // text recognition and new from images: listed in ocr/ocrTools.ts
+  ...ocrTools,
 } satisfies Record<string, ToolHelp>;
 
 export type ToolName = keyof typeof tools;

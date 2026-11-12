@@ -26,7 +26,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../vendor/pdfium/": "pdfium/"
+      "../../vendor/pdfium/": "pdfium/",
+      "../../vendor/tesseract/": "tesseract/"
     }
   }
 }
