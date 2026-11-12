@@ -100,17 +100,15 @@ fn joining_gap(
 pub(super) fn group_blocks(lines: Vec<LineModel>, separators: &[Separator]) -> Vec<BlockModel> {
     let mut blocks: Vec<BlockModel> = Vec::new();
     for line in lines {
-        let joins = blocks
-            .last()
-            .is_some_and(|block| continues_block(block, &line, separators));
-        match (joins, blocks.last_mut()) {
-            (true, Some(block)) => {
+        let continued = block_continued_by(&blocks, &line, separators);
+        match continued.map(|index| &mut blocks[index]) {
+            Some(block) => {
                 let previous = block.lines.last().expect("blocks have lines");
                 let step = line.start.minus(previous.start).dot(previous.normal);
                 block.leading.get_or_insert(step);
                 block.lines.push(line);
             }
-            _ => blocks.push(BlockModel {
+            None => blocks.push(BlockModel {
                 lines: vec![line],
                 alignment: TextAlignment::Left,
                 leading: None,
@@ -121,6 +119,38 @@ pub(super) fn group_blocks(lines: Vec<LineModel>, separators: &[Separator]) -> V
         block.alignment = alignment_of(block);
     }
     blocks
+}
+
+/// the newest block a line continues. it is not always the last one:
+/// pages with columns are often drawn across, a line of the left column
+/// then the same line of the right, so each column's block stays open
+/// while the other's lines are drawn.
+fn block_continued_by(
+    blocks: &[BlockModel],
+    line: &LineModel,
+    separators: &[Separator],
+) -> Option<usize> {
+    (0..blocks.len()).rev().find(|&index| {
+        continues_block(&blocks[index], line, separators)
+            && !line_between(&blocks[index + 1..], &blocks[index], line)
+    })
+}
+
+/// whether a line of a newer block sits between a block's last line and
+/// the next line, in the same place across: then the two don't touch.
+fn line_between(newer: &[BlockModel], block: &BlockModel, line: &LineModel) -> bool {
+    let previous = block.lines.last().expect("blocks have lines");
+    let depth = |other: &LineModel| other.start.minus(previous.start).dot(previous.normal);
+    let span = |other: &LineModel| {
+        let start = other.start.minus(previous.start).dot(previous.direction);
+        (start, start + other.length)
+    };
+    let (line_depth, (line_start, line_end)) = (depth(line), span(line));
+    newer.iter().flat_map(|block| &block.lines).any(|other| {
+        let (start, end) = span(other);
+        let overlaps = start < line_end && line_start < end;
+        overlaps && depth(other) > 0.0 && depth(other) < line_depth
+    })
 }
 
 fn continues_block(block: &BlockModel, line: &LineModel, separators: &[Separator]) -> bool {
