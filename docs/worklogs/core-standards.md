@@ -70,3 +70,12 @@ The README says what each check and the conversion cover, by clause, how
 they are tested, how veraPDF was installed and is run (a development tool
 only, never shipped), how the owner can run it on any file, and every
 limit, so no conformance claim rests on our checker alone.
+
+## 2026-11-12 a test race in the rasterising tests
+
+The test support folder for a render was named by the process id alone, so
+tests running on parallel threads under the same name ("rasterise") could
+wipe or overwrite each other's render.pdf before pdfium read it. On macOS
+CI this showed as part_one_transparency_becomes_pictures_and_says_so finding
+half its picture changed. Each call now gets its own folder. The converter
+itself was not at fault.
