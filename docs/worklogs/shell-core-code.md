@@ -42,3 +42,8 @@ styles put the list on the style, not the paragraph, and the real-app
 export of such a document came out as plain paragraphs. Numbered or not
 is read from the style's name, the only cheap sign without resolving the
 numbering definitions.
+## 2026-11-12 gcc's quotes in the check test
+
+gcc quotes names with curly quotes when the system language uses utf-8,
+as on ubuntu, so the missing-semicolon test now accepts either kind. It had
+failed on every ubuntu run; the check itself was right.
