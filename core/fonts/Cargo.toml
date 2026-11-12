@@ -1,0 +1,9 @@
+[package]
+name = "letters-fonts"
+description = "finds, searches, previews and installs fonts: system, custom, bundled and an online library of open fonts"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"

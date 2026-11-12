@@ -15,6 +15,7 @@ members = [
     "core/convert",
     "core/exact",
     "core/layout",
+    "core/fonts",
     "app/shell-core",
     "app/shell",
 ]
