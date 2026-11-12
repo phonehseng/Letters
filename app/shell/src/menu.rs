@@ -100,6 +100,31 @@ const PAGE_FILE_COMMANDS: [Command; 3] = [
     plain("merge", "Merge PDFs…"),
 ];
 
+/// the Annotate menu. the text marks and the note use Preview's keys
+/// (control and command with a letter), so the keys a mac user already
+/// knows work here too. the ui accepts ctrl and alt with the same letter
+/// on windows. Delete has no key here for the same reason as in Pages:
+/// the ui deletes the selected comment when its frame has the focus.
+const ANNOTATE_MARK_COMMANDS: [Command; 3] = [
+    command("highlight", "Highlight", "Ctrl+Cmd+H"),
+    command("underline", "Underline", "Ctrl+Cmd+U"),
+    command("strike-through", "Strike Through", "Ctrl+Cmd+S"),
+];
+
+const ANNOTATE_ADD_COMMANDS: [Command; 6] = [
+    command("add-note", "Add Note", "Ctrl+Cmd+N"),
+    command("add-text-box", "Add Text Box", "Ctrl+Cmd+T"),
+    plain("add-shape", "Add Shape"),
+    command("draw", "Draw", "Ctrl+Cmd+D"),
+    plain("add-picture", "Add Picture…"),
+    plain("select-tool", "Select"),
+];
+
+const ANNOTATE_LIST_COMMANDS: [Command; 2] = [
+    plain("show-comments", "Show Comments"),
+    plain("flatten-comments", "Flatten Comments…"),
+];
+
 const ZOOM_COMMANDS: [Command; 3] = [
     command("zoom-in", "Zoom In", "CmdOrCtrl+="),
     command("zoom-out", "Zoom Out", "CmdOrCtrl+-"),
@@ -120,7 +145,7 @@ const PANEL_COMMANDS: [Command; 6] = [
     },
 ];
 
-/// builds the whole menu bar: the app menu, File, Edit, View and Pages.
+/// builds the whole menu bar: the app menu, File, Edit, View, Pages and Annotate.
 pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let app_menu = SubmenuBuilder::new(app, "Letters")
         .about(None)
@@ -164,14 +189,41 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .items(&as_items(&menu_items(app, &PAGE_FILE_COMMANDS)?))
         .build()?;
 
+    let annotate_menu = SubmenuBuilder::new(app, "Annotate")
+        .items(&as_items(&menu_items(app, &ANNOTATE_MARK_COMMANDS)?))
+        .separator()
+        .items(&as_items(&menu_items(app, &ANNOTATE_ADD_COMMANDS)?))
+        .separator()
+        .items(&as_items(&menu_items(app, &ANNOTATE_LIST_COMMANDS)?))
+        .build()?;
+
     let view_menu = SubmenuBuilder::new(app, "View")
         .items(&as_items(&menu_items(app, &ZOOM_COMMANDS)?))
         .separator()
         .items(&as_items(&menu_items(app, &PANEL_COMMANDS)?))
         .build()?;
 
+    // the writer's menus (word-processor mode), see writer_menu.rs
+    let format_menu = crate::writer_menu::format_menu(app)?;
+    let insert_menu = crate::writer_menu::insert_menu(app)?;
+    // the Forms menu (Fill & Sign), see forms_menu.rs
+    let forms_menu = crate::forms_menu::forms_menu(app)?;
+    // the Protect menu (redaction and passwords), see protect_menu.rs
+    let protect_menu = crate::protect_menu::protect_menu(app)?;
+
     MenuBuilder::new(app)
-        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &pages_menu])
+        .items(&[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &pages_menu,
+            &annotate_menu,
+            &format_menu,
+            &insert_menu,
+            &forms_menu,
+            &protect_menu,
+        ])
         .build()
 }
 
@@ -226,7 +278,13 @@ fn is_window_command(id: &str) -> bool {
         .chain(&PAGE_COMMANDS)
         .chain(&PAGE_CHANGE_COMMANDS)
         .chain(&PAGE_FILE_COMMANDS)
+        .chain(&ANNOTATE_MARK_COMMANDS)
+        .chain(&ANNOTATE_ADD_COMMANDS)
+        .chain(&ANNOTATE_LIST_COMMANDS)
         .any(|command| command.id == id)
+        || crate::writer_menu::is_writer_command(id)
+        || crate::forms_menu::is_forms_command(id)
+        || crate::protect_menu::is_protect_command(id)
 }
 
 fn focused_window(app: &AppHandle) -> Option<WebviewWindow> {

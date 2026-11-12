@@ -179,7 +179,7 @@ pub fn add_image_watermark(
     let path = Path::new(&image_path);
     params.image = fs::read(path).map_err(|error| {
         CommandError::failed(format!(
-            "â€œ{}â€ canâ€™t be read. Choose the picture again. ({error})",
+            "“{}” can’t be read. Choose the picture again. ({error})",
             file_name(path)
         ))
     })?;

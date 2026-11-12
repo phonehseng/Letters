@@ -12,3 +12,21 @@ letters-pages = { path = "../../core/pages" }
 lopdf = "0.47"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# word-processor mode: reads and writes .docx and .odt (see src/writer)
+letters-office = { path = "../../core/office" }
+# save to google drive (see src/drive): https with rustls, sha256 and random
+# numbers for pkce, and the system credential store for the sign-in.
+# all MIT or Apache-2.0
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+sha2 = "0.11"
+getrandom = "0.4"
+keyring = { version = "3", features = ["windows-native", "apple-native"] }
+# redaction, hidden information and passwords (see src/protect)
+letters-redact = { path = "../../core/redact" }
+
+[dev-dependencies]
+# the annotation engine, run through an edit session in the tests
+letters-annotate = { path = "../../core/annotate" }
+# forms and signatures: signing and checking through an edit session in the tests
+letters-forms = { path = "../../core/forms" }
+png = "0.18"

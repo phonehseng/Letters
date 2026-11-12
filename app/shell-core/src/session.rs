@@ -92,8 +92,8 @@ pub enum SessionError {
     CannotEdit {
         detail: String,
     },
-    /// lopdf would have to decrypt and re-encrypt the file, which is not
-    /// safe yet, so locked documents are view only for now
+    /// the working copy is still locked: it is view only until it is
+    /// unlocked for editing with its password (see protect/unlock.rs)
     PasswordProtected,
     /// the changed document could not be stored in the cache
     CannotStore {
@@ -105,6 +105,16 @@ pub enum SessionError {
     },
     NothingToUndo,
     NothingToRedo,
+    /// forms and signatures: saving would rewrite a digitally signed file
+    /// and break its signature (see forms/signed.rs)
+    SignedOriginal {
+        name: String,
+    },
+    /// protect: the clean save writer refused or failed (see protect/clean_save.rs)
+    SaveRefused {
+        name: String,
+        reason: String,
+    },
 }
 
 impl fmt::Display for SessionError {
@@ -132,7 +142,7 @@ impl fmt::Display for SessionError {
             ),
             Self::PasswordProtected => write!(
                 f,
-                "PDFs locked with a password can be read but not changed yet."
+                "This PDF is locked with a password. To change it, unlock it under Protect in Tools, then try again."
             ),
             Self::CannotStore { detail } => write!(
                 f,
@@ -144,6 +154,11 @@ impl fmt::Display for SessionError {
             ),
             Self::NothingToUndo => write!(f, "There is nothing to undo."),
             Self::NothingToRedo => write!(f, "There is nothing to redo."),
+            Self::SignedOriginal { name } => write!(
+                f,
+                "“{name}” is digitally signed, and saving these changes over it would break its signature. Choose Save As… to save the changed document as a copy."
+            ),
+            Self::SaveRefused { name, reason } => write!(f, "“{name}” wasn’t saved. {reason}"),
         }
     }
 }
@@ -191,7 +206,21 @@ pub struct EditSession {
     revision: u64,
     next_version: u64,
     limits: HistoryLimits,
+    /// forms and signatures: the person's file is digitally signed, so
+    /// save must not write a rewritten version over it
+    protected_original: bool,
+    /// protect: when set, save writes what this makes instead of copying
+    /// the working copy (a clean rewrite, maybe locked again)
+    save_writer: Option<SaveWriter>,
+    /// protect: earlier versions may hold removed content, so they are
+    /// deleted once the document is saved
+    forget_history_on_save: bool,
 }
+
+/// protect: makes the bytes save writes, from the current version's file.
+/// an error is a sentence for the person, such as why the file can't be
+/// locked again.
+pub type SaveWriter = Box<dyn Fn(&Path) -> Result<Vec<u8>, String> + Send>;
 
 impl EditSession {
     /// starts a session for `original`, with its working copy in a new
@@ -232,6 +261,9 @@ impl EditSession {
             revision: 0,
             next_version: 1,
             limits,
+            protected_original: false,
+            save_writer: None,
+            forget_history_on_save: false,
         })
     }
 
@@ -336,9 +368,16 @@ impl EditSession {
     /// refuses, without touching anything, when the file is gone or
     /// read-only; the message suggests Save As instead.
     pub fn save(&mut self) -> Result<(), SessionError> {
+        // a signed file is only ever written exactly (adopt_exact_bytes)
+        if self.protected_original && self.is_dirty() {
+            return Err(SessionError::SignedOriginal {
+                name: file_name(&self.original),
+            });
+        }
         check_can_replace(&self.original)?;
-        replace_file(&self.current.path, &self.original)?;
+        self.write_current(&self.original)?;
         self.saved_version = Some(self.current.number);
+        self.after_save();
         Ok(())
     }
 
@@ -349,10 +388,178 @@ impl EditSession {
         if destination.exists() {
             check_can_replace(destination)?;
         }
-        replace_file(&self.current.path, destination)?;
+        // an unchanged signed document is copied exactly, even when saves
+        // are otherwise rewritten (Protect): a rewrite would break its
+        // signature, and the signed bytes were themselves made from a
+        // clean save, so they hold nothing a clean save would remove
+        if self.protected_original && !self.is_dirty() {
+            replace_file(&self.current.path, destination)?;
+        } else {
+            self.write_current(destination)?;
+        }
+        // an unchanged signed document makes a copy that is still signed
+        // and stays protected; a changed one has nothing left to protect
+        if self.is_dirty() {
+            self.protected_original = false;
+        }
         self.original = destination.to_path_buf();
         self.saved_version = Some(self.current.number);
+        self.after_save();
         Ok(())
+    }
+
+    // ---- clean saves and unlocking (Protect, see protect/) ----
+
+    /// from now on save and save as write what `writer` makes from the
+    /// current version instead of copying it. there is no way to turn it
+    /// off again: once a redaction was made, every save of this session
+    /// must be a clean one. a later call replaces the writer (new
+    /// password settings); `forget_history` can only be switched on.
+    pub fn write_saves_with(&mut self, writer: SaveWriter, forget_history: bool) {
+        self.save_writer = Some(writer);
+        self.forget_history_on_save |= forget_history;
+    }
+
+    /// true once saves are written by a writer (see `write_saves_with`).
+    pub fn saves_are_rewritten(&self) -> bool {
+        self.save_writer.is_some()
+    }
+
+    /// makes the document count as changed, so it can be saved, for a
+    /// change that lives outside the pdf until save (a new password).
+    pub fn mark_unsaved(&mut self) {
+        self.saved_version = None;
+    }
+
+    /// deletes every undo and redo version from the disk. after a
+    /// redaction is saved, the versions before it still hold what was
+    /// removed, so they must not stay in the cache.
+    pub fn forget_history(&mut self) {
+        for version in self.undo.drain(..).chain(self.redo.drain(..)) {
+            let _ = fs::remove_file(&version.path);
+        }
+    }
+
+    /// every file this session keeps in the cache: the current version
+    /// first, then the history. for checks and tests.
+    pub fn version_files(&self) -> Vec<PathBuf> {
+        let history = self.undo.iter().chain(self.redo.iter());
+        std::iter::once(&self.current)
+            .chain(history)
+            .map(|version| version.path.clone())
+            .collect()
+    }
+
+    /// swaps a locked working copy for the unlocked `bytes` of the same
+    /// document. the old versions are locked copies nothing can edit, so
+    /// they are deleted. the document still matches the file on disk, so
+    /// it is not marked as changed.
+    pub fn start_over_unlocked<T>(
+        &mut self,
+        bytes: &[u8],
+        reload: impl FnOnce(&Path) -> Result<T, String>,
+    ) -> Result<T, SessionError> {
+        let next = self.store_exact_version(bytes)?;
+        let shown = match reload(&next.path) {
+            Ok(shown) => shown,
+            Err(detail) => {
+                let _ = fs::remove_file(&next.path);
+                return Err(SessionError::CannotShow { detail });
+            }
+        };
+        let locked = std::mem::replace(&mut self.current, next);
+        let _ = fs::remove_file(&locked.path);
+        self.forget_history();
+        let was_saved = self.saved_version == Some(locked.number);
+        self.saved_version = was_saved.then_some(self.current.number);
+        self.revision += 1;
+        Ok(shown)
+    }
+
+    /// writes the current version to `destination`: through the writer
+    /// when there is one, otherwise as an exact copy.
+    fn write_current(&self, destination: &Path) -> Result<(), SessionError> {
+        let Some(writer) = &self.save_writer else {
+            return replace_file(&self.current.path, destination);
+        };
+        let bytes = writer(&self.current.path).map_err(|reason| SessionError::SaveRefused {
+            name: file_name(destination),
+            reason,
+        })?;
+        replace_file_with_bytes(&bytes, destination)
+    }
+
+    fn after_save(&mut self) {
+        if self.forget_history_on_save {
+            self.forget_history();
+        }
+    }
+
+    // ---- signed documents (forms and signatures, see forms/signed.rs) ----
+
+    /// turns the guard for a digitally signed file on or off. while it is
+    /// on, save refuses to write a changed version over the file.
+    pub fn protect_original(&mut self, protect: bool) {
+        self.protected_original = protect;
+    }
+
+    pub fn original_is_protected(&self) -> bool {
+        self.protected_original
+    }
+
+    /// makes `bytes` the new version and the person's file, exactly as
+    /// given, without passing through lopdf: a signature covers exact
+    /// bytes. it is one undo step like an edit, and the file is then
+    /// protected. `reload` shows a version; if writing the file fails the
+    /// version before is shown again and nothing has changed.
+    pub fn adopt_exact_bytes<T>(
+        &mut self,
+        bytes: &[u8],
+        reload: impl Fn(&Path) -> Result<T, String>,
+    ) -> Result<T, SessionError> {
+        check_can_replace(&self.original)?;
+        let next = self.store_exact_version(bytes)?;
+        let shown = match reload(&next.path) {
+            Ok(shown) => shown,
+            Err(detail) => {
+                let _ = fs::remove_file(&next.path);
+                return Err(SessionError::CannotShow { detail });
+            }
+        };
+        if let Err(error) = replace_file(&next.path, &self.original) {
+            let _ = reload(&self.current.path);
+            let _ = fs::remove_file(&next.path);
+            return Err(error);
+        }
+        let previous = std::mem::replace(&mut self.current, next);
+        self.undo.push(previous);
+        for undone in self.redo.drain(..) {
+            let _ = fs::remove_file(&undone.path);
+        }
+        self.trim_history();
+        self.revision += 1;
+        self.saved_version = Some(self.current.number);
+        self.protected_original = true;
+        // signing is a save: versions a clean save would delete go too
+        self.after_save();
+        Ok(shown)
+    }
+
+    fn store_exact_version(&mut self, bytes: &[u8]) -> Result<Version, SessionError> {
+        let number = self.next_version;
+        self.next_version += 1;
+        let path = self.folder.join(version_file_name(number));
+        if let Err(error) = fs::write(&path, bytes) {
+            let _ = fs::remove_file(&path);
+            return Err(SessionError::CannotStore {
+                detail: error.to_string(),
+            });
+        }
+        Ok(Version {
+            number,
+            path,
+            bytes: bytes.len() as u64,
+        })
     }
 
     /// ends the session and deletes its working copy and history.
@@ -517,6 +724,25 @@ fn replace_file(source: &Path, destination: &Path) -> Result<(), SessionError> {
     let result =
         copy_and_flush(source, &temporary).and_then(|_| fs::rename(&temporary, destination));
     result.map_err(|error| {
+        let _ = fs::remove_file(&temporary);
+        SessionError::CannotWrite {
+            name: file_name(destination),
+            detail: error.to_string(),
+        }
+    })
+}
+
+/// protect: like `replace_file`, for bytes made in memory (a clean save).
+fn replace_file_with_bytes(bytes: &[u8], destination: &Path) -> Result<(), SessionError> {
+    let temporary = temporary_path_beside(destination);
+    let write = || -> io::Result<()> {
+        let mut writer = fs::File::create(&temporary)?;
+        io::Write::write_all(&mut writer, bytes)?;
+        writer.sync_all()?;
+        drop(writer);
+        fs::rename(&temporary, destination)
+    };
+    write().map_err(|error| {
         let _ = fs::remove_file(&temporary);
         SessionError::CannotWrite {
             name: file_name(destination),

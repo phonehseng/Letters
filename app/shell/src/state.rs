@@ -13,6 +13,7 @@ use crate::engine_location::find_pdfium_dir;
 use crate::errors::CommandError;
 use letters_shell_core::pinned::PinnedFolders;
 use letters_shell_core::recents::RecentFiles;
+use letters_shell_core::settings::{system_user_name, Settings};
 
 /// the most memory finished tiles may use, across every window.
 ///
@@ -34,7 +35,11 @@ pub struct AppState {
     startup_files: Mutex<HashMap<String, PathBuf>>,
     pub recents: Mutex<RecentFiles>,
     pub pinned_folders: Mutex<PinnedFolders>,
+    /// the author name on comments, and any later settings
+    settings: Mutex<Settings>,
     pub thumbnail_dir: PathBuf,
+    /// protect: each open document's password settings and review copies
+    pub protection: letters_shell_core::protect::protection::ProtectionTable,
 }
 
 impl AppState {
@@ -50,7 +55,9 @@ impl AppState {
             startup_files: Mutex::new(HashMap::new()),
             recents: Mutex::new(RecentFiles::load(data_dir.join("recent-files.json"))),
             pinned_folders: Mutex::new(PinnedFolders::load(data_dir.join("pinned-folders.json"))),
+            settings: Mutex::new(Settings::load(data_dir.join("settings.json"))),
             thumbnail_dir: cache_dir.join("thumbnails"),
+            protection: Default::default(),
         }
     }
 
@@ -88,6 +95,19 @@ impl AppState {
         self.documents.read(id, read)
     }
 
+    /// the name written on new comments and marks: the one the person
+    /// chose, or the name they sign in to the computer with.
+    pub fn author_name(&self) -> String {
+        let settings = self.settings.lock().unwrap();
+        settings.author_name(system_user_name().as_deref())
+    }
+
+    /// returns the name now in use (a blank one means the computer's).
+    pub fn set_author_name(&self, name: &str) -> String {
+        let mut settings = self.settings.lock().unwrap();
+        settings.set_author_name(name, system_user_name().as_deref())
+    }
+
     pub fn remember_document(&self, window: &str, id: DocumentId) {
         let mut documents = self.documents_by_window.lock().unwrap();
         documents.entry(window.to_owned()).or_default().push(id);
@@ -100,12 +120,15 @@ impl AppState {
             ids.retain(|other| *other != id);
         }
         drop(by_window);
+        // protect: review copies live in the session's folder, so they close first
+        crate::protect_commands::forget_document(self, id);
         self.documents.close(self.worker.as_ref().ok(), id);
     }
 
     pub fn close_documents_of_window(&self, window: &str) {
         let ids = self.documents_by_window.lock().unwrap().remove(window);
         for id in ids.unwrap_or_default() {
+            crate::protect_commands::forget_document(self, id);
             self.documents.close(self.worker.as_ref().ok(), id);
         }
     }

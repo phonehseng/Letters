@@ -24,6 +24,11 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 letters-pdf = { path = "../../core/pdf" }
 letters-pages = { path = "../../core/pages" }
+letters-annotate = { path = "../../core/annotate" }
+# forms and signatures (Fill & Sign)
+letters-forms = { path = "../../core/forms" }
+# redaction, hidden information and passwords (Protect)
+letters-redact = { path = "../../core/redact" }
 letters-shell-core = { path = "../shell-core" }
 # the document type every edit closure receives (mit licence)
 lopdf = "0.47"

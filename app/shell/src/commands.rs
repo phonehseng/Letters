@@ -86,6 +86,9 @@ pub fn open_document(
     let path = PathBuf::from(path);
     let opened = state.documents.open(worker, &path, password.as_deref())?;
     state.remember_document(window.label(), DocumentId(opened.id));
+    if password.is_some() {
+        crate::protect_commands::note_opened_with_password(&state, DocumentId(opened.id));
+    }
     remember_in_recents(&state, worker, &opened);
     Ok(opened)
 }
@@ -245,17 +248,19 @@ fn search_results_dto(results: SearchResults) -> SearchResultsDto {
 fn search_match_dto(found: SearchMatch) -> SearchMatchDto {
     SearchMatchDto {
         page: found.page,
-        rects: found.rects.iter().map(rect_dto).collect(),
+        rects: found.rects.iter().map(RectDto::from).collect(),
         snippet: found.snippet,
     }
 }
 
-fn rect_dto(rect: &TextRect) -> RectDto {
-    RectDto {
-        x: rect.x,
-        y: rect.y,
-        width: rect.width,
-        height: rect.height,
+impl From<&TextRect> for RectDto {
+    fn from(rect: &TextRect) -> Self {
+        RectDto {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+        }
     }
 }
 
@@ -269,6 +274,11 @@ fn remember_in_recents(state: &AppState, worker: &RenderWorker, document: &Docum
         .lock()
         .unwrap()
         .add(path, document.pages.len());
+    // protect: a picture of a page must not sit unlocked in the cache
+    // when the file itself needs a password to open
+    if crate::protect_commands::hides_thumbnail(state, document.id, &state.thumbnail_dir, path) {
+        return;
+    }
     save_thumbnail(worker, document, &state.thumbnail_dir, path);
 }
 

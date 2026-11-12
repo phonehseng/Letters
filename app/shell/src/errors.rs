@@ -63,6 +63,12 @@ impl From<letters_pages::PagesError> for CommandError {
     }
 }
 
+impl From<letters_annotate::AnnotateError> for CommandError {
+    fn from(error: letters_annotate::AnnotateError) -> Self {
+        Self::failed(error.to_string())
+    }
+}
+
 impl From<letters_shell_core::outputs::OutputError> for CommandError {
     fn from(error: letters_shell_core::outputs::OutputError) -> Self {
         Self::failed(error.to_string())

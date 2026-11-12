@@ -179,6 +179,30 @@ impl OpenDocuments {
         self.with_document(id, |document| Ok(document.state(id)))
     }
 
+    /// forms and signatures: gives `work` the document's edit session
+    /// itself, for the one tool that needs more than an edit closure
+    /// (signing writes exact bytes, see forms_commands.rs). `work` gets a
+    /// reload function for showing a version; when it returns the
+    /// engine's new page sizes they are kept.
+    pub fn with_session<T>(
+        &self,
+        worker: &RenderWorker,
+        id: DocumentId,
+        work: impl FnOnce(
+            &mut EditSession,
+            &dyn Fn(&Path) -> Result<letters_pdf::DocumentInfo, String>,
+        ) -> Result<(T, Option<letters_pdf::DocumentInfo>), CommandError>,
+    ) -> Result<(T, DocumentState), CommandError> {
+        self.with_document(id, |document| {
+            let show = |path: &Path| reload(worker, id, path);
+            let (answer, shown) = work(&mut document.session, &show)?;
+            if let Some(info) = shown {
+                document.page_sizes = info.page_sizes;
+            }
+            Ok((answer, document.state(id)))
+        })
+    }
+
     /// closes a document and throws away its unsaved changes and history.
     /// the ui asks the person first (see the unsaved changes sheet).
     pub fn close(&self, worker: Option<&RenderWorker>, id: DocumentId) {
