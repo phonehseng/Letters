@@ -126,6 +126,25 @@ def extract_chars(pdf_path: str) -> list[PlacedChar]:
     return chars
 
 
+def extract_chars_exact(pdf_path: str) -> list[PlacedChar]:
+    """characters with pen origins computed exactly as the pdf spec says (prototype.pdf_content).
+
+    pdfium keeps /Widths as whole 1/1000 em numbers, so for pdfs with fractional
+    widths (reportlab with fonts that are not 1000 units per em) its origins drift
+    from the true ones by up to half a point per line. round 3 measures with this
+    function; on word's own pdfs (whole-number widths) both agree within 0.0001 pt."""
+    from prototype.pdf_content import read_document
+
+    chars = []
+    for page in read_document(pdf_path):
+        for glyph in page.glyphs:
+            if not glyph.text or glyph.text.isspace():
+                continue
+            chars.append(PlacedChar(glyph.page, glyph.text, glyph.x, glyph.y, (0.0, 0.0, 0.0, 0.0), glyph.size,
+                                    glyph.font.base_name))  # fmt: skip
+    return chars
+
+
 def _describe_font_program(data: bytes) -> tuple[str, str]:
     """say whether an embedded font program is truetype or cff and read its family name.
 

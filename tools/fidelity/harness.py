@@ -19,6 +19,7 @@ from compare import TOLERANCE_PT, compare_glyphs, compare_rasters, per_char_delt
 from pdf_analysis import (
     embedded_font_programs,
     extract_chars,
+    extract_chars_exact,
     fonts_used,
     outline_match_fraction,
     page_sizes,
@@ -34,7 +35,10 @@ def run_harness(
     dpi: int = 300,
     keep_pairs: bool = False,
     reference_fonts: list[str] | None = None,
+    exact_positions: bool = False,
 ) -> dict:
+    """exact_positions=True reads glyph origins with the spec-exact interpreter
+    instead of pdfium, see pdf_analysis.extract_chars_exact (round 3 uses it)."""
     os.makedirs(out_dir, exist_ok=True)
     name = os.path.splitext(os.path.basename(candidate_docx))[0]
     exported_pdf = os.path.join(out_dir, f"{name}.word.pdf")
@@ -50,8 +54,9 @@ def run_harness(
     )
     after_raster = time.perf_counter()
 
-    source_chars = extract_chars(source_pdf)
-    candidate_chars = extract_chars(exported_pdf)
+    reader = extract_chars_exact if exact_positions else extract_chars
+    source_chars = reader(source_pdf)
+    candidate_chars = reader(exported_pdf)
     glyphs = compare_glyphs(source_chars, candidate_chars)
     after_glyphs = time.perf_counter()
 
@@ -172,7 +177,9 @@ def main() -> None:
         "--font", action="append", default=[], help="font file to check word's embedded outlines against"
     )
     args = parser.parse_args()
-    report = run_harness(args.source_pdf, args.candidate_docx, args.out, args.dpi, reference_fonts=args.font)
+    report = run_harness(
+        args.source_pdf, args.candidate_docx, args.out, args.dpi, reference_fonts=args.font, exact_positions=args.exact
+    )
     print_summary(report)
     print(f"   report: {report['report_path']}")
 

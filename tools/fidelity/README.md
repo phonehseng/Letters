@@ -374,3 +374,174 @@ calibration and no grid font), on the line's calibrated y.
   default printer.
 - The CFF case has no CFF source PDF, because reportlab cannot write CFF. Its glyph deltas
   are meaningless; only the font identification counts.
+
+## round 3: an end-to-end pdf to docx prototype, measured on a student corpus
+
+Target: every glyph within 0.125 pt, mean under 0.05 pt, the same embedded fonts. All
+numbers were measured through Word's PDF export on 2026-11-11 with the same Word build.
+Full tables: `corpus_report.md` and `corpus_report.json`. Worst-page heatmaps:
+`corpus_report_assets/`.
+
+### how to run
+
+```powershell
+cd C:\Letters-fidelity\tools\fidelity
+$py = "C:\Letters\tools\fidelity\.venv\Scripts\python.exe"
+& $py -m pip install pikepdf                                   # MPL-2.0, used as a dev tool only
+& $py make_corpus.py                                           # corpus\*.pdf + corpus\manifest.json (about 40 s)
+& $py corpus_run.py                                            # convert + measure all six (about 4 min, first run)
+& $py -m prototype.convert in.pdf out.docx                     # any text pdf
+& $py run_prototype.py syllabus                                # one class, with harness
+& $py -m prototype.diagnose out\prototype\NAME\NAME.report.json   # worst lines
+& $py -m prototype.plan_check out\prototype\NAME                # planned vs produced pixels
+& $py -m unittest test_prototype test_units                     # 30 tests, no word needed
+```
+
+Licenses:
+
+- New dependency: pikepdf 10.18 (MPL-2.0; file-level copyleft, so acceptable as an unmodified
+  dev tool here). It brings lxml (BSD-3).
+- New fonts, all SIL OFL 1.1 from google/fonts: Lato, Tinos, Cousine, Arimo, Noto Sans Math,
+  and Crimson Text Bold/Italic. Their license texts are in `fonts/`.
+- Microsoft fonts: the corpus does not use them on purpose. Word itself still wrote ArialMT
+  for the list tab spaces in the syllabus; the converter never embeds that font, because
+  spaces take the font of their neighbours.
+- No LibreOffice or LaTeX is installed, so neither was used. Scanned handouts belong to the
+  OCR stage and are not part of this corpus.
+
+### the prototype (`prototype/`)
+
+The steps follow the module names:
+
+1. **`pdf_content`** reads glyphs. Each glyph's text, code, font, size, advance, colour,
+   rendering mode and angle come from its own content-stream interpreter (pikepdf parsing).
+   That interpreter is used instead of pdfium's text page because only it gives char codes
+   and the font program behind each glyph.
+   - Its pen origins match pdfium's within 0.00006 pt on PDFs with whole-number widths.
+   - On reportlab PDFs with fractional `/Widths`, pdfium is off by up to 0.5 pt (see below).
+2. **`font_rebuild`** rebuilds every face as clean TrueType with fontTools:
+   - only the glyphs that are used, from all subsets of a face (merging seen in the syllabus
+     and the research paper);
+   - a cmap from ToUnicode or the encoding, with private-use code points for glyphs whose
+     text is missing, a ligature or ambiguous (0 of them in this corpus);
+   - the PDF's widths as advances, and a unique family name;
+   - CFF converted to quadratic outlines, with a bound of 1 unit per 1000 em;
+   - fsType read and reported. A restricted font is replaced by a stand-in, and the report
+     says so.
+
+   Non-embedded standard fonts get metric-compatible OFL stand-ins (Arimo, Tinos, Cousine),
+   carrying the PDF's own widths, so positions stay exact while glyph shapes differ.
+3. **Grid fonts:** `font_prep.make_grid_font` builds one per face and size (round 2 recipe).
+4. **`lines`** puts one frame per line. Superscripts and subscripts become their own lines
+   at their own baseline.
+5. **`calibration`** places frames by measured twips. The table is cached per Word build in
+   `out/calibration_cache/`. Probe lines closer than 12 pt × 4 pt go on separate probe
+   pages, because a subscript once matched its neighbour and poisoned the cache.
+6. **Spacing:** per-character `w:spacing` comes from the floor model.
+7. **`rotated`:** rotated lines become DrawingML text boxes. They are placed after one
+   measuring export, because geometry alone missed by 19.8 pt.
+8. **`vectors`:** rectangles and straight strokes become DrawingML shapes. Everything else
+   (curves, dashes, clips that cut, shadings, transparency, patterns) is rendered from a
+   page that holds only those items. The result is a transparent PNG behind the text, so
+   text is never rasterised.
+9. **`docx_out`:** pictures keep their JPEG bytes; one section per page size; invisible
+   (render mode 3) text becomes `w:vanish`.
+
+Fixes found on the way:
+
+- Word ignored the first rebuilt fonts and drew Times New Roman. A font that claims no code
+  page in OS/2 is replaced, so Latin-1 is always claimed now.
+- Word did not honour a docx font that holds nothing but a space glyph.
+
+### results (from `corpus_report.md`)
+
+| class | producer | max | mean | p99 | <=0.125 | positions | fonts | SSIM min |
+|---|---|---|---|---|---|---|---|---|
+| syllabus | Word | 0.136 | 0.0374 | 0.125 | 98.9% | FAIL (max) | pass | 0.979 |
+| research paper | Word | 0.171 | 0.0416 | 0.109 | 99.7% | FAIL (max) | pass | 0.968 |
+| lab report | Word | 0.154 | 0.0395 | 0.126 | 98.8% | FAIL (max) | pass | 0.990 |
+| slides | reportlab | 0.210 | 0.0630 | 0.207 | 90.5% | FAIL | pass | 0.986 |
+| form | reportlab, standard 14 fonts | 0.156 | 0.0550 | 0.153 | 96.5% | FAIL | FAIL (4 stand-ins) | 0.990 |
+| journal page | reportlab, 6 fonts, odd sizes | 0.222 | 0.0541 | 0.116 | 99.3% | FAIL | pass | 0.907 |
+
+No class passes. The three Word-made classes miss only on the maximum: mean 0.037–0.042 pt,
+y exactly 0, 99% of glyphs within 0.125 pt. The reportlab classes also miss the mean.
+
+Pictures:
+
+- Corner error is 0.000–0.067 pt.
+- Every JPEG kept its original bytes, including reportlab's ASCII85-wrapped ones. The PNG
+  in the lab report stays PNG.
+
+Vectors:
+
+- 284 vector items became shapes.
+- 11 were rasterised (circles and a rounded rectangle on the slides, a dashed rule on the
+  form).
+
+Editability (Word opened each docx):
+
+- **Find:** the known phrase was found in all six. A known sentence was found in 5 of 6; on
+  the slides it spans two lines, and every line is its own paragraph.
+- **Reading order:** similarity 1.000 for the five unrotated classes, 0.882 for the slides,
+  where the rotated labels sit in text boxes.
+- **Paragraphs:** one per line, plus one anchor paragraph per page.
+
+Time:
+
+- Conversion takes 9.0–18.6 s per document with a cold calibration cache, most of it Word
+  probe exports. A repeat conversion with a warm cache took 0.3 s (syllabus).
+- Word's export of the docx takes 0.7–1.3 s.
+
+Calibration cache check: 4,212 cached twip values were probed again across all six
+documents.
+
+- x: no disagreements.
+- y: 36 disagreements (0.9%), so y is not purely a function of (line height, twips). The
+  cache is safe for x and nearly safe for y.
+
+### what stands between the prototype and the threshold, by impact
+
+1. **Word's PDF writer does not print the pixel its layout chose.** `plan_check` on the
+   journal shows the offset from the whole pixel reaching 0.497 px (0.06 pt), mean
+   0.142 px. 76 of 5,109 glyphs landed a whole pixel off the plan. This sits on top of the
+   0.06 pt grid floor. Looks fundamental: it happens inside Word's export.
+2. **Word-made sources carry the same writer offset.** Their coordinates are Word pixels
+   plus up to about 0.05 pt of writer offset. Rounding a noisy source to the nearest pixel
+   sometimes picks the wrong pixel, which is why syllabus, paper and lab report reach
+   0.136–0.171 with y exactly 0.
+   - Untried fix: recover Word's layout pixel from the source by modelling the writer's
+     TJ/Tc arithmetic.
+3. **Large text (20 pt and more) follows the floor model less well.** A probe at 20 pt with
+   no `w:spacing` at all was off by up to 0.79 px. The 20 and 36 pt slide lines reach
+   0.11–0.13 pt.
+4. **Rotated text in text boxes:** after the measured correction, 0.21 pt remains (slides).
+5. **Glyph size for odd sizes.** Positions are fine, but word-level heatmaps of the journal
+   (SSIM 0.907) show outline differences on many words. That is partly sub-pixel shifts
+   and partly the drawn-size scaling.
+6. **Fonts that are not embedded in the source** (the form) can only get stand-ins. Their
+   positions come from the PDF's widths, but the "same fonts" criterion cannot pass by
+   definition.
+7. **Mean on non-Word sources:** reportlab positions are not on Word's grid, so the 0.03 pt
+   mean floor plus writer offset gives 0.054–0.063.
+
+Word limits that look fundamental:
+
+- the 1/600 inch layout grid (0.06 pt floor);
+- the PDF writer's own rounding;
+- half-point font sizes (worked around with scaled outlines);
+- frames that cannot rotate;
+- embedded CFF ignored (worked around by conversion);
+- silent font replacement when a font claims no code page.
+
+### round 3: not verified
+
+- **CFF, Type1 and Type3 font paths:** implemented except Type3, which is reported. No
+  producer on this machine writes them, so the corpus never exercises them and the CFF
+  outline error was never measured on a document.
+- **Restricted fsType fallback:** never exercised end to end (the policy is unit tested).
+- **Right-to-left and complex-script detection:** only unit tested.
+- **The >256-glyph subset split:** reportlab kept all 239 Crimson glyphs in one subset, so
+  merging was only seen on Word's own split subsets.
+- **Cache portability:** whether the cache holds across Word builds or machines.
+- **Screen vs PDF:** whether Word's screen layout matches its PDF (E4).

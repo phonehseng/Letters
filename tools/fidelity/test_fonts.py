@@ -22,6 +22,25 @@ DOWNLOADS = {
     "SourceSerif4-Regular.otf": "https://raw.githubusercontent.com/adobe-fonts/source-serif/release/OTF/SourceSerif4-Regular.otf",
     "SourceSerif-LICENSE.md": "https://raw.githubusercontent.com/adobe-fonts/source-serif/release/LICENSE.md",
 }
+_GOOGLE = "https://raw.githubusercontent.com/google/fonts/main/ofl/"
+# round 3 corpus fonts, all sil ofl 1.1 in google/fonts (tinos ships no OFL.txt in its folder;
+# fonts\tinos-OFL.txt is the standard ofl text with tinos's copyright line from its METADATA.pb)
+CORPUS_DOWNLOADS = {
+    "CrimsonText-Bold.ttf": _GOOGLE + "crimsontext/CrimsonText-Bold.ttf",
+    "CrimsonText-Italic.ttf": _GOOGLE + "crimsontext/CrimsonText-Italic.ttf",
+    "Lato-Regular.ttf": _GOOGLE + "lato/Lato-Regular.ttf",
+    "Lato-Bold.ttf": _GOOGLE + "lato/Lato-Bold.ttf",
+    "Lato-Italic.ttf": _GOOGLE + "lato/Lato-Italic.ttf",
+    "lato-OFL.txt": _GOOGLE + "lato/OFL.txt",
+    "Tinos-Regular.ttf": _GOOGLE + "tinos/Tinos-Regular.ttf",
+    "Tinos-Bold.ttf": _GOOGLE + "tinos/Tinos-Bold.ttf",
+    "Cousine-Regular.ttf": _GOOGLE + "cousine/Cousine-Regular.ttf",
+    "cousine-OFL.txt": _GOOGLE + "cousine/OFL.txt",
+    "Arimo-VF.ttf": _GOOGLE + "arimo/Arimo%5Bwght%5D.ttf",
+    "arimo-OFL.txt": _GOOGLE + "arimo/OFL.txt",
+    "NotoSansMath-Regular.ttf": _GOOGLE + "notosansmath/NotoSansMath-Regular.ttf",
+    "notosansmath-OFL.txt": _GOOGLE + "notosansmath/OFL.txt",
+}
 
 # unique names so word can only get these glyphs from the docx itself.
 # source serif has the reserved font name "Source", so the new name must avoid it
@@ -41,7 +60,7 @@ def build_path(name: str) -> str:
 
 def ensure_downloads() -> None:
     os.makedirs(FONT_DIR, exist_ok=True)
-    for name, url in DOWNLOADS.items():
+    for name, url in {**DOWNLOADS, **CORPUS_DOWNLOADS}.items():
         target = font_path(name)
         if not os.path.exists(target):
             print(f"downloading {url}")
