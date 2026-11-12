@@ -12,10 +12,14 @@
     unpinFolder,
     type PinnedFolder,
   } from "./api";
+  import { openLibrarySearch } from "./library/launcher";
   import { filterFolders } from "./folders";
   import { timeAgo } from "./format";
   import Icon from "./Icon.svelte";
   import { tooltipFor, tools } from "./tools";
+
+  // the shell lists at most this many pdfs per folder (MAX_FILES_PER_FOLDER in pinned.rs)
+  const MAX_LISTED = 200;
 
   interface Props {
     search: string;
@@ -64,7 +68,10 @@
   {#if folders.length === 0}
     <p class="note">Pin a folder to see its PDFs here, such as the folder for a course.</p>
   {:else if searching && shown.length === 0}
-    <p class="note">No pinned folder has a PDF with “{search}” in its name.</p>
+    <p class="note">
+      No pinned folder has a PDF with “{search}” in its name{#if folders.some((folder) => folder.total > folder.files.length)}
+        among the newest {MAX_LISTED} of each. <button class="link" onclick={() => openLibrarySearch(search)}>Search All Documents</button> looks through every file{/if}.
+    </p>
   {/if}
 
   <div class="folders">
@@ -96,6 +103,12 @@
               </li>
             {/each}
           </ul>
+          {#if folder.total > folder.files.length && !searching}
+            <!-- only the newest are listed; say so rather than hide the rest -->
+            <p class="empty">
+              The newest {folder.files.length} of {folder.total.toLocaleString()} PDFs. <button class="link" onclick={() => openLibrarySearch("")}>Search All Documents</button> finds the others.
+            </p>
+          {/if}
         {/if}
       </div>
     {/each}
@@ -223,6 +236,19 @@
   .note {
     margin: 0.5rem 0.25rem 0;
     color: var(--label-secondary);
+  }
+
+  /* Search All Documents, said inside a sentence */
+  .link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-label);
+    font: inherit;
+  }
+
+  .link:hover {
+    text-decoration: underline;
   }
 
   .note {
