@@ -1,6 +1,7 @@
 <script lang="ts">
-  // Add Text: real text written into the page, in a standard font or a
-  // font on this computer (its glyphs are copied into the file). click
+  // Add Text: real text written into the page, in the style of the text
+  // nearby (its own font, size, spacing and colour), or in a standard font
+  // or a font on this computer (its glyphs are copied into the file). click
   // where it should start, then type on the page; the field is the text's
   // own size, colour and font, so what is typed is what is added.
   import { untrack } from "svelte";
@@ -102,18 +103,29 @@
   effect={addTextEffect(active, context.currentPage)}
   onAction={act}
 >
-  <FontMenu
-    label="Font"
-    value={style.font.type === "standard" ? style.font.font : null}
-    onChange={chooseStandard}
-    {libraryFonts}
-    libraryValue={style.font.type === "file" ? style.label : null}
-    onLibraryChange={chooseLibrary}
-  />
-  <label class="setting">
-    <span class="caption">Size</span>
-    <input class="field" type="number" min="1" max="400" step="0.5" value={style.size} onchange={(event) => setSize(Number(event.currentTarget.value))} />
+  <label class="check">
+    <input type="checkbox" bind:checked={session.matchNearby} />
+    <span>Match the text nearby</span>
   </label>
-  <Swatches label="Colour" swatches={INK_SWATCHES} value={style.color} onChange={(color) => color && (session.newText = { ...style, color })} />
+  <p class="hint">
+    {session.matchNearby
+      ? "New text takes the font, size, spacing and colour of the nearest paragraph. Letters its font lacks are added to that same font, and Letters says where they came from."
+      : "New text uses the font, size and colour chosen below."}
+  </p>
+  {#if !session.matchNearby}
+    <FontMenu
+      label="Font"
+      value={style.font.type === "standard" ? style.font.font : null}
+      onChange={chooseStandard}
+      {libraryFonts}
+      libraryValue={style.font.type === "file" ? style.label : null}
+      onLibraryChange={chooseLibrary}
+    />
+    <label class="setting">
+      <span class="caption">Size</span>
+      <input class="field" type="number" min="1" max="400" step="0.5" value={style.size} onchange={(event) => setSize(Number(event.currentTarget.value))} />
+    </label>
+    <Swatches label="Colour" swatches={INK_SWATCHES} value={style.color} onChange={(color) => color && (session.newText = { ...style, color })} />
+  {/if}
   <p class="hint">{ADD_TEXT_DIFFERENCE}</p>
 </ToolSection>

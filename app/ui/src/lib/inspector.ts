@@ -164,7 +164,8 @@ export const INSPECTOR_TABS: InspectorTab[] = [
     id: "edit",
     label: "Edit",
     tooltip: "Change the words on the page in place, add text, and move, resize or replace pictures",
-    tools: ["editText", "editTextStyle", "deletePageText", "addPageText", "pageImages", "addPageImage"],
+    // edit round two adds pageShapes and pageSetup at the end
+    tools: ["editText", "editTextStyle", "deletePageText", "addPageText", "pageImages", "addPageImage", "pageShapes", "pageSetup"],
     load: () => import("./inspector/EditTab.svelte"),
   },
   // text recognition for scans and photos (see ocr/scanSession.svelte.ts)

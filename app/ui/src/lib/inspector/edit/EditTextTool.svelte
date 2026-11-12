@@ -1,7 +1,7 @@
 <script lang="ts">
-  // Edit Text and Images: the page tool that makes every paragraph and
-  // picture of the page a target. with it, and with what keeping the
-  // original font can and can't do, said once and honestly.
+  // Edit Text and Images: the page tool that makes every paragraph,
+  // picture and shape of the page a target. with it, and with what keeping
+  // the original font can and can't do, said once and honestly.
   import { untrack } from "svelte";
   import { leadingRun } from "../../edit/blocks";
   import { fontPromise, editTextEffect, KEEPING_THE_FONT } from "../../edit/editSentences";
@@ -21,11 +21,13 @@
   const run = $derived(session.editor?.block ? leadingRun(session.editor.block) : null);
 
   // closing the section puts the tool away, unless a paragraph is being typed in
+  // or a picture or shape was just selected (which opens its own section)
   let wasOpen = false;
   $effect(() => {
     const isOpen = open;
     untrack(() => {
-      if (wasOpen && !isOpen && session.tool === "edit" && !session.editor && !session.pictures.selected) session.setTool("none");
+      const selecting = session.editor || session.pictures.selected || session.shapes.selected;
+      if (wasOpen && !isOpen && session.tool === "edit" && !selecting) session.setTool("none");
     });
     wasOpen = isOpen;
   });

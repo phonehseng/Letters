@@ -1,5 +1,6 @@
 <script lang="ts">
-  // the selected picture: turn it, replace it (keeping its place, fitted,
+  // the selected picture: turn it, crop it (on the page, with handles),
+  // flip it, change its opacity, replace it (keeping its place, fitted,
   // filled or stretched), bring it to the front or send it to the back,
   // save it as its own file, or delete it. moving and resizing are done
   // on the page with its frame (and the arrows, Alt with the arrows).
@@ -58,6 +59,18 @@
       <button class="button" onclick={() => session.pictures.rotate(90)}>Turn Right</button>
     </div>
     <div class="row">
+      <button class="button" title="Shows only part of the picture; every pixel stays in the file" onclick={() => session.pictures.startCrop()}>Crop</button>
+      <button class="button" title="Mirror the picture left to right" onclick={() => session.pictures.flip("horizontal")}>Flip Across</button>
+      <button class="button" title="Mirror the picture top to bottom" onclick={() => session.pictures.flip("vertical")}>Flip Down</button>
+    </div>
+    {#if session.pictures.cropping}
+      <p class="hint">Drag the edges or corners of the rectangle on the page, then choose Done. The hidden part stays in the file, so the crop can be undone.</p>
+    {/if}
+    <label class="opacity">
+      <span class="caption">Opacity: {Math.round((image.opacity ?? 1) * 100)}%</span>
+      <input type="range" min="0" max="100" value={Math.round((image.opacity ?? 1) * 100)} onchange={(event) => session.pictures.setOpacity(Number(event.currentTarget.value) / 100)} />
+    </label>
+    <div class="row">
       <button class="button" onclick={() => session.pictures.restack(true)}>Bring to Front</button>
       <button class="button" onclick={() => session.pictures.restack(false)}>Send to Back</button>
     </div>
@@ -84,5 +97,11 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.375rem;
+  }
+
+  .opacity {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
   }
 </style>

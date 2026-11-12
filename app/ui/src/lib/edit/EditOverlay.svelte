@@ -1,12 +1,14 @@
 <script lang="ts">
   // the Edit controls on one page. while Edit Text and Images is on, every
-  // paragraph and picture of the page is a target: a paragraph shows a
-  // faint outline under the pointer (or the keyboard focus) and opens the
-  // in-place editor on a click or Enter; a picture is selected with the
-  // shared object frame. the viewer puts one of these over every page.
+  // paragraph, picture and shape of the page is a target: a paragraph shows
+  // a faint outline under the pointer (or the keyboard focus) and opens the
+  // in-place editor on a click or Enter; a picture or shape is selected
+  // with the shared object frame, and a picture being cropped shows the
+  // crop rectangle with its handles. the viewer puts one over every page.
   import ObjectFrame from "../pageTools/ObjectFrame.svelte";
-  import { handlesFor } from "../pageTools/objectFrame";
-  import type { PageFrame, Point } from "../pageTools/pagePoints";
+  import { handlesFor, HANDLES } from "../pageTools/objectFrame";
+  import type { PageFrame, Point, Rect } from "../pageTools/pagePoints";
+  import ShapeLayer from "./ShapeLayer.svelte";
   import { isUpright, visibleBlocks } from "./blocks";
   import type { ImageObject, TextBlock } from "./editApi";
   import EditNotice from "./EditNotice.svelte";
@@ -27,6 +29,17 @@
   const blocks = $derived(objects && active ? visibleBlocks(objects) : []);
   const editingHere = $derived(session.editor?.page === frame.index ? session.editor : null);
   const selected = $derived(session.pictures.selected?.page === frame.index ? session.pictures.image : null);
+  const cropping = $derived(selected ? session.pictures.cropping : null);
+
+  /** the crop rectangle stays on the picture. */
+  function insidePicture(rect: Rect): Rect {
+    const image = selected!.rect;
+    const x = Math.min(Math.max(rect.x, image.x), image.x + image.width - 1);
+    const y = Math.min(Math.max(rect.y, image.y), image.y + image.height - 1);
+    const width = Math.min(rect.width, image.x + image.width - x);
+    const height = Math.min(rect.height, image.y + image.height - y);
+    return { x, y, width, height };
+  }
 
   function pointOf(event: MouseEvent): Point | null {
     const box = area?.getBoundingClientRect();
@@ -72,6 +85,8 @@
   style:height="{frame.height}px"
 >
   {#if active && objects}
+    <!-- shapes first, so text and pictures over them stay on top -->
+    <ShapeLayer {session} {frame} part="targets" {area} />
     {#each objects.images as image (image.id)}
       <button
         class="image-target"
@@ -104,7 +119,33 @@
   {/if}
 </div>
 
-{#if selected}
+{#if selected && cropping}
+  <ObjectFrame
+    {frame}
+    rect={cropping}
+    name="crop"
+    label={`Crop of the picture on page ${frame.index + 1}. Drag its edges or corners; the arrows move it. Enter or Done crops, Escape cancels.`}
+    movable={true}
+    handles={HANDLES}
+    shade={true}
+    focusOnShow={true}
+    onPreview={(rect) => (session.pictures.cropping = insidePicture(rect))}
+    onCommit={(rect) => (session.pictures.cropping = insidePicture(rect))}
+    onOpen={() => session.pictures.applyCrop()}
+    onEscape={() => session.pictures.cancelCrop()}
+  />
+  <div
+    class="image-bar glass"
+    role="toolbar"
+    aria-label="Crop"
+    data-page-ui
+    style:left="{frame.left + selected.rect.x * frame.scale}px"
+    style:top="{frame.top + Math.max(0, selected.rect.y * frame.scale - 40)}px"
+  >
+    <button class="button" onclick={() => session.pictures.cancelCrop()}>Cancel</button>
+    <button class="button primary" data-crop-done onclick={() => session.pictures.applyCrop()}>Done</button>
+  </div>
+{:else if selected}
   {#key selected.id}
     <ObjectFrame
       {frame}
@@ -132,10 +173,13 @@
     >
       <button class="button" title="Turn the picture a quarter turn to the left" onclick={() => session.pictures.rotate(-90)}>Turn Left</button>
       <button class="button" title="Turn the picture a quarter turn to the right" onclick={() => session.pictures.rotate(90)}>Turn Right</button>
+      <button class="button" title="Show only part of the picture; the rest stays in the file" onclick={() => session.pictures.startCrop()}>Crop</button>
       <button class="button" title="Remove the picture from the page" onclick={() => session.pictures.delete()}>Delete</button>
     </div>
   {/key}
 {/if}
+
+<ShapeLayer {session} {frame} part="selection" {area} {onFocusDocument} />
 
 {#if editingHere}
   {#key `${editingHere.block?.id ?? "new"}-${editingHere.position.x}-${editingHere.position.y}`}

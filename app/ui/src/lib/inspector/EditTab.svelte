@@ -15,7 +15,9 @@
   import AddTextTool from "./edit/AddTextTool.svelte";
   import DeleteTextTool from "./edit/DeleteTextTool.svelte";
   import EditTextTool from "./edit/EditTextTool.svelte";
+  import PageSetupTool from "./edit/PageSetupTool.svelte";
   import PicturesTool from "./edit/PicturesTool.svelte";
+  import ShapesTool from "./edit/ShapesTool.svelte";
   import TextStyleTool from "./edit/TextStyleTool.svelte";
 
   type SectionProps = InspectorTabProps & { open: boolean; onToggle: () => void };
@@ -30,6 +32,8 @@
     { tool: "addPageText", component: AddTextTool },
     { tool: "pageImages", component: PicturesTool },
     { tool: "addPageImage", component: AddImageTool },
+    { tool: "pageShapes", component: ShapesTool },
+    { tool: "pageSetup", component: PageSetupTool },
   ];
 
   let openTool = $state<ToolName | null>("editText");
@@ -43,14 +47,16 @@
     if (SECTIONS.some((section) => section.tool === request.tool)) untrack(() => (openTool = request.tool));
   });
 
-  // clicking a picture on the page opens Pictures; clicking into text opens Edit Text
+  // clicking a picture on the page opens Pictures, a shape Shapes; clicking into text opens Edit Text
   $effect(() => {
     const edit = context.edit;
     if (!edit) return;
     const picked = edit.pictures.selected;
+    const shape = edit.shapes.selected;
     const typing = edit.editor?.block;
     untrack(() => {
       if (picked && openTool !== "pageImages") openTool = "pageImages";
+      else if (shape && openTool !== "pageShapes") openTool = "pageShapes";
       else if (typing && openTool !== "editText" && openTool !== "editTextStyle" && openTool !== "deletePageText") openTool = "editText";
     });
   });
