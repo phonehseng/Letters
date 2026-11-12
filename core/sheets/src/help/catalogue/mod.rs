@@ -150,6 +150,32 @@ pub fn function_info(name: &str) -> Option<FunctionInfo> {
         .map(build)
 }
 
+/// how many arguments a function needs at least: those before its first
+/// optional one. the calculator checks this before calling a function, so
+/// SUBSTITUTE("a","b") gives #VALUE! instead of reading a third argument
+/// that isn't there. read from the records once, then kept.
+pub fn required_arguments(name: &str) -> usize {
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    static REQUIRED: OnceLock<HashMap<&'static str, usize>> = OnceLock::new();
+    let required = REQUIRED.get_or_init(|| {
+        math_and_stats::RECORDS
+            .iter()
+            .chain(lookup_text_dates::RECORDS)
+            .map(|record| {
+                let count = record
+                    .3
+                    .split("; ")
+                    .filter(|s| !s.is_empty())
+                    .take_while(|spec| !spec.trim_start().starts_with('['))
+                    .count();
+                (record.0, count)
+            })
+            .collect()
+    });
+    required.get(name).copied().unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,5 +232,26 @@ mod tests {
             }
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    /// every function given fewer arguments than it needs shows #VALUE!
+    /// (SUBSTITUTE with two used to stop the calculation)
+    #[test]
+    fn too_few_arguments_give_value_errors() {
+        for info in catalogue() {
+            let needed = required_arguments(&info.name);
+            for given in 0..needed {
+                let arguments = vec!["1"; given].join(",");
+                let formula = format!("{}({arguments})", info.name);
+                let mut book = Workbook::new();
+                book.set_formula(0, 0, 0, &formula);
+                crate::calc::recalculate(&mut book);
+                assert_eq!(
+                    book.value(0, 0, 0),
+                    Value::Error(crate::model::ErrorValue::Value),
+                    "{formula}"
+                );
+            }
+        }
     }
 }
