@@ -17,22 +17,22 @@ interface Syntax {
   blockComment: [string, string] | null;
   /** quote characters that start a string or a character */
   quotes: string;
-  /** python's """ and ''' strings run over several lines */
-  tripleQuotes: boolean;
+  /** quotes that, tripled, start a string over several lines: python's """ and ''', java's """ text blocks */
+  tripleQuotes: string;
   /** quotes inside which a backslash is an ordinary character, like shell's '...' */
   rawQuotes?: string;
   /** what else the language has that hides brackets: escapes, here-documents, raw strings */
   skipSpecial?: (text: string, index: number) => number;
 }
 
-const C_LIKE: Syntax = { lineComment: "//", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: false };
+const C_LIKE: Syntax = { lineComment: "//", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: "" };
 
 const SHELL: Syntax = {
   lineComment: "#",
   commentOnlyAtWordStart: true,
   blockComment: null,
   quotes: "\"'",
-  tripleQuotes: false,
+  tripleQuotes: "",
   rawQuotes: "'",
   skipSpecial: (text, index) => skipHeredocBodies(text, skipShellEscape(text, index)),
 };
@@ -40,14 +40,15 @@ const SHELL: Syntax = {
 const SYNTAX: Record<string, Syntax> = {
   c: C_LIKE,
   cpp: C_LIKE,
-  java: C_LIKE,
+  // java 15 text blocks: """ on its own, then lines of text
+  java: { ...C_LIKE, tripleQuotes: '"' },
   javascript: { ...C_LIKE, quotes: "\"'`" },
   typescript: { ...C_LIKE, quotes: "\"'`" },
   // rust's ' is also a lifetime ('a), so only " counts as a string there
   rust: { ...C_LIKE, quotes: '"' },
-  python: { lineComment: "#", blockComment: null, quotes: "\"'", tripleQuotes: true },
+  python: { lineComment: "#", blockComment: null, quotes: "\"'", tripleQuotes: "\"'" },
   shell: SHELL,
-  sql: { lineComment: "--", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: false },
+  sql: { lineComment: "--", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: "" },
 };
 
 const PAIRS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
@@ -148,11 +149,21 @@ function skipCommentOrString(text: string, index: number, syntax: Syntax, proble
   const character = /^'(\\.[^']{0,8}|[^\\'\n])'/.exec(text.slice(index, index + 12));
   if (quote === "'" && character && !isRaw) return index + character[0].length;
   if (!syntax.quotes.includes(quote)) return index;
-  if (syntax.tripleQuotes && text.startsWith(quote.repeat(3), index)) {
-    const end = text.indexOf(quote.repeat(3), index + 3);
-    return end < 0 ? text.length : end + 3;
+  if (syntax.tripleQuotes.includes(quote) && text.startsWith(quote.repeat(3), index)) {
+    return skipTripleQuotedString(text, index, quote, problems);
   }
   return skipString(text, index, quote, isRaw, problems);
+}
+
+/** a string in tripled quotes, over as many lines as it takes; a backslash escapes, so \""" doesn't end it. */
+function skipTripleQuotedString(text: string, start: number, quote: string, problems: Problem[]): number {
+  const closing = quote.repeat(3);
+  for (let index = start + 3; index < text.length; index++) {
+    if (text[index] === "\\") index++;
+    else if (text.startsWith(closing, index)) return index + 3;
+  }
+  problems.push(problemAt(text, start, 3, "error", `This ${closing} string is never closed. Add ${closing} where it ends.`, BASIC_SOURCE));
+  return text.length;
 }
 
 function skipString(text: string, start: number, quote: string, isRaw: boolean, problems: Problem[]): number {

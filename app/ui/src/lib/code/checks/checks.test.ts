@@ -179,6 +179,16 @@ describe("the basic check", () => {
     expect(checkBalance("echo $((1 << x)) (\n", "shell").map((problem) => problem.message)).toEqual(["This parenthesis “(” is never closed."]);
   });
 
+  it("reads java text blocks as one string over several lines", () => {
+    const textBlock = 'class A {\n  String s = """\n      { not code "quoted" (\n      \\""" still text\n      """;\n}\n';
+    expect(checkBalance(textBlock, "java")).toEqual([]);
+    const unclosed = checkBalance('class A {\n  String s = """\n      text;\n}\n', "java");
+    expect(unclosed.map((problem) => [problem.line, problem.message])).toEqual([
+      [2, 'This """ string is never closed. Add """ where it ends.'],
+      [1, "This brace “{” is never closed."],
+    ]);
+  });
+
   it("knows rust lifetimes are not strings", () => {
     expect(checkBalance("fn f<'a>(x: &'a str) -> &'a str { x }", "rust")).toEqual([]);
   });
