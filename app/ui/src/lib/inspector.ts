@@ -124,6 +124,8 @@ export const INSPECTOR_TABS: InspectorTab[] = [
       "findFields",
       "addField",
       "editFields",
+      // forms round two: making a form (inspector/fillsign/PrepareFormTool.svelte)
+      "prepareForm",
       "flattenForm",
       "signWithPicture",
       "signWithCertificate",

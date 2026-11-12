@@ -18,14 +18,14 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use letters_forms::{
-    self as forms, CertificateRequest, DetectedField, FieldChanges, FieldInfo, FieldValue,
-    FlattenOptions, FormError, NewField, SignRequest, SignatureAppearance, SignatureImage,
-    SignaturePlacement, SignatureReport, VisibleRect, TRUST_NOTE,
+    self as forms, CertificateRequest, DetectedField, FieldChanges, FieldInfo, FlattenOptions,
+    FormError, NewField, SignRequest, SignatureAppearance, SignatureImage, SignaturePlacement,
+    SignatureReport, VisibleRect, TRUST_NOTE,
 };
 use letters_pdf::DocumentId;
 use letters_shell_core::forms::{
-    data_url, has_calculations, password_blocks_signing, picture_mime, read_chosen_file,
-    sign_saved_document, write_chosen_bytes, PictureKind, SavedSignature, SignaturePictures,
+    data_url, password_blocks_signing, picture_mime, read_chosen_file, sign_saved_document,
+    write_chosen_bytes, PictureKind, SavedSignature, SignaturePictures,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -73,8 +73,9 @@ pub struct FormsOverview {
     fields: Vec<FieldInfo>,
     /// why the form can't be filled (an xfa form, say), as the engine words it
     problem: Option<String>,
-    /// the form expects scripts to calculate answers, which Letters never runs
-    has_calculations: bool,
+    /// the engine's sentence naming fields whose scripts Letters leaves
+    /// alone; the standard calculations, formats and checks it runs itself
+    custom_script_note: Option<String>,
     signatures: Vec<SignatureReport>,
     /// the saved file is signed, so changes are saved after its signatures
     protected: bool,
@@ -157,11 +158,13 @@ fn yes() -> bool {
 #[tauri::command(async)]
 pub fn forms_overview(state: State<AppState>, id: u64) -> Result<FormsOverview, CommandError> {
     let document_id = DocumentId(id);
-    let (fields, problem, calculates) = state.read_document(document_id, |document| {
-        let calculates = has_calculations(document);
+    let (fields, problem, custom_script_note) = state.read_document(document_id, |document| {
+        let note = forms::form_logic(document)
+            .ok()
+            .and_then(|logic| logic.custom_script_note);
         Ok(match forms::fields(document) {
-            Ok(fields) => (fields, None, calculates),
-            Err(error) => (Vec::new(), Some(error.to_string()), calculates),
+            Ok(fields) => (fields, None, note),
+            Err(error) => (Vec::new(), Some(error.to_string()), note),
         })
     })?;
     // checking signatures reads the whole file, so only signed forms pay for it
@@ -174,7 +177,7 @@ pub fn forms_overview(state: State<AppState>, id: u64) -> Result<FormsOverview, 
     Ok(FormsOverview {
         fields,
         problem,
-        has_calculations: calculates,
+        custom_script_note,
         signatures,
         protected,
         trust_note: TRUST_NOTE,
@@ -198,19 +201,6 @@ fn signature_reports(
         Ok(((reports, session.original_is_protected()), None))
     })?;
     Ok(answer)
-}
-
-/// fills one field. the engine checks the answer first and says what is wrong.
-#[tauri::command(async)]
-pub fn forms_set_value(
-    state: State<AppState>,
-    id: u64,
-    name: String,
-    value: FieldValue,
-) -> Result<DocumentState, CommandError> {
-    state.edit(DocumentId(id), |document| {
-        forms::set_value(document, &name, &value)
-    })
 }
 
 /// adds fields, all in one undo step (Add Fields after Find Fields adds many).

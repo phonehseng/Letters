@@ -50,6 +50,16 @@ export const fillSignTools = {
     whenToUse: "To tidy a form: line fields up, give them clear names and help text, make some required.",
     fileEffect: `Changes the fields in your working copy. Undo takes each change back. ${ONLY_THE_WORKING_COPY}`,
   },
+  // forms round two: making a form (forms/formRules.ts and inspector/fillsign/PrepareFormTool.svelte)
+  prepareForm: {
+    label: "Prepare Form",
+    tooltip: "Add totals, formats and checks to a form’s fields",
+    whenToUse:
+      "When you make a form for others: a total that adds itself up, amounts shown as money, dates written one way, answers that must be filled in or stay within limits.",
+    fileEffect: `Writes the rules into the fields as the standard form functions, so other PDF apps that run forms follow them too. Each change is one undo step. ${ONLY_THE_WORKING_COPY}`,
+    meaning:
+      "A calculation works a field’s answer out from other fields. A format decides how an answer is shown, such as 1,234.50 or 25%. A check refuses an answer that breaks a rule and says why.",
+  },
   flattenForm: {
     label: "Flatten Form…",
     tooltip: "Make the answers a permanent part of the pages",

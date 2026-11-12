@@ -31,7 +31,6 @@ import {
   keepSignaturePicture,
   placeSignature,
   removeField,
-  setFieldValue,
   signaturePictures,
   signDocument,
   updateField,
@@ -43,6 +42,8 @@ import {
   type SignaturePicture,
   type SignSettings,
 } from "./formsApi";
+import { fillField, type ChangedField } from "./formLogicApi";
+import { recalculatedSentence } from "./formRules";
 import { NEW_FIELD_SIZE, newFieldSpec, parseChoices, suggestedName, type AddableKind } from "./newFields";
 import { acceptAll, moveProposal, newFieldsFrom, proposalsFrom, setKind, setStatus, type Proposal, type ProposalStatus } from "./proposals";
 import { fitInField, placedAround, PLACED_SIGNATURE_WIDTH } from "./signaturePicture";
@@ -366,9 +367,13 @@ export class FillSignSession {
   async #setValue(field: FieldInfo, value: FieldValue): Promise<boolean> {
     const id = this.#host.documentId();
     let refusal: string | null = null;
+    let changed: ChangedField[] = [];
     const worked = await this.#host.change(async () => {
       try {
-        return await setFieldValue(id, field.name, value);
+        // the field's format and checks run first, then every calculation again
+        const filled = await fillField(id, field.name, value);
+        changed = filled.changed;
+        return filled.document;
       } catch (problem) {
         refusal = asCommandError(problem).message;
         return documentState(id);
@@ -383,7 +388,16 @@ export class FillSignSession {
     if (!worked) return false;
     this.#clearError(field.name);
     this.#patchField(field.name, value);
+    this.#patchCalculated(field.name, changed);
     return true;
+  }
+
+  /** shows the totals the engine worked out again at once, and says them. */
+  #patchCalculated(filled: string, changed: ChangedField[]) {
+    const calculated = changed.filter((each) => each.name !== filled);
+    for (const each of calculated) this.#patchField(each.name, { kind: "text", value: each.value });
+    const said = recalculatedSentence(calculated, (name) => this.field(name));
+    if (said) this.#host.announce(said);
   }
 
   #clearError(name: string) {

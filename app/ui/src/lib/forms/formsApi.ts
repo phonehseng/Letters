@@ -148,7 +148,8 @@ export interface FormsOverview {
   fields: FieldInfo[];
   /** why the form can't be filled (an xfa form), in the engine's words */
   problem: string | null;
-  hasCalculations: boolean;
+  /** "This form has a custom script Letters doesn’t run: a, b", when it has any */
+  customScriptNote: string | null;
   signatures: SignatureReport[];
   /** the saved file is signed: changes are saved after its signatures */
   protected: boolean;
@@ -201,10 +202,6 @@ export interface CertificateMade {
 
 export function formsOverview(id: number): Promise<FormsOverview> {
   return invoke("forms_overview", { id });
-}
-
-export function setFieldValue(id: number, name: string, value: FieldValue): Promise<DocumentState> {
-  return invoke("forms_set_value", { id, name, value });
 }
 
 export function addFields(id: number, fields: NewField[]): Promise<{ document: DocumentState; names: string[] }> {

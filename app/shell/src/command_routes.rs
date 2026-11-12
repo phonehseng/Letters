@@ -25,6 +25,9 @@ use crate::slides_commands;
 use crate::{edit_flow_commands, edit_page_commands, edit_shape_commands, ocr_editable_commands};
 // spreadsheets, on their own line for the same reason
 use crate::{sheets_commands, sheets_help_commands};
+// forms round two: form logic, preparing forms, form data, signing options
+// and pdf standards, on their own line for the same reason
+use crate::form_logic_commands;
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -88,6 +91,20 @@ fn features() -> Vec<Feature> {
         // spreadsheets: the sheets screen and its formula help
         spreadsheets(),
         spreadsheet_help(),
+        // forms round two (see forms_round_two below)
+        forms_round_two(),
+    ]
+}
+
+/// forms round two: form logic, preparing forms, form data, signing
+/// options and checking, and pdf standards.
+fn forms_round_two() -> Feature {
+    feature![
+        form_logic_commands::forms_logic,
+        form_logic_commands::forms_fill_field,
+        form_logic_commands::forms_set_field_logic,
+        form_logic_commands::forms_set_calculation_order,
+        form_logic_commands::forms_recalculate,
     ]
 }
 
@@ -217,7 +234,6 @@ fn writer_drive() -> Feature {
 fn forms() -> Feature {
     feature![
         forms_commands::forms_overview,
-        forms_commands::forms_set_value,
         forms_commands::forms_add_fields,
         forms_commands::forms_update_field,
         forms_commands::forms_remove_field,

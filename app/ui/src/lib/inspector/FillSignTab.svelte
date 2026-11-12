@@ -17,6 +17,7 @@
   import FillFormTool from "./fillsign/FillFormTool.svelte";
   import FindFieldsTool from "./fillsign/FindFieldsTool.svelte";
   import FlattenFormTool from "./fillsign/FlattenFormTool.svelte";
+  import PrepareFormTool from "./fillsign/PrepareFormTool.svelte";
   import SignaturesTool from "./fillsign/SignaturesTool.svelte";
   import SignCertificateTool from "./fillsign/SignCertificateTool.svelte";
   import SignPictureTool from "./fillsign/SignPictureTool.svelte";
@@ -31,6 +32,7 @@
     { tool: "findFields", component: FindFieldsTool },
     { tool: "addField", component: AddFieldTool },
     { tool: "editFields", component: EditFieldsTool },
+    { tool: "prepareForm", component: PrepareFormTool },
     { tool: "flattenForm", component: FlattenFormTool },
     { tool: "signWithPicture", component: SignPictureTool },
     { tool: "signWithCertificate", component: SignCertificateTool },

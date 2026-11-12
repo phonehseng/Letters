@@ -3,8 +3,6 @@
 //! - `signed`: signing the saved file's exact bytes through the edit
 //!   session, and saving every later change as an incremental update, so
 //!   a signature is never rewritten by a later save.
-//! - `scripts`: whether a form carries automatic calculations, which
-//!   Letters never runs.
 //! - `signature_pictures`: the pictures of a person's signature, kept in
 //!   the app's data folder (never in a document) so they can be reused.
 //! - `files`: reading a picture or certificate the person chose, and
@@ -14,12 +12,10 @@
 //! can be tested with plain files.
 
 pub mod files;
-pub mod scripts;
 pub mod signature_pictures;
 pub mod signed;
 
 pub use files::{data_url, picture_mime, read_chosen_file, write_chosen_bytes};
-pub use scripts::has_calculations;
 pub use signature_pictures::{PictureKind, SavedSignature, SignaturePictures};
 pub use signed::{password_blocks_signing, sign_saved_document, SignError, PASSWORD_MESSAGE};
 
