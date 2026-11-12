@@ -62,6 +62,23 @@
   const footerId = $derived(partFor(section, section.footers, Math.max(1, pageCount), evenAndOdd));
   const header = $derived((meta.headersFooters ?? []).find((part) => part.id === headerId));
   const footer = $derived((meta.headersFooters ?? []).find((part) => part.id === footerId));
+
+  // where the header and footer sit, in px from the page's top and bottom edges.
+  // a real header or footer goes at the document's own distance, like word.
+  // the add header / add footer buttons have no text of their own, so they are
+  // kept inside the margin instead: a document with a small top margin (common
+  // in .odt files) would otherwise put the button right over the first line
+  const ADD_PART_PX = 24; // the button's min-height, see .add-part below
+  const ADD_PART_GAP_PX = 4; // breathing room between the button and the text
+  const headerTop = $derived(header ? twipsToPx(margins.header ?? 720) : placeholderOffset(margins.header ?? 720, margins.top));
+  const footerBottom = $derived(footer ? twipsToPx(margins.footer ?? 720) : placeholderOffset(margins.footer ?? 720, margins.bottom));
+
+  // the usual distance from the page edge, pulled closer to the edge when the
+  // margin is too small to hold the button there, and never off the page
+  function placeholderOffset(distanceTwips: number, marginTwips: number): number {
+    const roomInMargin = twipsToPx(marginTwips) - ADD_PART_PX - ADD_PART_GAP_PX;
+    return Math.max(0, Math.min(twipsToPx(distanceTwips), roomInMargin));
+  }
   const footnotes = $derived((meta.notes ?? []).filter((note) => !note.special && note.kind === "footnote"));
   const endnotes = $derived((meta.notes ?? []).filter((note) => !note.special && note.kind === "endnote"));
   // the space left at the bottom of the last page, so it looks like a whole page
@@ -249,7 +266,7 @@
       style:--w-margin-left={px(margins.left)}
       style:--w-margin-right={px(margins.right)}
     >
-      <div class="part header-part" style:top={px(margins.header ?? 720)} style:left={px(margins.left)} style:right={px(margins.right)}>
+      <div class="part header-part" style:top="{headerTop}px" style:left={px(margins.left)} style:right={px(margins.right)}>
         {#if header}
           <MiniEditor
             blocks={header.blocks}
@@ -322,7 +339,7 @@
 
       <div class="last-page-rest" style:height="{lastPageSpace}px"></div>
       <div class="bottom-margin" style:height={px(margins.bottom)}>
-        <div class="part footer-part" style:bottom={px(margins.footer ?? 720)} style:left={px(margins.left)} style:right={px(margins.right)}>
+        <div class="part footer-part" style:bottom="{footerBottom}px" style:left={px(margins.left)} style:right={px(margins.right)}>
           {#if footer}
             <MiniEditor
               blocks={footer.blocks}
