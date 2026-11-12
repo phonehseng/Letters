@@ -1,0 +1,89 @@
+[
+  {
+    "class": "cid subset > 256 glyphs",
+    "producer": "Microsoft Edge 157 headless (Skia/PDF)",
+    "features": [
+      "Type0 CIDFontType2 Identity-H",
+      "more than 256 glyphs of one face",
+      "justified text, kerning on",
+      "fractional glyph positions (Td per glyph)"
+    ],
+    "known_phrase": "more than 256 glyphs",
+    "known_sentence": "",
+    "name": "cid_subset",
+    "pdf": "extra\\cid_subset.pdf"
+  },
+  {
+    "class": "Type 3 font",
+    "producer": "Microsoft Edge 157 headless (Skia/PDF), cff web font",
+    "features": [
+      "Type3 font with glyph procedures",
+      "fractional glyph positions"
+    ],
+    "known_phrase": "Type 3 procedures",
+    "known_sentence": "",
+    "name": "type3_font",
+    "pdf": "extra\\type3_font.pdf"
+  },
+  {
+    "class": "mixed styles",
+    "producer": "Microsoft Edge 157 headless (Skia/PDF)",
+    "features": [
+      "five sizes 24/16/12/10/8 pt",
+      "coloured text",
+      "superscripts and subscripts",
+      "synthesised small caps"
+    ],
+    "known_phrase": "Mixed styles",
+    "known_sentence": "",
+    "name": "mixed_styles",
+    "pdf": "extra\\mixed_styles.pdf"
+  },
+  {
+    "class": "justified TJ kerning",
+    "producer": "hand-built with pikepdf (simple TrueType, Lato)",
+    "features": [
+      "justified with Tw",
+      "TJ kerning number between most glyph pairs (-45..25 /1000 em)"
+    ],
+    "known_phrase": "heavy TJ kerning",
+    "known_sentence": "",
+    "name": "tj_kerning",
+    "pdf": "extra\\tj_kerning.pdf"
+  },
+  {
+    "class": "CFF font",
+    "producer": "hand-built with pikepdf (Source Serif 4 CFF as FontFile3/Type1C)",
+    "features": [
+      "simple Type1 font with a bare CFF program",
+      "WinAnsi encoding by glyph name"
+    ],
+    "known_phrase": "bare CFF program",
+    "known_sentence": "",
+    "name": "cff_font",
+    "pdf": "extra\\cff_font.pdf"
+  },
+  {
+    "class": "Type 1 font",
+    "producer": "hand-built with pikepdf (Crimson Text outlines as a Type 1 program)",
+    "features": [
+      "simple Type1 font with FontFile (eexec, lenIV 4)",
+      "WinAnsi encoding by glyph name"
+    ],
+    "known_phrase": "Type 1 program",
+    "known_sentence": "",
+    "name": "type1_font",
+    "pdf": "extra\\type1_font.pdf"
+  },
+  {
+    "class": "restricted fsType",
+    "producer": "hand-built with pikepdf (Lato renamed, fsType 2)",
+    "features": [
+      "embedded TrueType with fsType 0x0002 (restricted licence embedding)"
+    ],
+    "known_phrase": "forbids embedding",
+    "known_sentence": "",
+    "name": "restricted_font",
+    "pdf": "extra\\restricted_font.pdf"
+  }
+]

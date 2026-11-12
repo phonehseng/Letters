@@ -1,0 +1,107 @@
+[
+  {
+    "class": "syllabus",
+    "producer": "Microsoft Word (ExportAsFixedFormat) from hand-written OOXML",
+    "features": [
+      "headings",
+      "bullet list",
+      "numbered list",
+      "table with rules",
+      "justified text",
+      "2 fonts"
+    ],
+    "known_phrase": "Weekly schedule",
+    "known_sentence": "Design a simple optics experiment and estimate its uncertainty.",
+    "name": "syllabus",
+    "pdf": "syllabus.pdf",
+    "pages": 2,
+    "word": "16.0 build 16.0.20527"
+  },
+  {
+    "class": "research paper",
+    "producer": "Microsoft Word (ExportAsFixedFormat) from hand-written OOXML",
+    "features": [
+      "two columns",
+      "justified text",
+      "kerning on",
+      "footnotes",
+      "superscripts",
+      "equation with math symbols",
+      "3 fonts"
+    ],
+    "known_phrase": "2 Method",
+    "known_sentence": "This approach suggests the weekly reading list.",
+    "name": "research_paper",
+    "pdf": "research_paper.pdf",
+    "pages": 2,
+    "word": "16.0 build 16.0.20527"
+  },
+  {
+    "class": "lab report",
+    "producer": "Microsoft Word (ExportAsFixedFormat) from hand-written OOXML",
+    "features": [
+      "jpeg photo",
+      "png plot",
+      "bar chart drawn with shapes",
+      "captions",
+      "table with rules"
+    ],
+    "known_phrase": "Damped Oscillations",
+    "known_sentence": "Figure 2. Amplitude against time with the fitted envelope.",
+    "name": "lab_report",
+    "pdf": "lab_report.pdf",
+    "pages": 3,
+    "word": "16.0 build 16.0.20527"
+  },
+  {
+    "class": "slides",
+    "producer": "reportlab 4 (slide layout), Lato subset-embedded",
+    "features": [
+      "landscape 720x405",
+      "large text",
+      "coloured backgrounds",
+      "white text",
+      "circle bullets (curves)",
+      "rounded rectangle",
+      "jpeg picture",
+      "rotated text"
+    ],
+    "known_phrase": "Two-slit interference",
+    "known_sentence": "Fringe spacing grows with distance to the screen",
+    "name": "slides",
+    "pdf": "slides.pdf"
+  },
+  {
+    "class": "form",
+    "producer": "reportlab 4, standard 14 fonts (Helvetica, Times) not embedded",
+    "features": [
+      "non-embedded standard fonts",
+      "boxes and rules",
+      "small text 6.5 pt",
+      "checkboxes",
+      "dashed rule",
+      "invisible ocr text"
+    ],
+    "known_phrase": "Course Registration Form",
+    "known_sentence": "Please complete every field in block capitals and return to the faculty office.",
+    "name": "form",
+    "pdf": "form.pdf"
+  },
+  {
+    "class": "journal page",
+    "producer": "reportlab 4, five fonts subset-embedded (Tinos, Lato, Crimson Text, Arimo, Cousine)",
+    "features": [
+      "three columns",
+      "a font per role",
+      "odd sizes 21.5/10.3/9.3/7.9/7.5 pt",
+      "coloured title",
+      "jpeg figure",
+      "code listing in a box",
+      "more than 256 glyphs of one font (several subsets)"
+    ],
+    "known_phrase": "Low-Cost Sensors",
+    "known_sentence": "C. Writer, D. Reviewer, Department of Physics",
+    "name": "journal",
+    "pdf": "journal.pdf"
+  }
+]

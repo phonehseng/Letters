@@ -5,5 +5,18 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+# every dependency is MIT or Apache-2.0 licensed (or both). the truetype
+# fonts, the docx xml and the zip container's parts are written here by hand.
 [dependencies]
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+lopdf = "0.47"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 thiserror = "2"
+ttf-parser = "0.25"
+zip = { version = "9.5.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+# tests draw pages with the pdfium library Letters ships (vendor/pdfium),
+# the way the app would pass a render callback
+[dev-dependencies]
+pdfium-render = { version = "0.9", default-features = false, features = ["pdfium_latest", "thread_safe"] }
