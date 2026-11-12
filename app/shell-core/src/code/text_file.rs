@@ -116,6 +116,31 @@ pub fn looks_binary(bytes: &[u8]) -> bool {
     sniffed.contains(&0)
 }
 
+/// what kind of document `bytes` are, by their first bytes, when it is one
+/// Letters opens elsewhere. a pdf can start with plain text ("%PDF-1.3")
+/// and get past `looks_binary`, so a pdf renamed without ".pdf" would
+/// otherwise open as text, and saving it would destroy it.
+pub fn document_kind(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"%PDF-") {
+        Some("PDF")
+    } else if bytes.starts_with(b"PK\x03\x04") {
+        // the zip that word, excel, powerpoint and opendocument files are
+        Some("Word, Excel, PowerPoint or OpenDocument file")
+    } else if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) {
+        Some("older Office file")
+    } else {
+        None
+    }
+}
+
+/// the sentence for a document whose name doesn't say what it is.
+pub fn document_without_extension_message(name: &str, kind: &str) -> String {
+    format!(
+        "\u{201C}{name}\u{201D} is a {kind}, but its name doesn\u{2019}t end the way that kind of file does. \
+         Rename it with the right ending (for a PDF, \u{201C}.pdf\u{201D}), then open it again."
+    )
+}
+
 /// the text of `bytes` with "\n" line breaks, and what the file looked like.
 pub fn decode(bytes: &[u8]) -> (String, TextFormat) {
     let (encoding, byte_order_mark, body) = split_byte_order_mark(bytes);
@@ -249,6 +274,9 @@ pub fn read_text_file(path: &Path) -> Result<OpenedText, String> {
     }
     let bytes =
         fs::read(path).map_err(|error| format!("“{name}” couldn’t be opened. ({error})"))?;
+    if let Some(kind) = document_kind(&bytes) {
+        return Err(document_without_extension_message(&name, kind));
+    }
     if looks_binary(&bytes) {
         return Err(not_text_message(&name));
     }
@@ -301,6 +329,34 @@ mod tests {
             mixed_line_endings: false,
             valid: true,
         }
+    }
+
+    #[test]
+    fn a_pdf_without_its_extension_is_not_opened_as_text() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("Lab report 3.5");
+        fs::write(
+            &path,
+            b"%PDF-1.3\n%\xE2\xE3\xCF\xD3\n1 0 obj\n<< >>\nendobj\n",
+        )
+        .unwrap();
+        let refused = read_text_file(&path).unwrap_err();
+        assert!(refused.contains("is a PDF"), "{refused}");
+        assert!(refused.contains(".pdf"), "{refused}");
+    }
+
+    #[test]
+    fn office_files_without_their_extension_are_not_opened_as_text() {
+        assert_eq!(
+            document_kind(b"PK\x03\x04rest"),
+            Some("Word, Excel, PowerPoint or OpenDocument file")
+        );
+        assert_eq!(
+            document_kind(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1]),
+            Some("older Office file")
+        );
+        assert_eq!(document_kind(b"int main(void) { return 0; }"), None);
+        assert_eq!(document_kind(b"{\\rtf1 rich text is text}"), None);
     }
 
     #[test]

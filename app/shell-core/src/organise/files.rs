@@ -265,8 +265,25 @@ pub fn copy_into(
 /// characters windows never allows in a name (macos only refuses "/" and ":").
 const NOT_IN_NAMES: &[char] = &['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
 
-/// renames a file in its folder. a name typed without an extension keeps
-/// the old one, so "Essay" stays a pdf.
+/// the typed name with the document's extension kept: "Lab report 3.5"
+/// becomes "Lab report 3.5.pdf". anything after a dot in what was typed is
+/// part of the name ("3.5", "12.11.2026"), and a different extension
+/// ("final.docx") would only make a pdf look like something it isn't, so
+/// the original extension is added unless the name already ends in it.
+fn keep_extension(typed: &str, source: &Path) -> String {
+    let Some(extension) = source.extension() else {
+        return typed.to_string();
+    };
+    let ending = format!(".{}", extension.to_string_lossy()).to_lowercase();
+    if typed.to_lowercase().ends_with(&ending) {
+        typed.to_string()
+    } else {
+        format!("{typed}.{}", extension.to_string_lossy())
+    }
+}
+
+/// renames a file in its folder, keeping its extension (see keep_extension),
+/// so "Essay" and "Lab report 3.5" stay pdfs.
 pub fn rename(source: &Path, new_name: &str) -> Result<Outcome, OrganiseError> {
     let typed = new_name.trim();
     if typed.is_empty() || typed == "." || typed == ".." {
@@ -282,12 +299,14 @@ pub fn rename(source: &Path, new_name: &str) -> Result<Outcome, OrganiseError> {
             "A name can\u{2019}t contain \u{201C}{bad}\u{201D}."
         )));
     }
-    let mut name = typed.to_string();
-    if let Some(extension) = source.extension() {
-        if Path::new(typed).extension().is_none() {
-            name = format!("{typed}.{}", extension.to_string_lossy());
-        }
+    // windows drops a trailing dot or space without a word, so the file
+    // would end up under a different name than the one recorded
+    if typed.ends_with('.') || typed.ends_with(' ') {
+        return Err(OrganiseError::Message(
+            "A name can\u{2019}t end in a dot or a space.".into(),
+        ));
     }
+    let name = keep_extension(typed, source);
     let folder = source.parent().unwrap_or(Path::new(""));
     let target = folder.join(&name);
     // changing only the case of a name is a rename too
@@ -428,6 +447,36 @@ mod tests {
         .unwrap();
         assert!(file.exists());
         let _ = renamed;
+    }
+
+    #[test]
+    fn names_with_dots_keep_the_documents_extension() {
+        let (_root, a, _b) = setup();
+        let mut current = a.join("essay.pdf");
+        fs::write(&current, "x").unwrap();
+        for (typed, expected) in [
+            ("Lab report 3.5", "Lab report 3.5.pdf"),
+            ("Notes 12.11.2026", "Notes 12.11.2026.pdf"),
+            ("Chapter 1. Intro", "Chapter 1. Intro.pdf"),
+            ("final.docx", "final.docx.pdf"),
+            ("Already.PDF", "Already.PDF"),
+        ] {
+            done(rename(&current, typed).unwrap());
+            current = a.join(expected);
+            assert!(current.exists(), "{typed} should become {expected}");
+        }
+    }
+
+    #[test]
+    fn a_name_ending_in_a_dot_or_space_is_refused() {
+        let (_root, a, _b) = setup();
+        let file = a.join("essay.pdf");
+        fs::write(&file, "x").unwrap();
+        for typed in ["essay.", "essay. ", "notes ."] {
+            let refused = rename(&file, typed);
+            assert!(refused.is_err(), "{typed:?} was accepted");
+        }
+        assert!(file.exists());
     }
 
     #[test]
