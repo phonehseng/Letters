@@ -57,9 +57,9 @@
     {/if}
     <ul class="signatures" aria-label="Signatures in this document">
       {#each report.signatures as signature, index (signature.field)}
-        {@const status = signatureStatus(signature)}
         {@const details = report.details[index]}
-        {@const changes = report.changes[index]}
+        {@const changes = report.changes.find((each) => each.field === signature.field)}
+        {@const status = signatureStatus(signature, changes?.verdict ?? null)}
         <li>
           <div class="top">
             <span class="who">{details?.kind === "documentTimestamp" ? "Document time stamp" : signerName(signature)}</span>
@@ -147,6 +147,7 @@
   }
 
   .status.valid,
+  .status.allowed,
   .verdict.unchanged strong,
   .verdict.asIntended strong {
     color: rgb(30 130 70);

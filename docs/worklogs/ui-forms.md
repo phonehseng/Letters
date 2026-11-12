@@ -86,3 +86,12 @@ Seen in the app: after a refused answer, typing the stored answer back left
 the refusal showing, because the editor sends nothing when the text equals
 what is stored. It now sends it while a refusal is showing, and the session
 clears the refusal for an unchanged answer.
+
+## 2026-11-12: the banner reads the engine's verdict
+
+With every save of a signed document appended after the signature, the
+banner said "it has changed since" after any allowed change, such as the
+audit trail entry signing adds. The overview now carries the engine's
+verdict per signature (from verify_document), and a valid signature whose
+later changes the author allowed reads "Valid, changed as allowed"; changes
+that weren't allowed, or with no verdict, still read as changed.

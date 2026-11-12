@@ -19,9 +19,9 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use letters_forms::{
-    self as forms, CertificateRequest, DetectedField, FieldChanges, FieldInfo, FlattenOptions,
-    FormError, NewField, SignRequest, SignatureAppearance, SignatureImage, SignaturePlacement,
-    SignatureReport, VisibleRect, TRUST_NOTE,
+    self as forms, CertificateRequest, ChangeVerdict, DetectedField, DocumentVerification,
+    FieldChanges, FieldInfo, FlattenOptions, FormError, NewField, SignRequest, SignatureAppearance,
+    SignatureImage, SignaturePlacement, SignatureReport, VisibleRect, TRUST_NOTE,
 };
 use letters_pdf::DocumentId;
 use letters_shell_core::forms::{
@@ -80,6 +80,9 @@ pub struct FormsOverview {
     /// alone; the standard calculations, formats and checks it runs itself
     custom_script_note: Option<String>,
     signatures: Vec<SignatureReport>,
+    /// for each signature, the engine's verdict on what changed after it:
+    /// a change the author allowed doesn't make it "changed since"
+    verdicts: Vec<Option<ChangeVerdict>>,
     /// the saved file is signed, so changes are saved after its signatures
     protected: bool,
     /// the engine's sentence about what checking a signature does and doesn't mean
@@ -172,16 +175,17 @@ pub fn forms_overview(state: State<AppState>, id: u64) -> Result<FormsOverview, 
     })?;
     // checking signatures reads the whole file, so only signed forms pay for it
     let any_signed = fields.iter().any(|field| field.signed);
-    let (signatures, protected) = if any_signed {
+    let (signatures, verdicts, protected) = if any_signed {
         signature_reports(&state, document_id)?
     } else {
-        (Vec::new(), false)
+        (Vec::new(), Vec::new(), false)
     };
     Ok(FormsOverview {
         fields,
         problem,
         custom_script_note,
         signatures,
+        verdicts,
         protected,
         trust_note: TRUST_NOTE,
     })
@@ -189,21 +193,42 @@ pub fn forms_overview(state: State<AppState>, id: u64) -> Result<FormsOverview, 
 
 /// checks the signatures of what is shown. a signed file opened without
 /// changes gets the session's guard, so Save never rewrites it.
-fn signature_reports(
-    state: &AppState,
-    id: DocumentId,
-) -> Result<(Vec<SignatureReport>, bool), CommandError> {
+fn signature_reports(state: &AppState, id: DocumentId) -> Result<SignedState, CommandError> {
     let worker = state.worker().map_err(CommandError::engine_unavailable)?;
     let (answer, _) = state.documents.with_session(worker, id, |session, _| {
         let bytes = std::fs::read(session.working_copy())
             .map_err(|error| CommandError::failed(error.to_string()))?;
-        let reports = forms::verify(&bytes).unwrap_or_default();
+        // the whole check, so later changes come with the engine's verdict on them
+        let (reports, verdicts) = match forms::verify_document(&bytes) {
+            Ok(checked) => verdicts_by_signature(checked),
+            Err(_) => (forms::verify(&bytes).unwrap_or_default(), Vec::new()),
+        };
         if !session.is_dirty() && !reports.is_empty() {
             session.protect_original(true);
         }
-        Ok(((reports, session.original_is_protected()), None))
+        Ok(((reports, verdicts, session.original_is_protected()), None))
     })?;
     Ok(answer)
+}
+
+/// the signatures, and for each the verdict on what changed after it.
+type SignedState = (Vec<SignatureReport>, Vec<Option<ChangeVerdict>>, bool);
+
+fn verdicts_by_signature(
+    checked: DocumentVerification,
+) -> (Vec<SignatureReport>, Vec<Option<ChangeVerdict>>) {
+    let verdicts = checked
+        .signatures
+        .iter()
+        .map(|report| {
+            checked
+                .changes
+                .iter()
+                .find(|changes| changes.field == report.field)
+                .map(|changes| changes.verdict)
+        })
+        .collect();
+    (checked.signatures, verdicts)
 }
 
 /// adds fields, all in one undo step (Add Fields after Find Fields adds many).

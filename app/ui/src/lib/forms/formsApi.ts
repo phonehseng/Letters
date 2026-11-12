@@ -10,7 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as showOpenDialog, save as showSaveDialog } from "@tauri-apps/plugin-dialog";
 import type { DocumentState } from "../api";
 import type { Rect } from "../pageTools/pagePoints";
-import type { SigningChoices } from "./signingApi";
+import type { ChangeVerdict, SigningChoices } from "./signingApi";
 
 export type FieldKind = "text" | "multilineText" | "checkbox" | "radioGroup" | "dropdown" | "list" | "date" | "signature" | "button";
 export type Alignment = "left" | "center" | "right";
@@ -152,6 +152,8 @@ export interface FormsOverview {
   /** "This form has a custom script Letters doesn’t run: a, b", when it has any */
   customScriptNote: string | null;
   signatures: SignatureReport[];
+  /** for each signature, the engine's verdict on what changed after it */
+  verdicts: (ChangeVerdict | null)[];
   /** the saved file is signed: changes are saved after its signatures */
   protected: boolean;
   trustNote: string;

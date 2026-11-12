@@ -18,7 +18,8 @@
   let { session, onShowSignatures }: Props = $props();
 
   const problem = $derived(session.overview?.problem ?? null);
-  const banner = $derived(problem ?? bannerText(session.signatures));
+  // the engine's verdicts: a change the author allowed isn't "changed since"
+  const banner = $derived(problem ?? bannerText(session.signatures, session.overview?.verdicts ?? []));
   const showBanner = $derived(banner !== "" && !session.bannerDismissed);
 </script>
 
