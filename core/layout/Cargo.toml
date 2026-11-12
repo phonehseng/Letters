@@ -5,5 +5,24 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+# every dependency is MIT or Apache-2.0 licensed (or both). hyphenation is
+# deliberately left out: the pattern files bundled by the usual crates carry
+# mixed licenses per language, and word and libreoffice both leave automatic
+# hyphenation off by default anyway.
 [dependencies]
+letters-office = { path = "../office" }
+lopdf = "0.47"
+png = "0.18"
+rustybuzz = "0.20"
+serde = { version = "1", features = ["derive"] }
 thiserror = "2"
+ttf-parser = "0.25"
+unicode-bidi = "0.3"
+unicode-linebreak = "0.1.5"
+unicode-segmentation = "1.12"
+
+[dev-dependencies]
+letters-pdf = { path = "../pdf" }
+pdfium-render = { version = "0.9", default-features = false, features = ["pdfium_latest"] }
+png = "0.18"
+serde_json = "1"
