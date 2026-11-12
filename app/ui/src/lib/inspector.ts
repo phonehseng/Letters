@@ -173,7 +173,8 @@ export const INSPECTOR_TABS: InspectorTab[] = [
     id: "scan",
     label: "Scan",
     tooltip: "Make scanned pages searchable, check what was read, and make a PDF from pictures",
-    tools: ["recognizeText", "showRecognizedText", "removeRecognizedText", "newFromImages"],
+    // edit round two adds makeEditableText after recognizeText
+    tools: ["recognizeText", "makeEditableText", "showRecognizedText", "removeRecognizedText", "newFromImages"],
     load: () => import("./inspector/ScanTab.svelte"),
   },
 ];

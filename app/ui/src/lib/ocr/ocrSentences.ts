@@ -79,3 +79,33 @@ export function bannerSentence(unread: number, pageCount: number): string {
   if (unread === pageCount) return pageCount === 1 ? "This page is a scan, so its words can’t be searched or copied yet." : "This document is scanned, so its words can’t be searched or copied yet.";
   return `${plural(unread, "page")} of this document ${unread === 1 ? "is a scan" : "are scans"}, so ${unread === 1 ? "its" : "their"} words can’t be searched or copied yet.`;
 }
+
+// ---- Make Editable Text ----
+
+export const SCAN_MODES: { value: "textOverCleanedImage" | "textOnly"; label: string; sentence: string }[] = [
+  {
+    value: "textOverCleanedImage",
+    label: "Text Over the Scan",
+    sentence: "Keeps the scan as the page's background with its old letters painted out in the paper's colour, and writes the text on top. The page looks most like it did.",
+  },
+  {
+    value: "textOnly",
+    label: "Text Only",
+    sentence: "Removes the scan and keeps only the pictures, signatures and stamps no word covers. The file gets smaller and the page cleaner.",
+  },
+];
+
+/** the line under Make Editable Text. */
+export function editableEffect(pages: number[], pageCount: number, unread: number): string {
+  if (pages.length === 0) return "Choose the pages to make editable.";
+  const reading = unread > 0 ? `Reads ${pagesInWords(pages, pageCount)} first, then writes` : "Writes";
+  return `${reading} the words as real text you can change in the Edit tab. One Undo brings the scans back; the file on disk changes only when you choose Save.`;
+}
+
+/** after Make Editable Text: what became text, and what to check. */
+export function editableSentence(summary: { pages: number; lines: number; doubtfulLines: number; figures: number }): string {
+  const made = `${plural(summary.lines, "line")} on ${plural(summary.pages, "page")} ${summary.lines === 1 ? "is" : "are"} now editable text.`;
+  const kept = summary.figures > 0 ? ` ${plural(summary.figures, "picture")} from the scan ${summary.figures === 1 ? "was" : "were"} kept.` : "";
+  const check = summary.doubtfulLines > 0 ? ` Check ${plural(summary.doubtfulLines, "line")} against the scan: the reading was unsure.` : "";
+  return `${made}${kept}${check}`;
+}

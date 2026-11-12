@@ -493,18 +493,43 @@ word and type.
   text. Clicking elsewhere or Ctrl Enter makes the change, one Undo;
   Escape drops it.
 - **Never a silent substitution.** A letter the font can't draw is said
-  under the editor before anything changes, and after the change a small
-  glass card under the text names the font that drew it ("The original
-  font can’t draw “é”, so Arial from this computer was used for it.").
-- **Growing text asks.** When the new words need more lines than the
-  paragraph had, the card says how much lower it now reaches and offers
-  Shrink to Fit (the paragraph's own lines, smaller) and Let It Grow
-  (prominent: it is what the person typed).
+  under the editor before anything changes. It is then added to the same
+  font object, from the same font on this computer, else the closest font
+  adjusted to match, and a small glass card under the text says which in
+  one sentence, with how alike it is ("New letters: “€” from Tahoma on this
+  computer, adjusted to match, 93.1% alike."). Only when nothing can lend
+  the letter does a standard font draw it, said the same way.
+- **Growing text reflows.** A change that still fits its line stays the
+  smallest edit. Once a line no longer fits, the paragraph re-wraps (a
+  ruled table cell grows its row) and what is below in the column moves
+  down by whole lines. One quiet line under the toolbar says what moved
+  ("2 lines, 1 picture and 1 shape moved down by 15 pt.").
+- **Text that won't fit asks first.** When the column can't hold it, a
+  sheet says how far past what it runs ("The new text runs 12.2 pt past
+  the footer.") and lists Run into the Margin, Tighten, Carry to Next Page
+  and Leave It, each with one sentence; a choice that can't work here is
+  dimmed with its reason. Nothing changes until one is chosen; Cancel
+  opens the editor again with the typing kept.
+- **Signed files ask first.** Before the first change to a digitally
+  signed file the Edit tab asks, naming the signer, with Cancel focused:
+  editing makes the signature invalid.
 - **Pictures** get the shared frame (corners only: proportions stay; none
   on a turned picture, which can only be moved) and a small glass bar:
   Turn Left, Turn Right, Delete. The tab adds Bring to Front, Send to
   Back, Replace… with Fit, Fill or Stretch (each said in one sentence) and
-  Save Image As…. Pictures can be pasted or dropped onto the page.
+  Save Image As…. Pictures can be pasted or dropped onto the page. Crop
+  (on the bar and in the tab) shows a shaded rectangle with eight handles
+  on the picture and Cancel / Done; Flip Across, Flip Down and an Opacity
+  slider sit in the tab.
+- **Shapes** (lines, boxes, logos drawn on the page) get the same frame
+  and bar (Turn Left, Turn Right, Duplicate, Delete); a logo drawn from
+  many shapes is selected as one. One rectangle or line also shows a round
+  handle at each corner or end. The Shapes section sets fill, outline,
+  line width, dash and opacity, each change one Undo.
+- **Page Setup…** opens a sheet for the page being read: margins (scale or
+  move the content), paper size (fit, fill or keep size), extra space on
+  one side, and the five page boxes, each named in plain words with one
+  sentence on what it is for.
 - **Add Text says what it is not**: real page text, unlike a Text Box,
   which floats on top as a comment. The tab says once, in a disclosure,
   what keeping the original font can and can't do.
@@ -529,6 +554,12 @@ word and type.
   nothing. The end is one Undo, with a summary in plain words ("Text found
   on 12 of 14 pages; 2 pages look blank."), the average confidence and
   the pages worth checking.
+- **Make Editable Text** turns scanned pages into real text the Edit tab
+  can change: Text Over the Scan (the scan stays, its old letters painted
+  out) or Text Only (figures, signatures and stamps kept as pictures),
+  each said in one sentence. Pages not read yet are read first with the
+  Recognize Text choices; the end is one Undo and a sentence saying how
+  many lines became text and how many are worth checking.
 - **Show Recognized Text** draws the words read over the scan on a light
   wash, doubtful ones tinted yellow (not the accent); clicking one opens
   a small field to correct it.

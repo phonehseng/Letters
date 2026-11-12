@@ -91,6 +91,18 @@ export interface ImagesStatus {
   error: string | null;
 }
 
+/** what Make Editable Text does with the scan */
+export type ScanMode = "textOverCleanedImage" | "textOnly";
+
+export interface EditableSummary {
+  pages: number;
+  lines: number;
+  /** lines read with low confidence, worth checking against the scan */
+  doubtfulLines: number;
+  /** pictures kept from the scans (text only) */
+  figures: number;
+}
+
 export function optionsFrom(languages: string[], cleanup: CleanupChoices): OcrOptions {
   return { languages, preprocess: { ...cleanup, contrast: true, binarize: true, cleanBorders: true } };
 }
@@ -112,4 +124,7 @@ export const ocrApi = {
   imagesStatus: (job: number) => invoke<ImagesStatus>("ocr_images_status", { job }),
   imagesCancel: (job: number) => invoke<void>("ocr_images_cancel", { job }),
   openNewDocument: (job: number) => invoke<DocumentState>("ocr_open_new_document", { job }),
+  /** pages made real text: from a finished run (`job`), or pages read before */
+  makeEditable: (id: number, pages: number[], job: number | null, mode: ScanMode, consent: { invalidateSignatures: boolean }) =>
+    invoke<{ document: DocumentState; summary: EditableSummary }>("ocr_make_editable", { id, pages, job, mode, consent }),
 };
