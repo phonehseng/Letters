@@ -87,7 +87,12 @@ describe("options and checking", () => {
   });
 
   it("settings can make easy to edit the starting style", () => {
-    expect(defaultOptions("easyToEdit").styles.word).toBe("easyToEdit");
+    expect(defaultOptions({ wordStyle: "easyToEdit" }).styles.word).toBe("easyToEdit");
+    // settings (files): the document format and the picture format the dialog starts on
+    expect(defaultOptions({ document: "odt" }).format).toBe("openDocument");
+    expect(defaultOptions({ document: "docx" }).format).toBe("word");
+    expect(defaultOptions({ picture: "jpeg" }).image).toBe("jpeg");
+    expect(defaultOptions().image).toBe("png");
   });
 
   it("reads a typed page range into 0-based pages", () => {

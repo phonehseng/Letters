@@ -121,6 +121,7 @@
   import ExportSheet from "./export/ExportSheet.svelte";
   // forms round two: Prepare & Check (lib/standards)
   import StandardsSheet from "./standards/StandardsSheet.svelte";
+  import type { ExportStart } from "./export/exportChoices";
   import AiPanel from "./ai/AiPanel.svelte";
   import type { AiTab, Rect as AiRect } from "./ai/aiPanel";
   import { currentSettings, openSettingsWindow } from "./settings/settingsApi";
@@ -176,7 +177,10 @@
   let aiTab = $state<AiTab | undefined>(undefined);
   let aiTopic = $state("");
   let aiEnabled = $state(false);
-  let wordExportStyle = $state<"exactMatch" | "easyToEdit">("exactMatch");
+  // settings (files): what Export To… starts with
+  let exportStart = $state<Partial<ExportStart>>({});
+  // settings (general): the zoom is set once, when the document has opened
+  let startingZoomSet = false;
   const showAi = $derived(panels.includes("ai"));
   // true until the reader picks their own zoom. while it is true the
   // page keeps filling the width, even when the window is resized.
@@ -597,7 +601,13 @@
   async function readSettings() {
     const settings = await currentSettings();
     aiEnabled = settings.ai.enabled;
-    wordExportStyle = settings.files.wordExportStyle;
+    exportStart = { wordStyle: settings.files.wordExportStyle, document: settings.files.document, picture: settings.files.picture };
+    if (!startingZoomSet) {
+      startingZoomSet = true;
+      // "fitWidth" (the default) is what the viewer already does; a percentage stops following the width
+      const percent = Number(settings.general.defaultZoom);
+      if (Number.isFinite(percent) && percent > 0) setZoom(percent / 100);
+    }
     if (!aiEnabled && showAi && aiTab !== "findTopic") panels = closePanel(panels, "ai");
   }
 
@@ -1184,7 +1194,7 @@
 
     <!-- export: Export To… (lib/export) -->
     {#if exporting}
-      <ExportSheet document={doc} top={toolbarHeight} wordStyle={wordExportStyle} onClose={() => (exporting = false)} />
+      <ExportSheet document={doc} top={toolbarHeight} starting={exportStart} onClose={() => (exporting = false)} />
     {/if}
     <!-- forms round two: Prepare & Check… (lib/standards) -->
     {#if preparing}

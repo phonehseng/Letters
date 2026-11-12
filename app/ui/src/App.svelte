@@ -43,7 +43,7 @@
   // Document…", spreadsheets and presentations shown as pdfs (lib/export, lib/settings)
   import { openPdfAsDocumentWindow, openPdfFileAsDocument, showOfficeAsPdf, takeOpenAsDocument } from "./lib/export/exportApi";
   import { isShownAsPdf, shownAsPdfSentence } from "./lib/export/openByKind";
-  import { openSettingsWindow, SETTINGS_WINDOW } from "./lib/settings/settingsApi";
+  import { currentSettings, openSettingsWindow, SETTINGS_WINDOW } from "./lib/settings/settingsApi";
   import SettingsScreen from "./lib/settings/SettingsScreen.svelte";
   import { chooseFile as choosePdf } from "./lib/api";
   // search all documents: its own screen over the window (lib/library)
@@ -104,6 +104,19 @@
    * opens a file in this window, or in a new window if this one already
    * shows a document: every window keeps its own document.
    */
+  /**
+   * opens a document chosen on the home screen (Recents or a pinned folder):
+   * in a new window when Settings (General) says so, keeping this one on
+   * the home screen; otherwise as openPath does.
+   */
+  async function openFromHome(path: string) {
+    const inNewWindow = await currentSettings()
+      .then((settings) => settings.general.openInNewWindows)
+      .catch(() => false);
+    if (inNewWindow && !isPicturePath(path)) await newWindow(path);
+    else await openPath(path);
+  }
+
   async function openPath(path: string, withPassword?: string) {
     // scan: a picture is offered as a new pdf (New from Images)
     if (isPicturePath(path)) {
@@ -609,7 +622,7 @@
       {/await}
     {/key}
   {:else}
-    <Home onOpenPath={openPath} onChooseFile={chooseAndOpen} onNewWindow={() => newWindow()} />
+    <Home onOpenPath={openFromHome} onChooseFile={chooseAndOpen} onNewWindow={() => newWindow()} />
   {/if}
   <!-- code: Export as Code File… and Check Code in This Document, beside a pdf or a word document -->
   {#if openedDocument}

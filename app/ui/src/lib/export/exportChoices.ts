@@ -127,12 +127,21 @@ export interface ExportOptions {
   pagesText: string;
 }
 
-/** the starting options. `wordStyle` comes from Settings (Files). */
-export function defaultOptions(wordStyle: Style = "exactMatch"): ExportOptions {
+/** what Settings (Files) says the dialog starts with */
+export interface ExportStart {
+  wordStyle: Style;
+  /** New Documents Are Saved As: the document format the dialog starts on */
+  document: "docx" | "odt";
+  /** Pages Exported as Pictures Start As */
+  picture: "png" | "jpeg" | "tiff";
+}
+
+/** the starting options, from Settings (Files). */
+export function defaultOptions(start: Partial<ExportStart> = {}): ExportOptions {
   return {
-    format: "word",
-    styles: { word: wordStyle, webPage: "exactMatch", text: "easyToEdit" },
-    image: "png",
+    format: start.document === "odt" ? "openDocument" : "word",
+    styles: { word: start.wordStyle ?? "exactMatch", webPage: "exactMatch", text: "easyToEdit" },
+    image: start.picture ?? "png",
     dpi: 150,
     color: "color",
     quality: 85,
