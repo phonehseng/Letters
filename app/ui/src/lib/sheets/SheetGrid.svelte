@@ -90,7 +90,7 @@
       canvas.height = Math.round(height * ratio);
     }
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    void view.cache.want(view.sheet, layout.visibleRange());
+    for (const range of layout.visibleRanges()) void view.cache.want(view.sheet, range);
     const sheet = { sheet: view.sheet, cache: view.cache, styles: view.styles, merged: view.info?.merged ?? [], showGridLines: view.info?.showGridLines ?? true, zoom: view.zoom };
     for (const region of layout.regions()) paintRegion(context, layout, region, sheet);
     paintOverlay(context, layout, { selection: view.selection, references: shownReferences(), copied, fillPreview, filter: view.info?.filter ?? null, placeholders: view.info?.placeholders ?? [], editing: editor.active }, theme);

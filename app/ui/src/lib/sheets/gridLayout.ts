@@ -63,6 +63,21 @@ export class GridLayout {
     return this.headerHeight + this.rows.offsetOf(row) - this.scrollY;
   }
 
+  /**
+   * where a row's bottom edge is drawn: its top plus its own height. the
+   * top of the next row is no good for the last frozen row, because the
+   * next row scrolls: scrolled down, that gave the frozen row a negative
+   * height, and its number and cells weren't drawn (an empty band).
+   */
+  bottomOf(row: number): number {
+    return this.yOf(row) + this.rows.sizeOf(row);
+  }
+
+  /** where a column's right edge is drawn (see bottomOf). */
+  rightOf(col: number): number {
+    return this.xOf(col) + this.cols.sizeOf(col);
+  }
+
   /** the scrolled columns that show, first to last. */
   private scrolledCols(): [number, number] {
     const left = this.frozenWidth + this.scrollX;
@@ -93,11 +108,17 @@ export class GridLayout {
     return regions;
   }
 
-  /** every row and column on screen, for asking the shell for their cells. */
-  visibleRange(): Range {
-    const [firstCol, lastCol] = this.scrolledCols();
-    const [firstRow, lastRow] = this.scrolledRows();
-    return { start: { row: this.frozenRows > 0 ? 0 : firstRow, col: this.frozenCols > 0 ? 0 : firstCol }, end: { row: lastRow, col: lastCol } };
+  /**
+   * the cells on screen, one range per region, for asking the shell for
+   * them. one range from the frozen rows down to the last row shown asked
+   * for every row between (about 2,300 blocks near row 150,000), and the
+   * cache, which keeps the newest blocks, then dropped the frozen rows':
+   * scrolled down, a frozen top row showed as an empty band.
+   */
+  visibleRanges(): Range[] {
+    return this.regions()
+      .filter((region) => region.lastRow >= region.firstRow && region.lastCol >= region.firstCol)
+      .map((region) => ({ start: { row: region.firstRow, col: region.firstCol }, end: { row: region.lastRow, col: region.lastCol } }));
   }
 
   /** the cell under a canvas point (headers give row or column -1). */
@@ -123,7 +144,7 @@ export class GridLayout {
   rectOf(range: Range): { x: number; y: number; width: number; height: number } {
     const x = this.xOf(range.start.col);
     const y = this.yOf(range.start.row);
-    return { x, y, width: this.xOf(range.end.col + 1) - x, height: this.yOf(range.end.row + 1) - y };
+    return { x, y, width: this.rightOf(range.end.col) - x, height: this.bottomOf(range.end.row) - y };
   }
 
   /** the scroll position that brings a cell fully into view (frozen cells need none). */

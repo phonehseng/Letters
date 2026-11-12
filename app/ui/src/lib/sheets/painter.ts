@@ -81,7 +81,7 @@ function paintFills(ctx: CanvasRenderingContext2D, layout: GridLayout, region: R
     const x = layout.xOf(cell.col);
     const y = layout.yOf(cell.row);
     ctx.fillStyle = cell.background;
-    ctx.fillRect(x, y, layout.xOf(cell.col + 1) - x, layout.yOf(cell.row + 1) - y);
+    ctx.fillRect(x, y, layout.rightOf(cell.col) - x, layout.bottomOf(cell.row) - y);
   });
 }
 
@@ -128,7 +128,7 @@ function paintTexts(ctx: CanvasRenderingContext2D, layout: GridLayout, region: R
     if (!cell.text || cell.merge) return;
     const x = layout.xOf(cell.col);
     const y = layout.yOf(cell.row);
-    const rect = { x, y, width: layout.xOf(cell.col + 1) - x, height: layout.yOf(cell.row + 1) - y };
+    const rect = { x, y, width: layout.rightOf(cell.col) - x, height: layout.bottomOf(cell.row) - y };
     if (rect.width <= 0 || rect.height <= 0) return;
     paintText(ctx, cell, rect, sheet, overflowWidth(layout, region, sheet, cell, rect.width));
     if (cell.hasNote) paintNoteMark(ctx, rect);
@@ -242,8 +242,8 @@ function paintBorders(ctx: CanvasRenderingContext2D, layout: GridLayout, region:
     if (!borders || borders.every((edge) => !edge)) return;
     const x1 = Math.round(layout.xOf(cell.col)) - 0.5;
     const y1 = Math.round(layout.yOf(cell.row)) - 0.5;
-    const x2 = Math.round(layout.xOf(cell.col + 1)) - 0.5;
-    const y2 = Math.round(layout.yOf(cell.row + 1)) - 0.5;
+    const x2 = Math.round(layout.rightOf(cell.col)) - 0.5;
+    const y2 = Math.round(layout.bottomOf(cell.row)) - 0.5;
     const edges: [number, number, number, number][] = [
       [x1, y1, x2, y1],
       [x2, y1, x2, y2],

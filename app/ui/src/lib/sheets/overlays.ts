@@ -142,8 +142,8 @@ function paintFilterButtons(ctx: CanvasRenderingContext2D, layout: GridLayout, f
 }
 
 function filterButtonRect(layout: GridLayout, row: number, col: number) {
-  const right = layout.xOf(col + 1);
-  const bottom = layout.yOf(row + 1);
+  const right = layout.rightOf(col);
+  const bottom = layout.bottomOf(row);
   return { x: right - FILTER_BUTTON - 2, y: bottom - FILTER_BUTTON - 2 };
 }
 
@@ -229,7 +229,7 @@ function selectedRows(selection: Selection, row: number): "whole" | "part" | nul
 function paintColumnHeaders(ctx: CanvasRenderingContext2D, layout: GridLayout, first: number, last: number, selection: Selection, theme: Theme) {
   for (let col = first; col <= last; col += 1) {
     const x = layout.xOf(col);
-    const width = layout.xOf(col + 1) - x;
+    const width = layout.rightOf(col) - x;
     if (width <= 0 || x + width < layout.headerWidth) continue;
     const marked = selectedCols(selection, col);
     if (marked) {
@@ -246,7 +246,7 @@ function paintColumnHeaders(ctx: CanvasRenderingContext2D, layout: GridLayout, f
 function paintRowHeaders(ctx: CanvasRenderingContext2D, layout: GridLayout, first: number, last: number, selection: Selection, theme: Theme) {
   for (let row = first; row <= last; row += 1) {
     const y = layout.yOf(row);
-    const height = layout.yOf(row + 1) - y;
+    const height = layout.bottomOf(row) - y;
     if (height <= 0 || y + height < layout.headerHeight) continue;
     const marked = selectedRows(selection, row);
     if (marked) {
