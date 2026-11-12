@@ -6,6 +6,7 @@
 //! are calculated again; edits that move rows, columns or sheets rebuild
 //! the engine, because every reference may have shifted.
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -17,6 +18,9 @@ use serde::Serialize;
 use super::files::SheetFormat;
 use super::history::{apply_all, Edit, History, Step, Touched};
 use super::look::{sheet_tabs, SheetTab};
+
+/// said when the engine fails while calculating; the change is taken back
+const ENGINE_FAULT: &str = "Letters couldn’t calculate this change, so it wasn’t made. Check the formula: a function may be missing some of its arguments.";
 
 /// what the ui learns after an edit, an undo or a redo.
 #[derive(Clone, Debug, Serialize)]
@@ -104,12 +108,12 @@ impl SheetDocument {
 
     /// applies one action and remembers how to undo it.
     pub fn apply(&mut self, edits: &[Edit], label: &str) -> Result<EditOutcome, String> {
-        let (undo, touched) = apply_all(&mut self.book, edits)?;
+        let (undo, touched, started) = self.change(edits)?;
         self.history.record(Step {
             label: label.to_string(),
             edits: undo,
         });
-        Ok(self.after_change(touched, None))
+        Ok(self.outcome(touched, None, started))
     }
 
     /// takes back the last action; `None` when there is nothing to undo.
@@ -117,12 +121,14 @@ impl SheetDocument {
         let Some(step) = self.history.take_undo() else {
             return Ok(None);
         };
-        let (redo, touched) = apply_all(&mut self.book, &step.edits)?;
+        let (redo, touched, started) = self.change(&step.edits).inspect_err(|_| {
+            self.history.push_undo(step.clone());
+        })?;
         self.history.push_redo(Step {
             label: step.label.clone(),
             edits: redo,
         });
-        Ok(Some(self.after_change(touched, Some(step.label))))
+        Ok(Some(self.outcome(touched, Some(step.label), started)))
     }
 
     /// does the last undone action again.
@@ -130,19 +136,36 @@ impl SheetDocument {
         let Some(step) = self.history.take_redo() else {
             return Ok(None);
         };
-        let (undo, touched) = apply_all(&mut self.book, &step.edits)?;
+        let (undo, touched, started) = self.change(&step.edits).inspect_err(|_| {
+            self.history.push_redo(step.clone());
+        })?;
         self.history.push_undo(Step {
             label: step.label.clone(),
             edits: undo,
         });
-        Ok(Some(self.after_change(touched, Some(step.label))))
+        Ok(Some(self.outcome(touched, Some(step.label), started)))
     }
 
-    fn after_change(&mut self, touched: Touched, label: Option<String>) -> EditOutcome {
+    /// applies edits and calculates what they affect. if the engine fails
+    /// while calculating (a fault inside it, such as a function given too
+    /// few arguments), the edits are taken back and the workbook is
+    /// calculated afresh, so the person never sees half a change and the
+    /// ui always gets an answer
+    fn change(&mut self, edits: &[Edit]) -> Result<(Vec<Edit>, Touched, Instant), String> {
         let started = Instant::now();
+        let (undo, touched) = apply_all(&mut self.book, edits)?;
+        let calculated = catch_unwind(AssertUnwindSafe(|| self.recalculate(&touched)));
+        if calculated.is_err() {
+            let _ = apply_all(&mut self.book, &undo);
+            self.rebuild_engine();
+            return Err(ENGINE_FAULT.into());
+        }
         self.revision += 1;
         self.stats = None;
-        let structure = touched.structure || touched.layout_only;
+        Ok((undo, touched, started))
+    }
+
+    fn recalculate(&mut self, touched: &Touched) {
         if touched.structure {
             self.engine = Engine::new(&self.book);
             let report = self.engine.recalculate_all(&mut self.book);
@@ -151,10 +174,27 @@ impl SheetDocument {
             let report = self.engine.cells_changed(&mut self.book, &touched.cells);
             self.update_circular(&touched.cells, report);
         }
+    }
+
+    /// a fresh engine after a fault; a second fault leaves the stored values
+    fn rebuild_engine(&mut self) {
+        let book = &mut self.book;
+        let rebuilt = catch_unwind(AssertUnwindSafe(|| {
+            let mut engine = Engine::new(book);
+            let report = engine.recalculate_all(book);
+            (engine, report.circular)
+        }));
+        if let Ok((engine, circular)) = rebuilt {
+            self.engine = engine;
+            self.circular = circular;
+        }
+    }
+
+    fn outcome(&self, touched: Touched, label: Option<String>, started: Instant) -> EditOutcome {
         EditOutcome {
             revision: self.revision,
             dirty: self.dirty(),
-            structure,
+            structure: touched.structure || touched.layout_only,
             sheets: sheet_tabs(&self.book),
             undo_label: self.history.undo_label(),
             redo_label: self.history.redo_label(),
@@ -163,7 +203,6 @@ impl SheetDocument {
             calc_milliseconds: started.elapsed().as_secs_f64() * 1000.0,
         }
     }
-
     /// an incremental run only sees the loops among what it calculated:
     /// loops it no longer finds among those cells are gone
     fn update_circular(&mut self, edited: &[CellKey], report: CalcReport) {

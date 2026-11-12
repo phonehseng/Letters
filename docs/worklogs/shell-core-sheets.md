@@ -53,3 +53,13 @@ engine's formula-typing helpers because they count the cursor in bytes (and
 the argument hint in characters) while the web view counts utf-16 units: a
 formula with an accent or an emoji before the cursor would otherwise put the
 engine's cursor inside a letter and panic.
+
+## 2026-11-12 a fault inside the engine takes the change back
+
+Typing =SUBSTITUTE(B2:B5) in the real app made the engine index an argument
+that wasn't there (core/sheets calc/functions/text.rs reads s[1] and s[2]
+without checking how many arguments came) and panic. A panicking command
+never answers, so the window's queue of edits waited forever. Calculating is
+now guarded: if the engine fails, the edits are taken back, the engine is
+built afresh and the person reads a sentence instead. The engine's missing
+check is reported for core/sheets to fix.

@@ -268,3 +268,23 @@ fn a_200000_row_workbook_opens_edits_and_answers_the_grid_in_time() {
         .unwrap();
     println!("insert a row (engine rebuilt): {:?}", started.elapsed());
 }
+
+#[test]
+fn a_fault_inside_the_engine_takes_the_change_back_with_a_sentence() {
+    let dir = folder("fault");
+    let sessions = sessions(&dir);
+    let opened = sessions.open("main", &two_and_triple(&dir), false).unwrap();
+    // the engine indexes SUBSTITUTE's missing arguments (core/sheets text.rs)
+    let error = sessions
+        .with(opened.id, |d| {
+            d.apply(&[typed(5, 1, "=SUBSTITUTE(A1:A3)")], "Typing")
+        })
+        .unwrap_err();
+    assert!(error.contains("wasn’t made"), "{error}");
+    assert_eq!(value(&sessions, opened.id, 5, 1), Value::Blank);
+    let outcome = sessions
+        .with(opened.id, |d| d.apply(&[typed(0, 0, "4")], "Typing"))
+        .unwrap();
+    assert_eq!(outcome.undo_label.as_deref(), Some("Typing"));
+    assert_eq!(value(&sessions, opened.id, 0, 1), Value::Number(12.0));
+}
