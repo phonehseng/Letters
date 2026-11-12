@@ -138,6 +138,16 @@ describe("the annotate session", () => {
     expect(session.note).toBeNull();
   });
 
+  it("keeps a note's typed words when another tool is chosen", async () => {
+    const { session } = makeSession();
+    await session.placeFromKeyboard("note");
+    session.noteTyped = "Check the graph";
+    session.setTool("highlight");
+    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    expect((calls[0].args[2] as { contents: string }).contents).toBe("Check the graph");
+    expect(session.note).toBeNull();
+  });
+
   it("leaves no note behind when a new one is closed empty", async () => {
     const { session } = makeSession();
     await session.placeFromKeyboard("note");

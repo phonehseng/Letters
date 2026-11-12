@@ -235,6 +235,7 @@ export class AnnotateSession {
   /** makes a tool the active one. the one before saves anything still waiting (a drawing). */
   setTool(tool: AnnotateToolId) {
     if (tool === this.tool) return;
+    this.closeNoteKeepingWords();
     this.pageTool.finish?.();
     this.tool = tool;
     // a text selection is kept for the mark tools, which can apply it
@@ -247,7 +248,7 @@ export class AnnotateSession {
     const hit = annotationAt(this.annotations, pointer.page, pointer);
     // a click away from the open note keeps what was typed in it, as
     // leaving a text box does; only Escape or the close button drop it
-    if (this.note && hit?.id !== this.note.id) this.keepTypedNote();
+    if (this.note && hit?.id !== this.note.id) void this.keepTypedNote();
     if (!hit) {
       this.deselect();
       this.note = null;
@@ -412,6 +413,7 @@ export class AnnotateSession {
   startNote(page: number, point: Point) {
     const size = this.#host.pageSize(page);
     const corner = size ? rectAround(point, NOTE_ICON_SIZE, NOTE_ICON_SIZE, size) : { x: point.x, y: point.y };
+    this.closeNoteKeepingWords();
     this.deselect();
     this.note = { page, position: { x: corner.x, y: corner.y }, id: null, text: "" };
     // a note is placed one at a time; Select comes back for reading it
@@ -444,12 +446,22 @@ export class AnnotateSession {
    * the note is being closed by a click elsewhere: what was typed in it is
    * saved, unless nothing changed or a new note was left empty.
    */
-  keepTypedNote() {
+  /**
+   * another tool, a new note or a text box closes the note being typed:
+   * its words are kept, as a click away keeps them (Escape drops them).
+   */
+  closeNoteKeepingWords() {
+    if (!this.note) return;
+    void this.keepTypedNote();
+    this.note = null;
+  }
+
+  async keepTypedNote(): Promise<void> {
     const draft = this.note;
     const typed = this.noteTyped;
     if (!draft || typed === null || typed === draft.text) return;
     if (draft.id === null && typed.trim() === "") return;
-    void this.saveNote(typed, draft);
+    await this.saveNote(typed, draft);
   }
 
   async reply(to: AnnotationInfo, text: string): Promise<boolean> {
@@ -467,6 +479,7 @@ export class AnnotateSession {
 
   /** opens a text box for typing, on the page, where it will be. */
   startTextBox(page: number, rect: Rect) {
+    this.closeNoteKeepingWords();
     this.deselect();
     this.editing = { page, rect, id: null, text: "" };
     this.tool = "select";
@@ -474,8 +487,7 @@ export class AnnotateSession {
 
   editTextBox(annotation: AnnotationInfo) {
     if (annotation.details.type !== "textBox" || !annotation.editable) return;
-    this.keepTypedNote();
-    this.note = null;
+    this.closeNoteKeepingWords();
     // the tab's text controls show, and change, this box's own style while it is typed in
     const { font, fontSize, textColor, align, fill } = annotation.details;
     this.styles.textBox = { ...fontParts(font), size: fontSize, color: textColor, align, fill };
