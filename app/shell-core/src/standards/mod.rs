@@ -27,6 +27,29 @@ pub use font_source::LibraryFonts;
 /// why a signed document isn't converted, and what to do instead.
 pub const SIGNED_SOURCE: &str = "This document is digitally signed. A converted copy is a rewritten file, so its signatures would no longer check out, and PDF/A doesn’t allow that. Convert the document before it is signed, then sign the PDF/A copy.";
 
+/// why a password-protected document isn't checked or copied: its objects
+/// can't be read without the password, so a smaller copy came out as an
+/// empty 416-byte file and Check This PDF found "nothing" in it.
+pub const LOCKED_SOURCE: &str =
+    "This PDF is locked with a password. Unlock it first (Protect, Unlock for Editing), then try again.";
+
+/// refuses a document whose objects are encrypted (see LOCKED_SOURCE).
+pub fn refuse_locked(document: &Document) -> Result<(), String> {
+    if document.trailer.has(b"Encrypt") {
+        return Err(LOCKED_SOURCE.to_owned());
+    }
+    Ok(())
+}
+
+/// `refuse_locked` for the bytes of a file.
+pub fn refuse_locked_bytes(bytes: &[u8]) -> Result<(), String> {
+    match Document::load_mem(bytes) {
+        Ok(document) => refuse_locked(&document),
+        // a file lopdf can't read is left to the check, which says what is wrong
+        Err(_) => Ok(()),
+    }
+}
+
 /// a converted copy: what the conversion did, and the file's bytes.
 pub struct ConvertedCopy {
     pub report: ConversionReport,
@@ -69,7 +92,10 @@ pub fn optimized_copy(source: &Path, options: &OptimizeOptions) -> Result<Optimi
 }
 
 fn load(source: &Path) -> Result<Document, String> {
-    Document::load(source).map_err(|error| StandardsError::from(error).to_string())
+    let document =
+        Document::load(source).map_err(|error| StandardsError::from(error).to_string())?;
+    refuse_locked(&document)?;
+    Ok(document)
 }
 
 /// draws pages of a pdf file with the app's engine, for pdf/a-1

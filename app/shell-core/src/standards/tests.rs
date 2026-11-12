@@ -95,3 +95,22 @@ fn see_through_pixels_are_laid_on_white() {
         vec![255, 0, 0, 255, 255, 255, 127, 127, 127]
     );
 }
+
+#[test]
+fn a_password_protected_document_is_refused_rather_than_copied_empty() {
+    // its objects can't be read without the password: a smaller copy came
+    // out as a 416 byte file with no pages
+    let dir = temp_dir("standards-locked");
+    let source = dir.join("locked.pdf");
+    let bytes = crate::compare::test_files::locked_pdf_bytes();
+    fs::write(&source, &bytes).unwrap();
+
+    let smaller = optimized_copy(&source, &OptimizeOptions::default());
+    assert_eq!(smaller.err().as_deref(), Some(LOCKED_SOURCE));
+    let converted = convert_copy(&source, PdfaLevel::A2b, None, None);
+    assert_eq!(converted.err().as_deref(), Some(LOCKED_SOURCE));
+    assert_eq!(
+        refuse_locked_bytes(&bytes).err().as_deref(),
+        Some(LOCKED_SOURCE)
+    );
+}

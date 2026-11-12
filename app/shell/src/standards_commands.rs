@@ -11,7 +11,9 @@ use std::path::{Path, PathBuf};
 
 use letters_pdf::DocumentId;
 use letters_shell_core::forms::write_chosen_bytes;
-use letters_shell_core::standards::{convert_copy, optimized_copy, FileRenderer, LibraryFonts};
+use letters_shell_core::standards::{
+    convert_copy, optimized_copy, refuse_locked, refuse_locked_bytes, FileRenderer, LibraryFonts,
+};
 use letters_standards::{
     check_pdfa_file, check_pdfx, preflight, ConversionReport, OptimizeOptions, OptimizeReport,
     PdfaLevel, PdfaReport, PdfxLevel, PdfxOptions, PdfxReport, PreflightReport, CHECKER_NOTE,
@@ -96,7 +98,9 @@ pub fn standards_preflight(
     state: State<AppState>,
     id: u64,
 ) -> Result<PreflightReport, CommandError> {
-    preflight(&shown_bytes(&state, id)?).map_err(sentence)
+    let bytes = shown_bytes(&state, id)?;
+    refuse_locked_bytes(&bytes).map_err(CommandError::failed)?;
+    preflight(&bytes).map_err(sentence)
 }
 
 /// a smaller copy of what is shown, saved as a new file.
@@ -125,6 +129,7 @@ pub fn standards_check_pdfx(
     level: PdfxLevel,
 ) -> Result<PdfxReport, CommandError> {
     state.read_document(DocumentId(id), |document| {
+        refuse_locked(document).map_err(CommandError::failed)?;
         Ok(check_pdfx(document, level, &PdfxOptions::default()))
     })
 }
