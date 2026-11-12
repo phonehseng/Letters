@@ -39,6 +39,12 @@
   const nextId = $derived(order[position + 1] ?? null);
   const slideNumber = $derived(currentId ? session.deck.slides.findIndex((slide) => slide.id === currentId) + 1 : 0);
   const notes = $derived(session.deck.slides.find((slide) => slide.id === currentId)?.notes ?? "");
+  // what a screen reader hears on each step, as powerpoint's show says it:
+  // "Slide 2 of 5, The two stages" (the deck's own titles)
+  const slideTitle = $derived(session.deck.slides.find((slide) => slide.id === currentId)?.title ?? "");
+  const slideName = $derived(`Slide ${slideNumber} of ${session.deck.slides.length}${slideTitle ? `, ${slideTitle}` : ""}`);
+  const spoken = $derived(ended ? "End of slide show. Click or press Space to exit." : blank ? `Screen ${blank === "black" ? "blacked" : "whited"} out.` : slideName);
+  let show = $state<HTMLDivElement>();
   // the presenter's own slide takes about two thirds of the width, as in powerpoint
   const mainScale = $derived(presenter ? fitScale(session.deck, { width: width * 0.62, height: height * 0.62 }) : fitScale(session.deck, { width, height }, 8));
   const nextScale = $derived(fitScale(session.deck, { width: width * 0.3, height: height * 0.3 }));
@@ -107,6 +113,8 @@
   });
 
   onMount(() => {
+    // the keyboard and a screen reader start on the show, not the page behind it
+    show?.focus();
     const clock = setInterval(() => (now = Date.now()), 1000);
     void (async () => {
       if (presenter && (await screenCount().catch(() => 1)) > 1) {
@@ -128,6 +136,8 @@
 <!-- the show is driven by the window's keys (onKeyDown), so the click needs no key handler of its own -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 <div
+  bind:this={show}
+  tabindex="-1"
   class="show"
   class:presenter
   role="application"
@@ -139,12 +149,14 @@
     act("previous");
   }}
 >
+  <!-- each step is announced: the slide's number and title, the end, a blanked screen -->
+  <p class="visually-hidden" aria-live="polite">{spoken}</p>
   <div class="main">
     {#if ended}
       <p class="end">End of slide show, click to exit.</p>
     {:else if currentId}
       <div class="slide" style:width="{session.deck.width * mainScale}px" style:height="{session.deck.height * mainScale}px">
-        <SlidePictureView picture={session.pictures[currentId] ?? null} scale={mainScale} label="Slide {slideNumber}" />
+        <SlidePictureView picture={session.pictures[currentId] ?? null} scale={mainScale} label={slideName} />
       </div>
     {/if}
     {#if blank}<div class="blank {blank}" aria-label="Screen {blank === 'black' ? 'blacked' : 'whited'} out"></div>{/if}
