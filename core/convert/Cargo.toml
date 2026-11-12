@@ -5,5 +5,22 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+# every dependency is MIT or Apache-2.0 licensed (or both). the zip
+# container of xlsx and pptx files and the xml inside them are written
+# here by hand, so no office library is needed.
 [dependencies]
+flate2 = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+letters-edit = { path = "../edit" }
+letters-ocr = { path = "../ocr" }
+lopdf = "0.47"
+png = "0.18"
+serde = { version = "1", features = ["derive"] }
 thiserror = "2"
+tiff = { version = "0.11", default-features = false, features = ["lzw", "deflate"] }
+ttf-parser = "0.25"
+
+[dev-dependencies]
+letters-pdf = { path = "../pdf" }
+roxmltree = "0.20"
+serde_json = "1"
