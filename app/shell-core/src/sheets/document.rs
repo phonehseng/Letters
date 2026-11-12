@@ -10,6 +10,12 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::time::Instant;
 
+#[cfg(test)]
+thread_local! {
+    /// set by a test to make the next calculation fail (see recalculate)
+    pub(crate) static PLANTED_FAULT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 use letters_sheets::analysis::{SelectionStats, StatsCache};
 use letters_sheets::calc::{CalcReport, CellKey, Engine};
 use letters_sheets::{Range, Workbook};
@@ -166,6 +172,12 @@ impl SheetDocument {
     }
 
     fn recalculate(&mut self, touched: &Touched) {
+        // tests: the engine no longer has a known fault to trigger, so one
+        // is planted to check that a fault takes the change back
+        #[cfg(test)]
+        if PLANTED_FAULT.with(|planted| planted.replace(false)) {
+            panic!("a fault planted by a test");
+        }
         if touched.structure {
             self.engine = Engine::new(&self.book);
             let report = self.engine.recalculate_all(&mut self.book);
