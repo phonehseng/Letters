@@ -17,7 +17,7 @@ use crate::queue::NewestFirstQueue;
 use crate::search::{SearchMatch, SearchQuery, SearchResults, MAX_SEARCH_MATCHES};
 use crate::{DocumentId, PdfError};
 
-/// what the viewer needs to know about a freshly opened document.
+/// what the viewer needs to know about a freshly opened (or reloaded) document.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DocumentInfo {
     pub id: DocumentId,
@@ -52,8 +52,14 @@ enum Request {
         password: Option<String>,
         reply: Reply<DocumentInfo>,
     },
+    Reload {
+        id: DocumentId,
+        path: PathBuf,
+        reply: Reply<DocumentInfo>,
+    },
     Close {
         id: DocumentId,
+        done: Sender<()>,
     },
     Tile {
         key: TileKey,
@@ -137,9 +143,29 @@ impl RenderWorker {
         })
     }
 
+    /// points an open document at a different file, keeping the same id.
+    ///
+    /// used after an edit: the edited copy is a new file, and every window
+    /// keeps using the id it already has. the document's cached tiles are
+    /// dropped, because they show the old file. page count and sizes may
+    /// change. if the new file can't be opened the old one stays as it was.
+    pub fn reload(&self, id: DocumentId, path: &Path) -> Result<DocumentInfo, PdfError> {
+        self.ask(|reply| Request::Reload {
+            id,
+            path: path.to_path_buf(),
+            reply,
+        })
+    }
+
     /// closes a document and frees its cached tiles. safe to call twice.
+    ///
+    /// it waits until the worker has let go of the file, so the caller may
+    /// delete the file straight afterwards.
     pub fn close(&self, id: DocumentId) {
-        let _ = self.requests.send(Request::Close { id });
+        let (done, finished) = mpsc::channel();
+        if self.requests.send(Request::Close { id, done }).is_ok() {
+            let _ = finished.recv();
+        }
     }
 
     /// returns one tile as png bytes, from the cache when possible.
@@ -216,8 +242,8 @@ struct WaitingTile {
 
 /// the worker thread's loop. it ends when every handle has been dropped.
 ///
-/// opening, closing, stats, the outline and one slice of a search are
-/// quick and handled as they arrive.
+/// opening, reloading, closing, stats, the outline and one slice of a
+/// search are quick and handled as they arrive.
 /// tiles are slow, so they wait in a newest-first queue (see queue.rs)
 /// and are drawn one at a time between checks of the inbox.
 fn serve_requests(mut engine: PdfEngine, mut cache: TileCache, inbox: Receiver<Request>) {
@@ -261,9 +287,18 @@ fn accept(
                 .map(|(id, page_sizes)| DocumentInfo { id, page_sizes });
             let _ = reply.send(result);
         }
-        Request::Close { id } => {
+        Request::Reload { id, path, reply } => {
+            let result = engine.reload(id, &path).map(|page_sizes| {
+                // the cached tiles show the old file, so none of them may be shown again
+                cache.remove_where(|key| key.document == id);
+                DocumentInfo { id, page_sizes }
+            });
+            let _ = reply.send(result);
+        }
+        Request::Close { id, done } => {
             engine.close(id);
             cache.remove_where(|key| key.document == id);
+            let _ = done.send(());
         }
         Request::Tile { key, reply } => {
             if let Some(given_up) = waiting_tiles.push(WaitingTile { key, reply }) {

@@ -18,6 +18,8 @@ use crate::{DocumentId, PdfError};
 struct OpenDocument {
     document: PdfDocument<'static>,
     page_sizes: Vec<PageSize>,
+    /// kept so a reload of a locked document can unlock the new file too
+    password: Option<String>,
 }
 
 pub struct PdfEngine {
@@ -82,9 +84,35 @@ impl PdfEngine {
             OpenDocument {
                 document,
                 page_sizes: page_sizes.clone(),
+                password: password.map(str::to_owned),
             },
         );
         Ok((id, page_sizes))
+    }
+
+    /// swaps the file behind an open document for another one, keeping its id.
+    ///
+    /// this is how an edit becomes visible: the edited copy is written to
+    /// a new file and the document is pointed at it. the new file is opened
+    /// first, so if it can't be read the old one stays open and nothing
+    /// changes. page count and sizes may differ from before.
+    pub fn reload(&mut self, id: DocumentId, path: &Path) -> Result<Vec<PageSize>, PdfError> {
+        let password = self.document(id)?.password.clone();
+        let document = self
+            .pdfium
+            .load_pdf_from_file(path, password.as_deref())
+            .map_err(describe_open_error)?;
+        let page_sizes = read_page_sizes(&document)?;
+        // inserting drops the old document, which closes its file
+        self.documents.insert(
+            id,
+            OpenDocument {
+                document,
+                page_sizes: page_sizes.clone(),
+                password,
+            },
+        );
+        Ok(page_sizes)
     }
 
     pub fn close(&mut self, id: DocumentId) {
