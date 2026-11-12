@@ -17,7 +17,7 @@ use crate::logic::{fill_without_recalculating, form_logic, recalculate, FillRepo
 use crate::objects::check_document;
 use crate::read::{fields, FieldInfo, FieldKind};
 use fdf::{read_fdf, write_fdf};
-use table::{csv_cell, csv_row, read_csv_single, read_json, write_json};
+use table::{csv_cell, csv_row, decode_csv, read_csv_single, read_json, write_json};
 use xfdf::{read_xfdf, write_xfdf};
 
 /// a form data format.
@@ -141,7 +141,8 @@ pub fn import_data(
     let pairs = match format {
         DataFormat::Fdf => read_fdf(data)?,
         DataFormat::Xfdf => read_xfdf(&String::from_utf8_lossy(data))?,
-        DataFormat::Csv => read_csv_single(&String::from_utf8_lossy(data))?,
+        // excel writes csv in the computer's code page, often with ';' (table.rs)
+        DataFormat::Csv => read_csv_single(&decode_csv(data))?,
         DataFormat::Json => read_json(data)?,
     };
     let logic = form_logic(doc)?;

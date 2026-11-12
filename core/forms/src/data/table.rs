@@ -59,8 +59,79 @@ pub(super) fn write_json(answers: &[(FieldInfo, Answer)]) -> String {
 }
 
 /// reads rfc 4180 csv into rows of cells.
+/// the text of a csv file. excel on windows writes "csv (comma
+/// delimited)" in the computer's code page, not utf-8, so bytes that
+/// aren't utf-8 are read as windows-1252 (where "Zo\xEB" is "Zoë"); a
+/// utf-8 or utf-16 byte order mark decides first.
+pub(super) fn decode_csv(bytes: &[u8]) -> String {
+    if let Some(rest) = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
+        return String::from_utf8_lossy(rest).into_owned();
+    }
+    if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
+        return utf16(rest, u16::from_le_bytes);
+    }
+    if let Some(rest) = bytes.strip_prefix(&[0xFE, 0xFF]) {
+        return utf16(rest, u16::from_be_bytes);
+    }
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text.to_owned(),
+        Err(_) => bytes.iter().map(|byte| windows_1252(*byte)).collect(),
+    }
+}
+
+fn utf16(bytes: &[u8], unit: fn([u8; 2]) -> u16) -> String {
+    let units: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| unit(*pair))
+        .collect();
+    String::from_utf16_lossy(&units)
+}
+
+/// one windows-1252 byte as a character: latin-1 except 0x80 to 0x9f,
+/// which hold the euro sign, curly quotes, dashes and a few letters.
+fn windows_1252(byte: u8) -> char {
+    const HIGH: [char; 32] = [
+        '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8D}', 'Ž',
+        '\u{8F}', '\u{90}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9D}',
+        'ž', 'Ÿ',
+    ];
+    match byte {
+        0x80..=0x9F => HIGH[usize::from(byte - 0x80)],
+        _ => char::from(byte),
+    }
+}
+
+/// the separator of a csv: whichever of ',', ';' and tab its first line
+/// (the field names) holds most of, outside quotes. excel uses ';' where
+/// the computer's list separator is ';' (most of continental europe).
+fn separator_of(text: &str) -> char {
+    let first = text.lines().next().unwrap_or("");
+    let mut counts = [(',', 0usize), (';', 0), ('\t', 0)];
+    let mut quoted = false;
+    for c in first.chars() {
+        if c == '"' {
+            quoted = !quoted;
+        } else if !quoted {
+            if let Some(entry) = counts.iter_mut().find(|(separator, _)| *separator == c) {
+                entry.1 += 1;
+            }
+        }
+    }
+    // a tie (none at all: a single column) keeps the comma
+    counts
+        .iter()
+        .fold(
+            (',', 0),
+            |best, entry| if entry.1 > best.1 { *entry } else { best },
+        )
+        .0
+}
+
 fn parse_csv(text: &str) -> Vec<Vec<String>> {
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    let separator = separator_of(text);
     let mut rows = Vec::new();
     let mut row = Vec::new();
     let mut cell = String::new();
@@ -82,7 +153,7 @@ fn parse_csv(text: &str) -> Vec<Vec<String>> {
         }
         match c {
             '"' if cell.is_empty() => quoted = true,
-            ',' => row.push(std::mem::take(&mut cell)),
+            c if c == separator => row.push(std::mem::take(&mut cell)),
             '\r' => {}
             '\n' => {
                 row.push(std::mem::take(&mut cell));
@@ -226,6 +297,27 @@ pub fn merge_form_data(copies: &[FilledCopy]) -> MergedData {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn excel_csv_with_semicolons_is_read() {
+        // excel's csv where the list separator is ';'
+        let rows = parse_csv(&decode_csv(b"name;agree;course\r\nZoe;Yes;Physics\r\n"));
+        assert_eq!(rows[0], ["name", "agree", "course"]);
+        assert_eq!(rows[1], ["Zoe", "Yes", "Physics"]);
+        // a ';' inside quotes stays in its cell
+        let rows = parse_csv("name,note\nAda,\"one; two\"\n");
+        assert_eq!(rows[1], ["Ada", "one; two"]);
+    }
+
+    #[test]
+    fn excel_csv_in_the_windows_code_page_keeps_its_accents() {
+        let text = decode_csv(b"name,course\nZo\xEB,Art \x96 \x80 5\n");
+        assert_eq!(parse_csv(&text)[1], ["Zoë", "Art – € 5"]);
+        // utf-8, with or without a byte order mark, and utf-16 still read as before
+        assert_eq!(decode_csv("Zoë".as_bytes()), "Zoë");
+        assert_eq!(decode_csv(b"\xEF\xBB\xBFZo\xC3\xAB"), "Zoë");
+        assert_eq!(decode_csv(b"\xFF\xFEZ\x00o\x00\xEB\x00"), "Zoë");
+    }
 
     #[test]
     fn csv_quotes_round_trip() {
