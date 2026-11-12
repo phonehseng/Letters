@@ -16,6 +16,7 @@ members = [
     "core/exact",
     "core/layout",
     "core/fonts",
+    "core/search",
     "app/shell-core",
     "app/shell",
 ]
@@ -29,6 +30,13 @@ publish = false
 # similar inner loops are far too slow otherwise, and they rarely need debugging
 [profile.dev.package."*"]
 opt-level = 2
+
+# fonts: ttf-parser checks some of its own arithmetic with debug
+# assertions that hostile font files can trip. release builds have none
+# and fall back to bounds-checked reads, so debug builds and tests are
+# made to behave the same (see core/fonts/tests/robustness.rs)
+[profile.dev.package.ttf-parser]
+debug-assertions = false
 
 # small, fast release builds: the app should start quickly and stay light
 [profile.release]

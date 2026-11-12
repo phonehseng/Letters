@@ -1,0 +1,9 @@
+[package]
+name = "letters-search"
+description = "indexes every document the user chooses and searches them all at once, down to the page"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"
