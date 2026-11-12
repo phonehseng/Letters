@@ -24,6 +24,8 @@
   import SaveChangesSheet from "./lib/SaveChangesSheet.svelte";
   // the question when saving would write over someone else's change
   import ChangedOnDiskSheet, { type ChangedChoice } from "./lib/ChangedOnDiskSheet.svelte";
+  import UpdateNoteView from "./lib/updates/UpdateNote.svelte";
+  import { cancelUpdate, checkForUpdate, CLOSE_FOR_UPDATE, type UpdateNote } from "./lib/updates/updatesApi";
   import Viewer from "./lib/Viewer.svelte";
   // word-processor mode: .docx and .odt open in the writer (lib/writer)
   import { routeForPath, unsupportedMessage } from "./lib/writer/routing";
@@ -454,6 +456,38 @@
     return () => window.removeEventListener("keydown", onRegionKey, true);
   });
 
+  // in-app updates (lib/updates): the first window asks quietly a few
+  // seconds after it opens, at most once a day and never while its document
+  // has unsaved changes; the note offers Update and Restart or Later
+  let updateNote = $state<UpdateNote | null>(null);
+  const QUIET_CHECK_DELAY_MS = 4000;
+  $effect(() => {
+    if (getCurrentWindow().label !== "window-1") return;
+    const timer = setTimeout(() => {
+      if (openedDocument?.dirty) return;
+      checkForUpdate(true)
+        .then((note) => (updateNote = note))
+        .catch(() => {});
+    }, QUIET_CHECK_DELAY_MS);
+    return () => clearTimeout(timer);
+  });
+
+  // an update is ready to install: this window closes the way it always
+  // does, asking about unsaved changes; kept open, the update waits
+  $effect(() => {
+    if (getCurrentWindow().label === SETTINGS_WINDOW) return;
+    const stop = listen(CLOSE_FOR_UPDATE, async () => {
+      if (await mayLeaveDocument()) {
+        await getCurrentWindow().destroy();
+        return;
+      }
+      await cancelUpdate().catch(() => {});
+      updateNote = null;
+      errorMessage = "The update waits until your documents are saved or closed. Choose Check for Updates… in Settings to try again.";
+    });
+    return () => void stop.then((unlisten) => unlisten());
+  });
+
   // one window per file: the shell is told which file this window shows,
   // so opening it again (from Recents, Explorer or another window) comes here
   $effect(() => {
@@ -717,6 +751,10 @@
 
 {#if changedQuestion}
   <ChangedOnDiskSheet name={changedQuestion.name} message={changedQuestion.message} onChoose={changedQuestion.answer} />
+{/if}
+
+{#if updateNote}
+  <UpdateNoteView note={updateNote} onLater={() => (updateNote = null)} />
 {/if}
 
 {#if newFromImages}
