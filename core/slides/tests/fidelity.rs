@@ -78,7 +78,7 @@ struct SlideRow {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs Microsoft PowerPoint on windows and LibreOffice"]
 fn fidelity_harness() {
     let mut tables = String::new();
     let mut fonts = FontLibrary::system();
@@ -255,7 +255,7 @@ fn write_report(tables: &str) {
 /// prints each reference line with the matching letters line, for the
 /// deck named in FIDELITY_DECK (a diagnosis aid for the report's causes).
 #[test]
-#[ignore]
+#[ignore = "diagnostic"]
 fn fidelity_lines() {
     let name = std::env::var("FIDELITY_DECK").unwrap_or_else(|_| "pp_title_bullets".into());
     let reference = read_pdf(&out().join("corpus").join(format!("{name}.powerpoint.pdf"))).unwrap();

@@ -136,7 +136,7 @@ fn compare(name: &str, before: &[ShapeFacts], after: &[ShapeFacts]) {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs Microsoft PowerPoint on windows"]
 fn powerpoint_opens_our_edited_powerpoint_decks_unchanged_but_for_the_word() {
     let originals = decks("pp_");
     let edited: Vec<PathBuf> = originals.iter().map(|p| edit_one_word(p)).collect();
@@ -213,7 +213,7 @@ fn odp_facts(path: &Path) -> Vec<Vec<OdpShape>> {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs LibreOffice"]
 fn libreoffice_opens_our_edited_libreoffice_decks_unchanged_but_for_the_word() {
     let originals = decks("lo_");
     let edited: Vec<PathBuf> = originals.iter().map(|p| edit_one_word(p)).collect();
@@ -250,7 +250,7 @@ fn libreoffice_opens_our_edited_libreoffice_decks_unchanged_but_for_the_word() {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs Microsoft PowerPoint on windows"]
 fn powerpoint_opens_decks_converted_from_odp() {
     let mut written = Vec::new();
     let folder = out().join("from_odp");
@@ -288,7 +288,7 @@ fn powerpoint_opens_decks_converted_from_odp() {
     );
 }
 #[test]
-#[ignore]
+#[ignore = "needs Microsoft PowerPoint on windows"]
 fn powerpoint_opens_a_new_deck_made_from_nothing() {
     let mut deck = letters_slides::blank::blank_presentation();
     let mut slide =

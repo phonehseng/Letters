@@ -146,7 +146,7 @@ mod tests {
     /// LETTERS_VERIFY_DOCX (the file), LETTERS_VERIFY_OUT (the report).
     /// `cargo test -p letters-shell-core engine_against_word -- --ignored`
     #[test]
-    #[ignore]
+    #[ignore = "needs Microsoft Word on windows and a file in LETTERS_VERIFY_DOCX"]
     fn engine_against_word() {
         let path = std::path::PathBuf::from(std::env::var("LETTERS_VERIFY_DOCX").unwrap());
         let out = std::path::PathBuf::from(std::env::var("LETTERS_VERIFY_OUT").unwrap());

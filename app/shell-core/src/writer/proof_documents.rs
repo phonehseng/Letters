@@ -163,7 +163,7 @@ fn picture_png(width: u32, height: u32) -> Vec<u8> {
 }
 
 #[test]
-#[ignore]
+#[ignore = "writes proof documents into LETTERS_PROOF_DIR"]
 fn write_proof_documents() {
     let folder = std::path::PathBuf::from(std::env::var("LETTERS_PROOF_DIR").unwrap());
     std::fs::create_dir_all(&folder).unwrap();

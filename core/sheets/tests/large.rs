@@ -112,7 +112,7 @@ fn timed<T>(label: &str, work: impl FnOnce() -> T) -> T {
 }
 
 #[test]
-#[ignore]
+#[ignore = "timing; run in a release build"]
 fn two_hundred_thousand_rows() {
     println!(
         "one cell takes {} bytes in the grid",

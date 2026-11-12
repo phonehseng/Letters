@@ -281,7 +281,7 @@ mod tests {
     /// (app/ui/src/lib/writer/fixtures). run with LETTERS_FIXTURE_DIR set:
     /// `cargo test -p letters-shell-core write_text_box_fixtures -- --ignored`
     #[test]
-    #[ignore]
+    #[ignore = "writes the interface's fixtures into LETTERS_FIXTURE_DIR"]
     fn write_text_box_fixtures() {
         use letters_office::bridge;
         use letters_office::model::TextBox;
