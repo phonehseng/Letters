@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { prepareBlock, repairSwappedCharacters, swappedCharacters } from "./codeBlocks";
 import { exportLine, suggestedExportPath } from "./codeExport";
-import { checkerLine, resultFromOutcome } from "./compilerCheck";
+import { checkerLine, problemsToShow, resultFromOutcome } from "./compilerCheck";
 import { codeFileKind, guessLanguage, isCodePath, languageForPath } from "./languages";
 import { countProblems, countsSentence, mergeProblems, nextProblem, type Problem } from "./problems";
 import { CheckScheduler, type Timers } from "./scheduler";
@@ -161,6 +161,22 @@ describe("who checked the file", () => {
     expect(checkerLine("c", { problems: [], checker: null, note: "Basic check only: no C compiler (gcc or clang) found on this computer." })).toContain("no C compiler");
     expect(checkerLine("rust", null)).toBe("Basic check only");
     expect(checkerLine("html", null)).toBe("Checked inside Letters");
+  });
+
+  it("lists only the compiler's problems once it has finished, so its name never covers ours", () => {
+    const basic = [problem(3, "error", "Unexpected indent", "Letters (basic check)")];
+    // python said nothing: the file is valid, whatever the basic check thought
+    expect(problemsToShow(basic, { problems: [], checker: "Python 3.14.7", note: null })).toEqual([]);
+    // a real mistake is still listed, now in python's words
+    const python = [problem(5, "error", "expected ':'", "Python 3.14.7")];
+    expect(problemsToShow(basic, { problems: python, checker: "Python 3.14.7", note: null })).toEqual(python);
+  });
+
+  it("keeps the in-app problems while no compiler has finished", () => {
+    const basic = [problem(3, "error", "Unexpected indent", "Letters (basic check)")];
+    expect(problemsToShow(basic, null)).toEqual(basic);
+    expect(problemsToShow(basic, { problems: [], checker: null, note: "Basic check only: Python isn’t installed." })).toEqual(basic);
+    expect(problemsToShow(basic, { problems: [], checker: "Python 3.14.7", note: "Python 3.14.7 took too long and was stopped." })).toEqual(basic);
   });
 
   it("reads the shell's answer into problems with hints", () => {

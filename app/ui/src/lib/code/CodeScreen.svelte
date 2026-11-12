@@ -19,10 +19,10 @@
   import { CodeSession, AUTOSAVE_INTERVAL_MS, errorText } from "./codeSession.svelte";
   import CodeStatusBar from "./CodeStatusBar.svelte";
   import CodeToolbar from "./CodeToolbar.svelte";
-  import { checkerLine, hasCompilerCheck, runCompilerCheck, type CompilerResult } from "./compilerCheck";
+  import { checkerLine, hasCompilerCheck, problemsToShow, runCompilerCheck, type CompilerResult } from "./compilerCheck";
   import { goTo, showProblems } from "./editorSetup";
   import { languageInfo, type LanguageId } from "./languages";
-  import { mergeProblems, nextProblem, type Problem } from "./problems";
+  import { nextProblem, type Problem } from "./problems";
   import ProblemsPanel from "./ProblemsPanel.svelte";
   import { CheckScheduler, COMPILER_PAUSE_MS, IN_APP_PAUSE_MS } from "./scheduler";
   import { grammarProblems } from "./syntaxErrors";
@@ -54,7 +54,7 @@
   let windowWidth = $state(window.innerWidth);
   let recovery = $state(untrack(() => opened.recovery));
 
-  const problems = $derived(mergeProblems(inAppProblems, compiler?.problems ?? []));
+  const problems = $derived(problemsToShow(inAppProblems, compiler));
   const coverage = $derived(inAppCoverage(language));
   const checkedBy = $derived(session.fullFeatures ? checkerLine(language, compiler) : "Not checked: the file is large");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

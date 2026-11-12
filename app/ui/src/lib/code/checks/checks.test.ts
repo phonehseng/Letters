@@ -49,6 +49,14 @@ describe("html", () => {
     expect(messages.some((message) => message.startsWith("<ul> can’t go inside <p>"))).toBe(true);
   });
 
+  it("checks the content of a <template> as a fragment of its own", () => {
+    expect(checkHtml("<html><body><template><li>row</li><li>two<li>three</template></body></html>")).toEqual([]);
+    expect(checkHtml("<a href=\"#\"><template><a href=\"#x\">x</a></template></a>")).toEqual([]);
+    // inside the fragment the usual rules hold
+    const messages = checkHtml("<template><div><li>row</li></div><a><a>x</a></a></template>").map((problem) => problem.message);
+    expect(messages).toEqual(["<li> belongs inside <ul> or <ol>.", "A link can’t be inside another link."]);
+  });
+
   it("doesn't read tags inside a script", () => {
     expect(checkHtml("<script>if (a < b && c > d) { x = '<div>'; }</script>")).toEqual([]);
   });
@@ -78,6 +86,13 @@ describe("css", () => {
   it("finds braces that don't match, inside media queries too", () => {
     const problems = checkCss("@media (min-width: 40rem) {\n  p { color: red; }\n", known);
     expect(problems[0].message).toContain("never closed");
+  });
+
+  it("reads a ';' inside url(...) as part of the value", () => {
+    const icon = ".icon {\n  background: url(data:image/png;base64,iVBORw0KGgo=);\n  color: red;\n}\n";
+    expect(checkCss(icon, known)).toEqual([]);
+    const lostColon = checkCss(".icon {\n  background url(data:image/png;base64,iVBORw0KGgo=);\n  color: red;\n}\n", known);
+    expect(lostColon.map((problem) => [problem.line, problem.message.endsWith("needs a colon between the property and its value.")])).toEqual([[2, true]]);
   });
 
   it("never flags custom or vendor properties", () => {
@@ -124,6 +139,18 @@ describe("markdown", () => {
     expect(problems.map((problem) => problem.message)).toEqual(["This code block is never closed. Add ``` on a line of its own where it ends."]);
   });
 
+  it("makes anchors for headings underlined with === or ---", () => {
+    expect(checkMarkdown("Title\n=====\n\nPart\n----\n\nSee [part](#part).\n")).toEqual([]);
+    expect(checkMarkdown("A heading that runs\nover two lines\n---\n\n[up](#a-heading-that-runs-over-two-lines)\n")).toEqual([]);
+    const misspelled = checkMarkdown("Part\n----\n\nSee [part](#parts).\n");
+    expect(misspelled.map((problem) => problem.message)).toEqual(["No heading in this file makes the anchor “#parts”."]);
+  });
+
+  it("reads --- after a blank line as a dividing line, not a heading", () => {
+    const problems = checkMarkdown("Intro\n\n---\n\n[back](#intro)\n");
+    expect(problems.map((problem) => problem.message)).toEqual(["No heading in this file makes the anchor “#intro”."]);
+  });
+
   it("makes anchors the way github does", () => {
     expect(headingAnchor("Getting Started, Fast!")).toBe("getting-started-fast");
   });
@@ -140,6 +167,53 @@ describe("the basic check", () => {
     expect(checkBalance('print("hello)\n', "python")[0].message).toContain("missing its closing");
   });
 
+  it("knows a shell case pattern ends with a ) that has no (", () => {
+    const script = '#!/bin/sh\ncase "$1" in\n  start) echo starting ;;\n  stop|halt) echo stopping ;;\n  (*) echo "usage: $0 start|stop" ;;\nesac\n';
+    expect(checkBalance(script, "shell")).toEqual([]);
+    expect(checkBalance("case $x in a) echo a;; esac\n", "shell")).toEqual([]);
+    // the same ) after esac, or in an ordinary command, is still a mistake
+    expect(checkBalance(`${script}echo done)\n`, "shell").map((problem) => problem.line)).toEqual([7]);
+    expect(checkBalance("echo hi)\n", "shell")[0].message).toBe("This “)” has no opening “(”.");
+  });
+
+  it("reads shell quoting: no escapes in '...', and a backslash outside quotes", () => {
+    expect(checkBalance("echo 'it'\\''s' \\( not a group\necho $# ${#name} ${#list[@]}\n", "shell")).toEqual([]);
+    expect(checkBalance("echo 'it'\\''s\n", "shell")[0].message).toContain("missing its closing '");
+    expect(checkBalance("echo \\( (\n", "shell").map((problem) => problem.column)).toEqual([9]);
+  });
+
+  it("skips shell here-documents but not a shift that only looks like one", () => {
+    expect(checkBalance("cat <<EOF\n( not code\nEOF\ncat <<-'END'\n\t{ also text\n\tEND\necho ok\n", "shell")).toEqual([]);
+    expect(checkBalance("echo $((1 << x)) (\n", "shell").map((problem) => problem.message)).toEqual(["This parenthesis “(” is never closed."]);
+  });
+
+  it("reads java text blocks as one string over several lines", () => {
+    const textBlock = 'class A {\n  String s = """\n      { not code "quoted" (\n      \\""" still text\n      """;\n}\n';
+    expect(checkBalance(textBlock, "java")).toEqual([]);
+    const unclosed = checkBalance('class A {\n  String s = """\n      text;\n}\n', "java");
+    expect(unclosed.map((problem) => [problem.line, problem.message])).toEqual([
+      [2, 'This """ string is never closed. Add """ where it ends.'],
+      [1, "This brace “{” is never closed."],
+    ]);
+  });
+
+  it("reads rust raw strings and nested block comments", () => {
+    const valid = 'fn main() {\n    let s = r#"he said "}" "#;\n    let t = r"C:\\path\\(";\n    let u = br##"a "# ( "##;\n    /* outer /* inner { */ still comment } */\n}\n';
+    expect(checkBalance(valid, "rust")).toEqual([]);
+    // one */ too few: the outer comment runs on and hides the closing brace
+    expect(checkBalance("fn main() {\n    /* outer /* inner */\n}\n", "rust").map((problem) => problem.message)).toEqual([
+      "This comment is never closed. Add */.",
+      "This brace “{” is never closed.",
+    ]);
+    // a # too few at the end: the string runs on to the end of the file
+    expect(checkBalance('let s = r#"text"; fn f() {}', "rust")[0].message).toBe('This raw string is never closed. Add "# where it ends.');
+  });
+
+  it("reads mysql backtick names as names, brackets and all", () => {
+    expect(checkBalance("SELECT `weird(col` FROM t WHERE (a = 1);\n", "sql")).toEqual([]);
+    expect(checkBalance("SELECT `weird(col` FROM t WHERE (a = 1;\n", "sql").map((problem) => problem.column)).toEqual([33]);
+  });
+
   it("knows rust lifetimes are not strings", () => {
     expect(checkBalance("fn f<'a>(x: &'a str) -> &'a str { x }", "rust")).toEqual([]);
   });
@@ -153,5 +227,19 @@ describe("the basic check", () => {
     const lost = checkPythonIndentation("for n in numbers\n    total += n\n");
     expect(lost.map((problem) => [problem.line, problem.message.startsWith("Unexpected indent")])).toEqual([[2, true]]);
     expect(checkPythonIndentation("total = add(1,\n            2)\n")).toEqual([]);
+  });
+
+  it("reads the lines of a python \"\"\" string as text, not as indented code", () => {
+    const helpText = 'def help_text():\n    s = """\nUsage: tool [options]\n  -h   show help\n"""\n    return s\n\nprint(help_text())\n';
+    expect(checkBalance(helpText, "python")).toEqual([]);
+    expect(checkPythonIndentation("def f():\n    '''doc'''\nx = 1\n")).toEqual([]);
+    // the same kind of string, but the line after it really is indented too deep
+    const indented = checkPythonIndentation('s = """\n  text\n"""\nx = 1\n    y = 2\n');
+    expect(indented.map((problem) => [problem.line, problem.message.startsWith("Unexpected indent")])).toEqual([[5, true]]);
+  });
+
+  it("ignores brackets and colons inside python strings and comments when reading indentation", () => {
+    expect(checkPythonIndentation('x = "(" # [\ny = 1\n')).toEqual([]);
+    expect(checkPythonIndentation('if x == ":"\n    y = 1\n')[0].message).toContain("Unexpected indent");
   });
 });

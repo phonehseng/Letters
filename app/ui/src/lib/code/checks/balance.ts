@@ -6,31 +6,52 @@
 
 import type { Problem } from "../problems";
 import { problemAt } from "./positions";
+import { endsCasePattern, skipHeredocBodies, skipShellEscape } from "./shellSyntax";
 
 export const BASIC_SOURCE = "Letters (basic check)";
 
 interface Syntax {
   lineComment: string | null;
+  /** shell's "#" starts a comment only where a word starts, so $# and ${#name} aren't comments */
+  commentOnlyAtWordStart?: boolean;
   blockComment: [string, string] | null;
+  /** rust's block comments nest: each inner opening needs its own closing */
+  nestedBlockComments?: boolean;
   /** quote characters that start a string or a character */
   quotes: string;
-  /** python's """ and ''' strings run over several lines */
-  tripleQuotes: boolean;
+  /** quotes that, tripled, start a string over several lines: python's """ and ''', java's """ text blocks */
+  tripleQuotes: string;
+  /** quotes inside which a backslash is an ordinary character, like shell's '...' */
+  rawQuotes?: string;
+  /** what else the language has that hides brackets: escapes, here-documents, raw strings */
+  skipSpecial?: (text: string, index: number, problems: Problem[]) => number;
 }
 
-const C_LIKE: Syntax = { lineComment: "//", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: false };
+const C_LIKE: Syntax = { lineComment: "//", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: "" };
+
+const SHELL: Syntax = {
+  lineComment: "#",
+  commentOnlyAtWordStart: true,
+  blockComment: null,
+  quotes: "\"'",
+  tripleQuotes: "",
+  rawQuotes: "'",
+  skipSpecial: (text, index) => skipHeredocBodies(text, skipShellEscape(text, index)),
+};
 
 const SYNTAX: Record<string, Syntax> = {
   c: C_LIKE,
   cpp: C_LIKE,
-  java: C_LIKE,
+  // java 15 text blocks: """ on its own, then lines of text
+  java: { ...C_LIKE, tripleQuotes: '"' },
   javascript: { ...C_LIKE, quotes: "\"'`" },
   typescript: { ...C_LIKE, quotes: "\"'`" },
   // rust's ' is also a lifetime ('a), so only " counts as a string there
-  rust: { ...C_LIKE, quotes: '"' },
-  python: { lineComment: "#", blockComment: null, quotes: "\"'", tripleQuotes: true },
-  shell: { lineComment: "#", blockComment: null, quotes: "\"'", tripleQuotes: false },
-  sql: { lineComment: "--", blockComment: ["/*", "*/"], quotes: "\"'", tripleQuotes: false },
+  rust: { ...C_LIKE, quotes: '"', nestedBlockComments: true, skipSpecial: skipRustRawString },
+  python: { lineComment: "#", blockComment: null, quotes: "\"'", tripleQuotes: "\"'" },
+  shell: SHELL,
+  // mysql quotes names in backticks: `order(old)` is one name
+  sql: { lineComment: "--", blockComment: ["/*", "*/"], quotes: "\"'`", tripleQuotes: "" },
 };
 
 const PAIRS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
@@ -60,7 +81,7 @@ export function checkBalance(text: string, language: string): Problem[] {
     }
     const char = text[index];
     if (char === "(" || char === "[" || char === "{") stack.push({ char, offset: index });
-    else if (char in PAIRS) closeBracket(text, index, stack, problems);
+    else if (char in PAIRS && !endsShellCasePattern(text, index, language, stack)) closeBracket(text, index, stack, problems);
     index++;
   }
   for (const open of stack) {
@@ -68,6 +89,13 @@ export function checkBalance(text: string, language: string): Problem[] {
   }
   if (language === "python") problems.push(...checkPythonIndentation(text));
   return problems;
+}
+
+/** "start)" in a shell case has no "(" of its own, so it closes nothing. */
+function endsShellCasePattern(text: string, index: number, language: string, stack: Opened[]): boolean {
+  if (language !== "shell" || text[index] !== ")") return false;
+  // a pattern may also be written "(start)", and then its "(" is the one on top
+  return stack[stack.length - 1]?.char !== "(" && endsCasePattern(text, index);
 }
 
 function closeBracket(text: string, index: number, stack: Opened[], problems: Problem[]) {
@@ -93,36 +121,96 @@ function findLast(stack: Opened[], char: string): number {
   return -1;
 }
 
+function startsLineComment(text: string, index: number, syntax: Syntax): boolean {
+  if (!syntax.lineComment || !text.startsWith(syntax.lineComment, index)) return false;
+  return !syntax.commentOnlyAtWordStart || index === 0 || /[\s;&|()]/.test(text[index - 1]);
+}
+
+function startsComment(text: string, index: number, syntax: Syntax): boolean {
+  if (startsLineComment(text, index, syntax)) return true;
+  return syntax.blockComment !== null && text.startsWith(syntax.blockComment[0], index);
+}
+
+// r"...", r#"..."# with any number of #, and the byte and c-string forms br"..." and cr"..."
+const RUST_RAW_STRING_START = /(b|c)?r(#*)"/y;
+
+/**
+ * the offset after a rust raw string starting at `index`, or `index` itself.
+ * a raw string has no escapes and ends only at a quote followed by as many
+ * # as it opened with, so r#"he said "}" "# is one string.
+ */
+function skipRustRawString(text: string, index: number, problems: Problem[]): number {
+  // the r of a name like "bar" is not the start of a raw string
+  if (index > 0 && /\w/.test(text[index - 1])) return index;
+  RUST_RAW_STRING_START.lastIndex = index;
+  const start = RUST_RAW_STRING_START.exec(text);
+  if (!start) return index;
+  const closing = `"${start[2]}`;
+  const end = text.indexOf(closing, index + start[0].length);
+  if (end >= 0) return end + closing.length;
+  problems.push(problemAt(text, index, start[0].length, "error", `This raw string is never closed. Add ${closing} where it ends.`, BASIC_SOURCE));
+  return text.length;
+}
+
+/** the offset after the block comment starting at `start`; with `nested`, each inner opening needs its own closing. */
+function skipBlockComment(text: string, start: number, [open, close]: [string, string], nested: boolean, problems: Problem[]): number {
+  let depth = 0;
+  let index = start;
+  while (index < text.length) {
+    if (text.startsWith(open, index) && (nested || depth === 0)) {
+      depth++;
+      index += open.length;
+    } else if (text.startsWith(close, index)) {
+      depth--;
+      index += close.length;
+      if (depth === 0) return index;
+    } else index++;
+  }
+  problems.push(problemAt(text, start, open.length, "error", `This comment is never closed. Add ${close}.`, BASIC_SOURCE));
+  return text.length;
+}
+
 /** the offset after a comment or string starting at `index`, or `index` itself. */
 function skipCommentOrString(text: string, index: number, syntax: Syntax, problems: Problem[]): number {
-  if (syntax.lineComment && text.startsWith(syntax.lineComment, index)) {
+  const special = syntax.skipSpecial?.(text, index, problems) ?? index;
+  if (special !== index) return special;
+  if (startsLineComment(text, index, syntax)) {
     const end = text.indexOf("\n", index);
     return end < 0 ? text.length : end;
   }
   if (syntax.blockComment && text.startsWith(syntax.blockComment[0], index)) {
-    const end = text.indexOf(syntax.blockComment[1], index + 2);
-    if (end >= 0) return end + syntax.blockComment[1].length;
-    problems.push(problemAt(text, index, 2, "error", `This comment is never closed. Add ${syntax.blockComment[1]}.`, BASIC_SOURCE));
-    return text.length;
+    return skipBlockComment(text, index, syntax.blockComment, syntax.nestedBlockComments ?? false, problems);
   }
   const quote = text[index];
-  // a character literal such as '{' (rust has these too, beside its 'a lifetimes)
+  const isRaw = syntax.rawQuotes?.includes(quote) ?? false;
+  // a character literal such as '{' (rust has these too, beside its 'a lifetimes);
+  // a raw quote has no escapes, so there '\'' isn't one character
   const character = /^'(\\.[^']{0,8}|[^\\'\n])'/.exec(text.slice(index, index + 12));
-  if (quote === "'" && character) return index + character[0].length;
+  if (quote === "'" && character && !isRaw) return index + character[0].length;
   if (!syntax.quotes.includes(quote)) return index;
-  if (syntax.tripleQuotes && text.startsWith(quote.repeat(3), index)) {
-    const end = text.indexOf(quote.repeat(3), index + 3);
-    return end < 0 ? text.length : end + 3;
+  if (syntax.tripleQuotes.includes(quote) && text.startsWith(quote.repeat(3), index)) {
+    return skipTripleQuotedString(text, index, quote, problems);
   }
-  return skipString(text, index, quote, problems);
+  return skipString(text, index, quote, isRaw, problems);
 }
 
-function skipString(text: string, start: number, quote: string, problems: Problem[]): number {
+/** a string in tripled quotes, over as many lines as it takes; a backslash escapes, so \""" doesn't end it. */
+function skipTripleQuotedString(text: string, start: number, quote: string, problems: Problem[]): number {
+  const closing = quote.repeat(3);
+  for (let index = start + 3; index < text.length; index++) {
+    if (text[index] === "\\") index++;
+    else if (text.startsWith(closing, index)) return index + 3;
+  }
+  problems.push(problemAt(text, start, 3, "error", `This ${closing} string is never closed. Add ${closing} where it ends.`, BASIC_SOURCE));
+  return text.length;
+}
+
+function skipString(text: string, start: number, quote: string, isRaw: boolean, problems: Problem[]): number {
   // template strings in javascript may run over lines; other strings end at the line
   const multiline = quote === "`";
   for (let index = start + 1; index < text.length; index++) {
     const char = text[index];
-    if (char === "\\") index++;
+    if (char === "\\" && !isRaw) index++;
     else if (char === quote) return index + 1;
     else if (char === "\n" && !multiline) {
       problems.push(problemAt(text, start, 1, "error", `This ${quote === "'" ? "character or string" : "string"} is missing its closing ${quote}.`, BASIC_SOURCE));
@@ -145,44 +233,87 @@ interface PythonLine {
 
 const BLOCK_KEYWORD = /^(if|elif|else|for|while|def|class|try|except|finally|with|async|match|case)\b/;
 
+/** `code` has its strings and comments blanked already, so only real brackets and colons count. */
 function pythonLine(code: string, offset: number, indent: number): PythonLine {
-  const withoutComment = code.replace(/\s+#.*$/, "");
-  const opens = (withoutComment.match(/[([{]/g) ?? []).length;
-  const closes = (withoutComment.match(/[)\]}]/g) ?? []).length;
+  const opens = (code.match(/[([{]/g) ?? []).length;
+  const closes = (code.match(/[)\]}]/g) ?? []).length;
   return {
     offset,
     indent,
-    opensBlock: BLOCK_KEYWORD.test(code) && withoutComment.endsWith(":"),
-    continues: /[,\\([{]$/.test(withoutComment) || opens > closes,
+    opensBlock: BLOCK_KEYWORD.test(code) && code.endsWith(":"),
+    continues: /[,\\([{]$/.test(code) || opens > closes,
   };
+}
+
+/** the text with its comments turned into spaces and its strings into "_", and where each one was. */
+interface BlankedText {
+  code: string;
+  /** [start, end) of every comment and string */
+  spans: [number, number][];
+}
+
+/**
+ * blanks comments and strings, keeping newlines so every offset and line
+ * number still match. a string becomes "_" rather than spaces because a
+ * line holding only a docstring is still a statement in its block.
+ */
+function blankCommentsAndStrings(text: string, syntax: Syntax): BlankedText {
+  // unclosed strings are reported by checkBalance; here they only need skipping
+  const ignored: Problem[] = [];
+  const spans: [number, number][] = [];
+  let code = "";
+  let index = 0;
+  while (index < text.length) {
+    const skipped = skipCommentOrString(text, index, syntax, ignored);
+    if (skipped === index) {
+      code += text[index];
+      index++;
+      continue;
+    }
+    spans.push([index, skipped]);
+    const filler = startsComment(text, index, syntax) ? " " : "_";
+    code += text.slice(index, skipped).replace(/[^\n]/g, filler);
+    index = skipped;
+  }
+  return { code, spans };
+}
+
+/** true when the line starting at `offset` begins inside a string that started on an earlier line. */
+function startsInsideString(spans: [number, number][], offset: number): boolean {
+  return spans.some(([start, end]) => start < offset && offset < end);
 }
 
 /**
  * tabs mixed with spaces, a line ending in ":" with nothing indented under
  * it, and a line indented deeper than the one before for no reason (often
- * the sign of a ":" lost on the line before).
+ * the sign of a ":" lost on the line before). the lines inside a """ string
+ * are text, not code, so their indent never counts.
  */
 export function checkPythonIndentation(text: string): Problem[] {
   const problems: Problem[] = [];
+  const blanked = blankCommentsAndStrings(text, SYNTAX.python);
   let offset = 0;
   let previous: PythonLine | null = null;
-  for (const line of text.split("\n")) {
+  for (const line of blanked.code.split("\n")) {
+    const lineOffset = offset;
+    offset += line.length + 1;
+    // python reads a line that starts inside a string as the rest of the line before it
+    if (startsInsideString(blanked.spans, lineOffset)) continue;
     const indent = /^[ \t]*/.exec(line)?.[0] ?? "";
     const code = line.trim();
     if (indent.includes(" ") && indent.includes("\t")) {
-      problems.push(problemAt(text, offset, indent.length, "error", "This line mixes tabs and spaces in its indent. Use only spaces.", BASIC_SOURCE));
+      problems.push(problemAt(text, lineOffset, indent.length, "error", "This line mixes tabs and spaces in its indent. Use only spaces.", BASIC_SOURCE));
     }
-    if (code !== "" && !code.startsWith("#")) {
-      const current = pythonLine(code, offset, indent.length);
+    if (code !== "") {
+      const current = pythonLine(code, lineOffset, indent.length);
       if (previous?.opensBlock && current.indent <= previous.indent) {
         problems.push(problemAt(text, previous.offset, 1, "error", "The line after this one should be indented: a line ending in “:” starts a block.", BASIC_SOURCE));
       }
       if (previous && !previous.opensBlock && !previous.continues && current.indent > previous.indent) {
-        problems.push(problemAt(text, offset, indent.length, "error", "Unexpected indent. If the line before starts a block (if, for, def…), it needs a “:” at its end.", BASIC_SOURCE));
+        problems.push(problemAt(text, lineOffset, indent.length, "error", "Unexpected indent. If the line before starts a block (if, for, def…), it needs a “:” at its end.", BASIC_SOURCE));
       }
       previous = current;
     }
-    offset += line.length + 1;
   }
   return problems;
 }

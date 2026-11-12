@@ -54,3 +54,22 @@ check missed while python itself was still starting. Proven in the debug
 app: the html page's unclosed div and missing alt text, gcc 16.2's two
 diagnostics with hints, the list clearing after the fix, save keeping the
 byte order mark and crlf, the 20 MB file, both sheets.
+
+## 2026-11-12 valid code the checks called wrong
+
+A tester's valid files drew problems, and each reader now knows the
+piece of syntax it was missing: python's """ strings in the indentation
+check, a ";" or ":" inside css url(...), headings underlined with === or
+---, shell case patterns, '...' quoting, backslashes and here-documents,
+java text blocks, rust raw strings and nested comments, mysql backtick
+names, and the content of an html <template> as a fragment of its own.
+Each test pairs the valid example with a real mistake beside it that is
+still reported.
+
+When a compiler is installed and finishes, its problems are now the
+whole list. The status line names it ("Checked by Python 3.14.7"), and
+showing our basic check's guess under that name was wrong whenever the
+two disagreed; the in-app checks only stand in until a compiler answers,
+or when there is none. That also hides the one case left open in the
+basic check, braces split across the halves of a c #ifdef, whenever gcc
+or clang is installed.
