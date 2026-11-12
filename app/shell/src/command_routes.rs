@@ -88,6 +88,7 @@ fn documents() -> Feature {
         commands::redo,
         commands::save_document,
         commands::save_document_as,
+        commands::set_viewport,
     ]
 }
 

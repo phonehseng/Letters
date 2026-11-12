@@ -16,6 +16,7 @@ use crate::outline::OutlineItem;
 use crate::page_text::{PageText, PageTextCache};
 use crate::queue::NewestFirstQueue;
 use crate::search::{SearchMatch, SearchQuery, SearchResults, MAX_SEARCH_MATCHES};
+use crate::viewport::{Urgency, Viewport, Viewports};
 use crate::{DocumentId, PdfError};
 
 /// what the viewer needs to know about a freshly opened (or reloaded) document.
@@ -65,6 +66,11 @@ enum Request {
     Tile {
         key: TileKey,
         reply: Reply<TileBytes>,
+    },
+    /// where the reader is looking; nothing is sent back
+    Viewport {
+        document: DocumentId,
+        viewport: Viewport,
     },
     Stats {
         reply: Reply<WorkerStats>,
@@ -183,6 +189,14 @@ impl RenderWorker {
         self.ask(|reply| Request::Tile { key, reply })
     }
 
+    /// says which pages of a document are on screen. waiting tiles for
+    /// those pages are drawn first, and tiles for pages scrolled well away
+    /// from are answered `Superseded` without being drawn (see viewport.rs).
+    /// it doesn't wait for the worker: the viewer calls it on every scroll.
+    pub fn set_viewport(&self, document: DocumentId, viewport: Viewport) {
+        let _ = self.requests.send(Request::Viewport { document, viewport });
+    }
+
     pub fn stats(&self) -> Result<WorkerStats, PdfError> {
         self.ask(|reply| Request::Stats { reply })
     }
@@ -258,6 +272,46 @@ struct WaitingTile {
     reply: Reply<TileBytes>,
 }
 
+/// the tiles waiting to be drawn, and where the reader is looking, which
+/// decides the order they are drawn in.
+struct TileLine {
+    waiting: NewestFirstQueue<WaitingTile>,
+    viewports: Viewports,
+}
+
+impl TileLine {
+    fn new() -> Self {
+        Self {
+            waiting: NewestFirstQueue::new(MAX_WAITING_TILES),
+            viewports: Viewports::default(),
+        }
+    }
+
+    fn push(&mut self, tile: WaitingTile) {
+        if let Some(given_up) = self.waiting.push(tile) {
+            let _ = given_up.reply.send(Err(PdfError::Superseded));
+        }
+    }
+
+    /// the tile to draw next: the newest one on screen, else the newest
+    /// one near it. tiles for pages the reader scrolled away from are
+    /// answered `Superseded` here, never drawn; the viewer asks again for
+    /// any it still shows.
+    fn next_to_draw(&mut self) -> Option<WaitingTile> {
+        let viewports = &self.viewports;
+        let left_behind = self
+            .waiting
+            .take_where(|tile| viewports.urgency(&tile.key) == Urgency::LeftBehind);
+        for tile in left_behind {
+            let _ = tile.reply.send(Err(PdfError::Superseded));
+        }
+        let viewports = &self.viewports;
+        self.waiting
+            .pop_newest_where(|tile| viewports.urgency(&tile.key) == Urgency::OnScreen)
+            .or_else(|| self.waiting.pop_newest())
+    }
+}
+
 /// what the worker keeps between requests: finished tiles, and the text
 /// of the last few pages asked about.
 struct Caches {
@@ -269,12 +323,12 @@ struct Caches {
 ///
 /// opening, reloading, closing, stats, the outline, a page's text and one
 /// slice of a search are quick and handled as they arrive.
-/// tiles are slow, so they wait in a newest-first queue (see queue.rs)
-/// and are drawn one at a time between checks of the inbox.
+/// tiles are slow, so they wait in a line (see `TileLine`) and are drawn
+/// one at a time between checks of the inbox: those on screen first.
 fn serve_requests(mut engine: PdfEngine, mut caches: Caches, inbox: Receiver<Request>) {
-    let mut waiting_tiles = NewestFirstQueue::new(MAX_WAITING_TILES);
+    let mut waiting_tiles = TileLine::new();
     loop {
-        if waiting_tiles.is_empty() {
+        if waiting_tiles.waiting.is_empty() {
             // nothing to draw: sleep until a request arrives
             match inbox.recv() {
                 Ok(request) => accept(request, &mut engine, &mut caches, &mut waiting_tiles),
@@ -290,7 +344,7 @@ fn serve_requests(mut engine: PdfEngine, mut caches: Caches, inbox: Receiver<Req
         while let Ok(request) = inbox.try_recv() {
             accept(request, &mut engine, &mut caches, &mut waiting_tiles);
         }
-        if let Some(tile) = waiting_tiles.pop_newest() {
+        if let Some(tile) = waiting_tiles.next_to_draw() {
             let _ = tile
                 .reply
                 .send(cached_or_rendered(&engine, &mut caches.tiles, tile.key));
@@ -303,7 +357,7 @@ fn accept(
     request: Request,
     engine: &mut PdfEngine,
     caches: &mut Caches,
-    waiting_tiles: &mut NewestFirstQueue<WaitingTile>,
+    waiting_tiles: &mut TileLine,
 ) {
     let _pdfium = lock_pdfium();
     match request {
@@ -331,13 +385,11 @@ fn accept(
             engine.close(id);
             caches.tiles.remove_where(|key| key.document == id);
             caches.text.remove_document(id);
+            waiting_tiles.viewports.forget(id);
             let _ = done.send(());
         }
-        Request::Tile { key, reply } => {
-            if let Some(given_up) = waiting_tiles.push(WaitingTile { key, reply }) {
-                let _ = given_up.reply.send(Err(PdfError::Superseded));
-            }
-        }
+        Request::Tile { key, reply } => waiting_tiles.push(WaitingTile { key, reply }),
+        Request::Viewport { document, viewport } => waiting_tiles.viewports.set(document, viewport),
         Request::Stats { reply } => {
             let _ = reply.send(Ok(WorkerStats {
                 open_documents: engine.open_document_count(),

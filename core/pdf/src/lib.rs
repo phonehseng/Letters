@@ -18,6 +18,7 @@ mod outline;
 mod page_text;
 mod queue;
 mod search;
+mod viewport;
 mod worker;
 
 pub use cache::TileCache;
@@ -26,6 +27,7 @@ pub use geometry::{page_pixel_size, tile_rect, PageSize, PixelRect, TileKey, TIL
 pub use outline::OutlineItem;
 pub use page_text::{PageText, TextChar, PAGE_TEXT_CACHE_PAGES};
 pub use search::{SearchMatch, SearchResults, TextRect, MAX_SEARCH_MATCHES};
+pub use viewport::Viewport;
 pub use worker::{DocumentInfo, RenderWorker, WorkerStats};
 
 /// identifies one open document inside the worker.
