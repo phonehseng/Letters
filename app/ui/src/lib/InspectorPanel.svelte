@@ -132,8 +132,13 @@
     background: var(--control-hover);
   }
 
+  /* seven tabs don't fit one row of an 18rem panel without cutting
+     labels, so the segments wrap by their own width and each row
+     stretches to fill: every tab stays visible, with its whole name */
   .segments {
     display: flex;
+    flex-wrap: wrap;
+    gap: 0.125rem;
     flex-shrink: 0;
     margin-bottom: 0.5rem;
     padding: 0.125rem;
@@ -142,9 +147,10 @@
   }
 
   .segment {
-    flex: 1;
-    min-width: 0;
+    flex: 1 1 auto;
     height: 1.5rem;
+    padding: 0 0.5rem;
+    white-space: nowrap;
     border: 0;
     border-radius: var(--radius-small);
     background: transparent;
