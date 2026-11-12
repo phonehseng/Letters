@@ -42,6 +42,15 @@ impl CommandError {
         }
     }
 
+    /// a save over a file that changed on disk since the window read it;
+    /// the ui asks Replace, Cancel or Save As (ChangedOnDiskSheet.svelte).
+    pub fn changed_on_disk(message: String) -> Self {
+        Self {
+            kind: "changed-on-disk",
+            message,
+        }
+    }
+
     pub fn not_open() -> Self {
         Self::from(PdfError::UnknownDocument)
     }

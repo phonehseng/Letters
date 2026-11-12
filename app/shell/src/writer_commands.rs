@@ -111,10 +111,18 @@ pub fn writer_save(
     id: u64,
     model: Value,
     path: Option<String>,
+    replace_changed: Option<bool>,
 ) -> Result<SavedWriter, CommandError> {
+    let replace_changed = replace_changed.unwrap_or(false);
+    // Save over its own file: a change made elsewhere is asked about first
+    if path.is_none() && !replace_changed {
+        if let Some(message) = writer.sessions.changed_on_disk(id).map_err(failed)? {
+            return Err(CommandError::changed_on_disk(message));
+        }
+    }
     let saved = writer
         .sessions
-        .save(id, model, path.as_deref().map(Path::new))
+        .save(id, model, path.as_deref().map(Path::new), replace_changed)
         .map_err(failed)?;
     remember(&state, Path::new(&saved.path));
     Ok(saved)

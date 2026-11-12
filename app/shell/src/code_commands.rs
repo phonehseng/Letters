@@ -134,7 +134,10 @@ pub fn code_save(
     // `expected` is the file as this window last read or wrote it: a change
     // made since by another window or program isn't written over
     if expected.is_some_and(|stamp| stamp.changed_since(&path)) {
-        return Err(failed(changed_on_disk_message(&file_name(&path))));
+        // the ui offers Replace, which saves again with no `expected`
+        return Err(CommandError::changed_on_disk(changed_on_disk_message(
+            &file_name(&path),
+        )));
     }
     save_text_file(&path, &text, &format).map_err(failed)?;
     recovery_store(&app).discard(&path);

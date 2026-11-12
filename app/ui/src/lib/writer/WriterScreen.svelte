@@ -32,6 +32,7 @@
   import { WriterSession, errorText } from "./writerSession.svelte";
   import WriterToolbar from "./WriterToolbar.svelte";
   import DriveSheet from "./DriveSheet.svelte";
+  import ChangedOnDiskSheet, { type ChangedChoice } from "../ChangedOnDiskSheet.svelte";
   import ObjectFrame from "./ObjectFrame.svelte";
   import CompatibilitySheet from "./CompatibilitySheet.svelte";
   import { exportPdf as exportDocumentPdf, printDocument, saveAs as saveDocumentAs } from "./fileActions";
@@ -300,6 +301,13 @@
     }
   }
 
+  /** Replace writes over the other change, Save As keeps it, Cancel leaves both as they are. */
+  function answerChangedOnDisk(choice: ChangedChoice) {
+    session.changedOnDisk = null;
+    if (choice === "replace") session.save(null, true);
+    else if (choice === "save-as") saveAs();
+  }
+
   /** Save: a document converted from another file has no place of its own yet, so it asks where. */
   async function saveNow(): Promise<boolean> {
     if (session.neverSaved) return saveAs();
@@ -516,6 +524,11 @@
     {/if}
 
     <WriterNotices {session} top={toolbarHeight} {recovery} onRecover={recover} onDismissRecovery={dismissRecovery} bind:odtQuestion bind:prompt />
+
+    {#if session.changedOnDisk}
+      <!-- the file changed elsewhere since it was opened: the same question the pdf viewer asks -->
+      <ChangedOnDiskSheet name={session.name} message={session.changedOnDisk} onChoose={answerChangedOnDisk} />
+    {/if}
 
     <StatusBar
       goals={goals.line(counts.words)}

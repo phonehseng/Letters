@@ -101,17 +101,23 @@ export class CodeSession {
     };
   }
 
-  private async writeTo(path: string): Promise<boolean> {
+  private async writeTo(path: string, replaceChanged = false): Promise<boolean> {
     const doc = this.currentDoc;
     if (!doc) return false;
     try {
-      // only a save over the file this window opened checks for changes made elsewhere
-      const expected = path === this.path ? this.diskStamp : null;
+      // only a save over the file this window opened checks for changes
+      // made elsewhere, unless the person chose to replace them
+      const expected = path === this.path && !replaceChanged ? this.diskStamp : null;
       this.diskStamp = await saveCodeFile(path, doc.toString(), this.format, expected);
       this.savedDoc = doc;
       this.dirty = this.currentDoc !== null && this.currentDoc !== doc && !this.currentDoc.eq(doc);
       return true;
     } catch (problem) {
+      if (asCommandError(problem).kind === "changed-on-disk") {
+        // the sentence says Save As keeps both; Replace writes over the other change
+        this.notice = { text: errorText(problem), action: { label: "Replace", run: () => void this.writeTo(path, true).then((saved) => saved && (this.notice = null)) } };
+        return false;
+      }
       this.onError(errorText(problem));
       return false;
     }
