@@ -4,14 +4,14 @@
 use super::*;
 
 /// a glyph on screen: baseline start and end, size and direction.
-struct VisibleGlyph {
-    origin: Point,
-    end: Point,
+pub(super) struct VisibleGlyph {
+    pub origin: Point,
+    pub end: Point,
     direction: Point,
     size: f32,
 }
 
-fn visible(run: &Interpretation, glyph: &GlyphRecord) -> VisibleGlyph {
+pub(super) fn visible(run: &Interpretation, glyph: &GlyphRecord) -> VisibleGlyph {
     let origin = run.space.visible_point(glyph.origin);
     let end = run.space.visible_point(glyph.end);
     let mut direction = end.minus(origin);
@@ -31,12 +31,14 @@ fn visible(run: &Interpretation, glyph: &GlyphRecord) -> VisibleGlyph {
     }
 }
 
-pub(super) fn group_lines(run: &Interpretation) -> Vec<LineModel> {
+/// groups glyphs into lines, never joining two glyphs across a gutter.
+pub(super) fn group_lines(run: &Interpretation, gutters: &[Gutter]) -> Vec<LineModel> {
     let mut lines: Vec<LineModel> = Vec::new();
     for (index, glyph) in run.glyphs.iter().enumerate() {
         let seen = visible(run, glyph);
         let joins = lines
             .last()
+            .filter(|line| !across_gutter(line, &seen, gutters))
             .and_then(|line| joining_gap(run, line, &seen, glyph));
         match (joins, lines.last_mut()) {
             (Some(gap), Some(line)) => {
@@ -63,6 +65,14 @@ pub(super) fn group_lines(run: &Interpretation) -> Vec<LineModel> {
         }
     }
     lines
+}
+
+/// whether a glyph lies on the far side of a gutter from the line's end.
+fn across_gutter(line: &LineModel, seen: &VisibleGlyph, gutters: &[Gutter]) -> bool {
+    let line_end = line.start.plus(line.direction.scaled(line.length));
+    gutters
+        .iter()
+        .any(|gutter| gutter.divides(line, line_end, seen.origin))
 }
 
 /// the gap before a glyph if it continues the line, or none if it starts

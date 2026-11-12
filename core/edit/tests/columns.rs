@@ -102,9 +102,10 @@ fn two_columns(gutter: f32, size: f32) -> Vec<u8> {
     pdf.finish()
 }
 
-/// the gutters the tests try: (gutter, font size). 60 pt is wider than
-/// the gap that splits a line on its own (2.5 font sizes).
-const LAYOUTS: [(f32, f32); 1] = [(60.0, 10.0)];
+/// the gutters the tests try: (gutter, font size). 24 pt at 10 pt and
+/// 30 pt at 13 pt are narrower than the gap that splits a line on its own
+/// (2.5 font sizes); 60 pt is wide.
+const LAYOUTS: [(f32, f32); 3] = [(24.0, 10.0), (30.0, 13.0), (60.0, 10.0)];
 
 fn column_text(words: &str, size: f32) -> String {
     justified_lines(words, COLUMN_WIDTH, size)

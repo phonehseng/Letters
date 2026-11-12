@@ -21,12 +21,15 @@ use crate::pages;
 use crate::separators::{self, Separator};
 
 mod grouping;
+mod gutters;
 mod objects;
 
 use grouping::{group_blocks, group_lines};
+use gutters::{find_gutters, Gutter};
 /// a gap wider than this (in font sizes) between two glyphs is a word gap.
 const WORD_GAP: f32 = 0.2;
 /// a gap wider than this starts a new line: it is a column or a table cell.
+/// narrower gutters between columns are found down the page (gutters.rs).
 const COLUMN_GAP: f32 = 2.5;
 /// glyphs whose baselines are further apart than this are on different lines.
 const BASELINE_TOLERANCE: f32 = 0.3;
@@ -77,7 +80,16 @@ pub(crate) fn build(doc: &Document, page: usize) -> Result<PageModel, EditError>
         hash.rotate_left(5) ^ source.fingerprint
     });
     let glyph_keys = glyph_keys(&run);
-    let lines = group_lines(&run);
+    // two passes: a first grouping shows where the lines' white gaps are,
+    // the gaps that line up down the page are gutters, and the second
+    // grouping keeps each column's words to its own side of them
+    let first_lines = group_lines(&run, &[]);
+    let gutters = find_gutters(&run, &first_lines);
+    let lines = if gutters.is_empty() {
+        first_lines
+    } else {
+        group_lines(&run, &gutters)
+    };
     let separators = separators::horizontal_separators(&run);
     let blocks = group_blocks(lines, &separators);
     let image_dicts = run
