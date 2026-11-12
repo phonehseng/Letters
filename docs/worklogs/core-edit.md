@@ -283,3 +283,31 @@ gives 97 of 2170 (4.5%) against 101 of 2151 with cap-height scaling.
 the page objects alone, so the app sends a cell's text to `edit_table_cell`
 and any other text to `reflow_paragraph` without trying one and reading its
 error sentence.
+
+## 2026-11-12 two columns with a narrow gutter
+
+A tester's two-column page (10 pt text, a 25 to 40 pt gutter) came out as
+one paragraph per row, "Left line 1 … Right line 1 …", and an edit then
+wrote over the other column. Two causes. A glyph joined the line when the
+gap before it was under 2.5 font sizes, so any gutter narrower than that
+(LaTeX's 24 pt at 10 pt among them) read as a word space. And a line only
+ever continued the last block started, so columns drawn across the page
+(a left line, then the right one) closed each other's blocks.
+
+`layout/gutters.rs` now finds gutters before lines are joined: a white
+band at least one font size wide that three or more rows running leave
+white, with text on both sides of it. A heading across both columns closes
+the band, a row with text on one side only lets it pass, and spaces count
+as white. Lines are grouped once to see the rows and, when a gutter is
+found, again with words never joined across it. One or two lines with a
+tab gap at the same place, justified text with word spaces under a font size wide and
+ruled tables group as before. Blocks are now continued from the newest
+block a line sits under, so each column's lines make their own paragraph.
+
+What it does not catch: justified text whose word spaces are a full font
+size wide in the same place three lines running is split there, and a
+gutter narrower than one font size is still read as word spaces.
+
+The tester's columns.pdf now reads as three blocks: the heading, the left
+column's 20 lines and the right column's 20 lines; replacing a left line
+leaves every right line's text and baseline as they were.

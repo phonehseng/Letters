@@ -4,14 +4,14 @@
 use super::*;
 
 /// a glyph on screen: baseline start and end, size and direction.
-struct VisibleGlyph {
-    origin: Point,
-    end: Point,
+pub(super) struct VisibleGlyph {
+    pub origin: Point,
+    pub end: Point,
     direction: Point,
     size: f32,
 }
 
-fn visible(run: &Interpretation, glyph: &GlyphRecord) -> VisibleGlyph {
+pub(super) fn visible(run: &Interpretation, glyph: &GlyphRecord) -> VisibleGlyph {
     let origin = run.space.visible_point(glyph.origin);
     let end = run.space.visible_point(glyph.end);
     let mut direction = end.minus(origin);
@@ -31,12 +31,14 @@ fn visible(run: &Interpretation, glyph: &GlyphRecord) -> VisibleGlyph {
     }
 }
 
-pub(super) fn group_lines(run: &Interpretation) -> Vec<LineModel> {
+/// groups glyphs into lines, never joining two glyphs across a gutter.
+pub(super) fn group_lines(run: &Interpretation, gutters: &[Gutter]) -> Vec<LineModel> {
     let mut lines: Vec<LineModel> = Vec::new();
     for (index, glyph) in run.glyphs.iter().enumerate() {
         let seen = visible(run, glyph);
         let joins = lines
             .last()
+            .filter(|line| !across_gutter(line, &seen, gutters))
             .and_then(|line| joining_gap(run, line, &seen, glyph));
         match (joins, lines.last_mut()) {
             (Some(gap), Some(line)) => {
@@ -63,6 +65,14 @@ pub(super) fn group_lines(run: &Interpretation) -> Vec<LineModel> {
         }
     }
     lines
+}
+
+/// whether a glyph lies on the far side of a gutter from the line's end.
+fn across_gutter(line: &LineModel, seen: &VisibleGlyph, gutters: &[Gutter]) -> bool {
+    let line_end = line.start.plus(line.direction.scaled(line.length));
+    gutters
+        .iter()
+        .any(|gutter| gutter.divides(line, line_end, seen.origin))
 }
 
 /// the gap before a glyph if it continues the line, or none if it starts
@@ -100,17 +110,15 @@ fn joining_gap(
 pub(super) fn group_blocks(lines: Vec<LineModel>, separators: &[Separator]) -> Vec<BlockModel> {
     let mut blocks: Vec<BlockModel> = Vec::new();
     for line in lines {
-        let joins = blocks
-            .last()
-            .is_some_and(|block| continues_block(block, &line, separators));
-        match (joins, blocks.last_mut()) {
-            (true, Some(block)) => {
+        let continued = block_continued_by(&blocks, &line, separators);
+        match continued.map(|index| &mut blocks[index]) {
+            Some(block) => {
                 let previous = block.lines.last().expect("blocks have lines");
                 let step = line.start.minus(previous.start).dot(previous.normal);
                 block.leading.get_or_insert(step);
                 block.lines.push(line);
             }
-            _ => blocks.push(BlockModel {
+            None => blocks.push(BlockModel {
                 lines: vec![line],
                 alignment: TextAlignment::Left,
                 leading: None,
@@ -121,6 +129,38 @@ pub(super) fn group_blocks(lines: Vec<LineModel>, separators: &[Separator]) -> V
         block.alignment = alignment_of(block);
     }
     blocks
+}
+
+/// the newest block a line continues. it is not always the last one:
+/// pages with columns are often drawn across, a line of the left column
+/// then the same line of the right, so each column's block stays open
+/// while the other's lines are drawn.
+fn block_continued_by(
+    blocks: &[BlockModel],
+    line: &LineModel,
+    separators: &[Separator],
+) -> Option<usize> {
+    (0..blocks.len()).rev().find(|&index| {
+        continues_block(&blocks[index], line, separators)
+            && !line_between(&blocks[index + 1..], &blocks[index], line)
+    })
+}
+
+/// whether a line of a newer block sits between a block's last line and
+/// the next line, in the same place across: then the two don't touch.
+fn line_between(newer: &[BlockModel], block: &BlockModel, line: &LineModel) -> bool {
+    let previous = block.lines.last().expect("blocks have lines");
+    let depth = |other: &LineModel| other.start.minus(previous.start).dot(previous.normal);
+    let span = |other: &LineModel| {
+        let start = other.start.minus(previous.start).dot(previous.direction);
+        (start, start + other.length)
+    };
+    let (line_depth, (line_start, line_end)) = (depth(line), span(line));
+    newer.iter().flat_map(|block| &block.lines).any(|other| {
+        let (start, end) = span(other);
+        let overlaps = start < line_end && line_start < end;
+        overlaps && depth(other) > 0.0 && depth(other) < line_depth
+    })
 }
 
 fn continues_block(block: &BlockModel, line: &LineModel, separators: &[Separator]) -> bool {
