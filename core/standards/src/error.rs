@@ -13,6 +13,11 @@ pub enum StandardsError {
     )]
     Encrypted,
 
+    /// an encrypted document handed to a tool that rewrites it: its objects
+    /// can't be read without the password, so the copy would be empty
+    #[error("This PDF is locked with a password. Unlock it first, then try again.")]
+    Locked,
+
     #[error("The document couldn’t be saved. ({0})")]
     SaveFailed(String),
 }
