@@ -145,6 +145,32 @@ impl SlidesSessions {
         })
     }
 
+    /// Hide Slide: the engine has no operation of its own for it, so the
+    /// slide is put back whole with its flag changed, which undoes exactly.
+    pub fn set_hidden(
+        &self,
+        id: u64,
+        slide_id: &str,
+        hidden: bool,
+        viewer: &dyn PictureViewer,
+    ) -> Result<Edited, String> {
+        self.with(id, |open| {
+            let mut slide = open
+                .deck
+                .presentation
+                .slides
+                .iter()
+                .find(|slide| slide.id == slide_id)
+                .cloned()
+                .ok_or("This slide is no longer in the presentation.")?;
+            slide.hidden = hidden;
+            let change = open.deck.apply(&Operation::RestoreSlide {
+                slide: Box::new(slide),
+            })?;
+            Ok(open.after(change, None, viewer))
+        })
+    }
+
     pub fn undo(&self, id: u64, viewer: &dyn PictureViewer) -> Result<Edited, String> {
         self.with(id, |open| {
             let change = open.deck.undo()?.unwrap_or_else(|| open.deck.state());
@@ -172,6 +198,25 @@ impl SlidesSessions {
             let object_id = open.next_id_on(slide_id)?;
             let object = build(new, at, object_id);
             open.add(slide_id, object, viewer)
+        })
+    }
+
+    /// Duplicate (Ctrl D): a copy of each object, a little down and to the
+    /// right as powerpoint places it, each copy one undo step.
+    pub fn duplicate(
+        &self,
+        id: u64,
+        slide_id: &str,
+        object_ids: &[u32],
+        viewer: &dyn PictureViewer,
+    ) -> Result<Edited, String> {
+        self.with(id, |open| {
+            let copies = duplicates(&open.deck.presentation, slide_id, object_ids)?;
+            let mut last = None;
+            for copy in copies {
+                last = Some(open.add(slide_id, copy, viewer)?);
+            }
+            last.ok_or_else(|| "Select something to duplicate first.".to_string())
         })
     }
 
@@ -222,6 +267,26 @@ impl SlidesSessions {
         self.with(id, |open| {
             open.pictures
                 .without(&mut open.deck.presentation, slide_id, left_out, viewer)
+        })
+    }
+
+    /// the font file the engine draws a family with (or its stand-in), so
+    /// the typing field can use the very same face. `None` for a face
+    /// inside a collection, which the web view can't pick out.
+    pub fn face_bytes(
+        &self,
+        id: u64,
+        family: &str,
+        bold: bool,
+        italic: bool,
+    ) -> Result<Option<Vec<u8>>, String> {
+        self.with(id, |open| {
+            let fonts = open.pictures.fonts();
+            let Some(font) = fonts.resolve(family, bold, italic) else {
+                return Ok(None);
+            };
+            let face = &fonts.font(font).face;
+            Ok((face.index == 0).then(|| face.bytes.as_ref().clone()))
         })
     }
 
@@ -344,6 +409,49 @@ impl SlidesSessions {
         let mut open = lock(&entry);
         work(&mut open)
     }
+}
+
+/// how far a duplicate sits from its original: a quarter of an inch each
+/// way, about where powerpoint puts it
+const DUPLICATE_OFFSET: i64 = 228_600;
+
+/// copies of objects with their own place (a placeholder's inherited
+/// place is written out, so the copy doesn't sit on the original).
+fn duplicates(
+    presentation: &letters_slides::Presentation,
+    slide_id: &str,
+    object_ids: &[u32],
+) -> Result<Vec<letters_slides::model::Object>, String> {
+    let slide = presentation
+        .slides
+        .iter()
+        .find(|slide| slide.id == slide_id)
+        .ok_or("This slide is no longer in the presentation.")?;
+    let chain = letters_slides::inherit::Chain::of_slide(presentation, slide);
+    let mut copies = Vec::new();
+    for object in slide
+        .objects
+        .iter()
+        .filter(|object| object_ids.contains(&object.id()))
+    {
+        let mut copy = object.clone();
+        let placed = letters_slides::inherit::effective_transform(&chain, object);
+        match (copy.transform_mut(), placed) {
+            (Some(transform), Some(mut placed)) => {
+                placed.x += DUPLICATE_OFFSET;
+                placed.y += DUPLICATE_OFFSET;
+                *transform = Some(placed);
+            }
+            _ => {
+                if let letters_slides::model::Object::Group(group) = &mut copy {
+                    group.transform.x += DUPLICATE_OFFSET;
+                    group.transform.y += DUPLICATE_OFFSET;
+                }
+            }
+        }
+        copies.push(copy);
+    }
+    Ok(copies)
 }
 
 fn lock(entry: &Arc<Mutex<OpenDeck>>) -> std::sync::MutexGuard<'_, OpenDeck> {

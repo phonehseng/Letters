@@ -13,6 +13,7 @@ use letters_shell_core::slides::sessions::{Edited, OpenedDeck, SavedDeck, Slides
 use letters_shell_core::slides::view::{DeckView, SlideView};
 use letters_shell_core::slides::{Operation, PdfLayout};
 use serde::Serialize;
+use tauri::ipc::Response;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder, Window};
 
 use crate::errors::CommandError;
@@ -176,6 +177,53 @@ pub fn slides_apply(
     slides
         .sessions
         .apply(id, &operation, &renderer(&state)?)
+        .map_err(failed)
+}
+
+/// Duplicate: copies of the selected objects beside them.
+#[tauri::command(async)]
+pub fn slides_duplicate(
+    state: State<AppState>,
+    slides: State<SlidesState>,
+    id: u64,
+    slide_id: String,
+    object_ids: Vec<u32>,
+) -> Result<Edited, CommandError> {
+    slides
+        .sessions
+        .duplicate(id, &slide_id, &object_ids, &renderer(&state)?)
+        .map_err(failed)
+}
+
+/// the font file a family is drawn with, as raw bytes for the typing
+/// field's FontFace; an empty answer when the web view can't use it.
+#[tauri::command(async)]
+pub fn slides_font_face(
+    slides: State<SlidesState>,
+    id: u64,
+    family: String,
+    bold: bool,
+    italic: bool,
+) -> Result<Response, CommandError> {
+    let bytes = slides
+        .sessions
+        .face_bytes(id, &family, bold, italic)
+        .map_err(failed)?;
+    Ok(Response::new(bytes.unwrap_or_default()))
+}
+
+/// Hide Slide and Show Slide.
+#[tauri::command(async)]
+pub fn slides_set_hidden(
+    state: State<AppState>,
+    slides: State<SlidesState>,
+    id: u64,
+    slide_id: String,
+    hidden: bool,
+) -> Result<Edited, CommandError> {
+    slides
+        .sessions
+        .set_hidden(id, &slide_id, hidden, &renderer(&state)?)
         .map_err(failed)
 }
 

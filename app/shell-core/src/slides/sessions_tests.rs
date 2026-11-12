@@ -81,6 +81,101 @@ fn moving_a_shape_redraws_its_slide_and_undo_puts_it_back() {
 }
 
 #[test]
+fn a_hidden_slide_stays_hidden_after_saving_and_undo_shows_it_again() {
+    let folder = scratch_folder("sessions-hide-files");
+    let sessions = sessions("sessions-hide");
+    let viewer = FakeViewer::default();
+    let id = sessions
+        .open("window-1", &deck_path("pp_title_bullets.pptx"), false)
+        .unwrap()
+        .id;
+    let slide_id = first_slide(&sessions, id);
+    let edited = sessions.set_hidden(id, &slide_id, true, &viewer).unwrap();
+    assert!(edited.deck.slides[0].hidden);
+    sessions
+        .save(id, Some(&folder.join("hidden.pptx")))
+        .unwrap();
+    let reopened = sessions
+        .open("window-2", &folder.join("hidden.pptx"), false)
+        .unwrap();
+    assert!(reopened.deck.slides[0].hidden);
+    let undone = sessions.undo(id, &viewer).unwrap();
+    assert!(!undone.deck.slides[0].hidden);
+}
+
+/// the operations exactly as the editor sends them (lib/slides/operations.ts):
+/// camelCase names, snake_case fields
+#[test]
+fn the_editors_operations_are_understood() {
+    let shapes = [
+        r#"{"op":"addSlide","index":1,"layout_id":"x"}"#,
+        r#"{"op":"move","slide_id":"s","object_ids":[2],"dx":12700,"dy":0}"#,
+        r#"{"op":"resize","slide_id":"s","object_id":2,"x":0,"y":0,"width":1,"height":1}"#,
+        r#"{"op":"rotate","slide_id":"s","object_id":2,"rotation":900000}"#,
+        r#"{"op":"setText","slide_id":"s","object_id":2,"paragraphs":["a","b"]}"#,
+        r#"{"op":"setFill","slide_id":"s","object_id":2,"fill":{"type":"solid","color":{"kind":{"type":"scheme","slot":"accent2"}}}}"#,
+        r#"{"op":"reorder","slide_id":"s","object_id":2,"to":"front"}"#,
+        r#"{"op":"setCellText","slide_id":"s","object_id":2,"row":0,"column":1,"text":"x"}"#,
+        r#"{"op":"insertRow","slide_id":"s","object_id":2,"at":1}"#,
+        r#"{"op":"setThemeColor","theme_id":"t","slot":"accent1","color":{"kind":{"type":"rgb","hex":"FF0000"}}}"#,
+        r#"{"op":"setThemeFonts","theme_id":"t","major":"Georgia","minor":"Verdana"}"#,
+        r#"{"op":"setNotes","slide_id":"s","text":"say this"}"#,
+        r#"{"op":"findReplace","find":"a","replace":"b","match_case":false}"#,
+        r#"{"op":"group","slide_id":"s","object_ids":[2,3]}"#,
+        r#"{"op":"ungroup","slide_id":"s","group_id":4}"#,
+    ];
+    for shape in shapes {
+        assert!(serde_json::from_str::<Operation>(shape).is_ok(), "{shape}");
+    }
+    let layout = serde_json::from_str::<PdfLayout>(r#"{"type":"handouts","perPage":6}"#).unwrap();
+    assert_eq!(layout, PdfLayout::Handouts(6));
+}
+
+#[test]
+fn a_duplicate_sits_a_quarter_inch_off_its_original() {
+    let sessions = sessions("sessions-duplicate");
+    let viewer = FakeViewer::default();
+    let id = sessions
+        .open("window-1", &deck_path("pp_title_bullets.pptx"), false)
+        .unwrap()
+        .id;
+    let slide_id = first_slide(&sessions, id);
+    let before = sessions.slide(id, &slide_id).unwrap();
+    let original = &before.objects[0];
+    let edited = sessions
+        .duplicate(id, &slide_id, &[original.id], &viewer)
+        .unwrap();
+    let after = sessions.slide(id, &slide_id).unwrap();
+    assert_eq!(after.objects.len(), before.objects.len() + 1);
+    let copy = after
+        .objects
+        .iter()
+        .find(|o| Some(o.id) == edited.added)
+        .unwrap();
+    assert!((copy.x - original.x - 18.0).abs() < 0.01 && (copy.y - original.y - 18.0).abs() < 0.01);
+    assert!(sessions.duplicate(id, &slide_id, &[], &viewer).is_err());
+}
+
+#[test]
+fn the_typing_field_gets_the_face_the_slide_is_drawn_with() {
+    let sessions = sessions("sessions-face");
+    let id = sessions
+        .open("window-1", &deck_path("pp_title_bullets.pptx"), false)
+        .unwrap()
+        .id;
+    // a computer with no fonts at all (a bare build machine) has nothing to hand over
+    let Some(bytes) = sessions.face_bytes(id, "Arial", false, false).unwrap() else {
+        return;
+    };
+    // a font file starts with one of these tags
+    assert!(
+        bytes.starts_with(&[0, 1, 0, 0])
+            || bytes.starts_with(b"OTTO")
+            || bytes.starts_with(b"true")
+    );
+}
+
+#[test]
 fn inserting_returns_the_new_object_to_select() {
     let sessions = sessions("sessions-insert");
     let viewer = FakeViewer::default();
