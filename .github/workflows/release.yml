@@ -30,6 +30,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # a tag names the release, and the app's own version names the
+      # installers and shows in the app: they must agree (v0.1.1 once came
+      # out with installers called 0.1.0). change the version in
+      # app/shell/tauri.conf.json, Cargo.toml and the package.json files
+      # before tagging.
+      - name: check the tag matches the app's version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          version=$(node -p "require('./app/shell/tauri.conf.json').version")
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "The tag ${GITHUB_REF_NAME} doesn't match the app's version ${version}. Set the version to match before tagging." >&2
+            exit 1
+          fi
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.99.1
