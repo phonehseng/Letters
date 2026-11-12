@@ -6,6 +6,7 @@ const folder = (name: string, files: string[]): PinnedFolder => ({
   path: `C:\\Courses\\${name}`,
   name,
   files: files.map((file) => ({ path: `C:\\Courses\\${name}\\${file}`, name: file, modifiedAt: 0 })),
+  total: files.length,
 });
 
 const folders = [

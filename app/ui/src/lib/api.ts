@@ -203,6 +203,8 @@ export interface PinnedFolder {
   path: string;
   name: string;
   files: FolderFile[];
+  /** how many pdfs the folder holds; more than files.length when only the newest are listed */
+  total: number;
 }
 
 export function pinnedFolders(): Promise<PinnedFolder[]> {

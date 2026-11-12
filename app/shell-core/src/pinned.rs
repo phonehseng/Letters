@@ -21,6 +21,9 @@ pub struct PinnedFolder {
     pub name: String,
     /// the pdfs directly inside the folder, newest first
     pub files: Vec<FolderFile>,
+    /// how many pdfs the folder holds; more than `files` when the list was
+    /// cut at `MAX_FILES_PER_FOLDER`, so the home screen can say so
+    pub total: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -90,10 +93,14 @@ impl PinnedFolders {
 pub fn describe_folders(paths: &[String]) -> Vec<PinnedFolder> {
     paths
         .iter()
-        .map(|path| PinnedFolder {
-            path: path.clone(),
-            name: last_name(Path::new(path)),
-            files: pdfs_in(Path::new(path)),
+        .map(|path| {
+            let (files, total) = pdfs_and_count(Path::new(path));
+            PinnedFolder {
+                path: path.clone(),
+                name: last_name(Path::new(path)),
+                files,
+                total,
+            }
         })
         .collect()
 }
@@ -101,8 +108,13 @@ pub fn describe_folders(paths: &[String]) -> Vec<PinnedFolder> {
 /// the pdfs directly inside a folder (not in folders within it),
 /// newest first, at most `MAX_FILES_PER_FOLDER`.
 pub fn pdfs_in(folder: &Path) -> Vec<FolderFile> {
+    pdfs_and_count(folder).0
+}
+
+/// `pdfs_in`, with how many pdfs there are in all.
+pub fn pdfs_and_count(folder: &Path) -> (Vec<FolderFile>, usize) {
     let Ok(entries) = fs::read_dir(folder) else {
-        return Vec::new();
+        return (Vec::new(), 0);
     };
     let mut files: Vec<FolderFile> = entries
         .filter_map(Result::ok)
@@ -117,8 +129,9 @@ pub fn pdfs_in(folder: &Path) -> Vec<FolderFile> {
             .cmp(&a.modified_at)
             .then_with(|| a.name.cmp(&b.name))
     });
+    let total = files.len();
     files.truncate(MAX_FILES_PER_FOLDER);
-    files
+    (files, total)
 }
 
 /// true for names ending in .pdf in any mix of capitals.
@@ -237,9 +250,11 @@ mod tests {
         for number in 0..MAX_FILES_PER_FOLDER + 5 {
             make_file(&dir.join(format!("{number:03}.pdf")), number as u64 * 60);
         }
-        let files = pdfs_in(&dir);
+        let (files, total) = pdfs_and_count(&dir);
         assert_eq!(files.len(), MAX_FILES_PER_FOLDER);
         assert_eq!(files[0].name, "000.pdf");
+        // the folder says how many there are, so the cut isn't silent
+        assert_eq!(total, MAX_FILES_PER_FOLDER + 5);
     }
 
     #[test]
