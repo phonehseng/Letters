@@ -56,10 +56,22 @@ debug-assertions = false
 [profile.dev.package.letters-sheets]
 opt-level = 2
 
-# small, fast release builds: the app should start quickly and stay light
+# small, fast release builds: the app should start quickly and stay light.
+# thin lto with parallel codegen keeps the final link within the memory of
+# github's windows runners (16 GB); full lto with one unit didn't fit
 [profile.release]
-codegen-units = 1
-lto = true
+codegen-units = 16
+lto = "thin"
 opt-level = 3
 panic = "abort"
 strip = true
+
+# the exact converter: on windows, llvm's instruction selection fails on
+# verify::lattice_floor at opt-level 2 and 3 ("SmallVector unable to grow"
+# with the gnu toolchain, out of memory with msvc; rust 1.99), whatever
+# shape the loop is given. macos compiles it at 3. opt-level 1 compiles it
+# everywhere, and rust's floating point gives the same results at every
+# level, so the converter's output is unchanged (the locked exact-bytes
+# test passes in release). try 3 again with a newer compiler.
+[profile.release.package.letters-exact]
+opt-level = 1
