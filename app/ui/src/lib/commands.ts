@@ -22,6 +22,8 @@ import { CODE_COMMANDS, CODE_KEYS } from "./code/codeCommands";
 import { SLIDES_COMMANDS } from "./slides/slidesCommands";
 // spreadsheets: a new workbook from Recents (sheets/sheetsCommands.ts)
 import { SHEETS_COMMANDS } from "./sheets/sheetsCommands";
+// forms round two: Prepare & Check (standards/standardsCommands.ts)
+import { STANDARDS_COMMANDS } from "./standards/standardsCommands";
 
 export const COMMANDS = [
   "open",
@@ -88,6 +90,8 @@ export const COMMANDS = [
   ...SLIDES_COMMANDS,
   // spreadsheets: a new workbook from Recents (sheets/sheetsCommands.ts)
   ...SHEETS_COMMANDS,
+  // forms round two: pdf/a, preflight, smaller copies and print checks (standards/standardsCommands.ts)
+  ...STANDARDS_COMMANDS,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];

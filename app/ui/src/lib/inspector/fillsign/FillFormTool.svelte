@@ -1,8 +1,9 @@
 <script lang="ts">
   // Fill Form: the progress line, Show Fields, the list of fields, and
   // Next Empty Field. the filling itself happens on the page. a form the
-  // engine can't fill (xfa) says why, and a form with calculations says
-  // plainly that Letters doesn't run them.
+  // engine can't fill (xfa) says why. totals, formats and checks run as
+  // each answer is filled; a form with scripts Letters leaves alone says
+  // which fields, in the engine's own sentence.
   import { fillEffect } from "../../forms/fillSignEffects";
   import { formProgress, isFilled, isFillable } from "../../forms/tabOrder";
   import type { ToolContext } from "../../inspector";
@@ -36,8 +37,8 @@
   {#if session.overview?.problem}
     <p class="note" role="alert">{session.overview.problem}</p>
   {/if}
-  {#if session.overview?.hasCalculations}
-    <p class="note">This form has automatic calculations that Letters doesn’t run. Totals may need to be typed in.</p>
+  {#if session.overview?.customScriptNote}
+    <p class="note">{session.overview.customScriptNote}. Fields with the usual totals, formats and checks still work.</p>
   {/if}
   {#if session.fields.length > 0}
     <div class="row">

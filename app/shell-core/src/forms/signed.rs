@@ -1,9 +1,9 @@
 //! signing a document through its edit session.
 //!
-//! a digital signature covers the file's exact bytes. every other edit in
-//! Letters loads the document with lopdf and writes it out again whole,
-//! which moves those bytes and breaks the signature. so signing is done
-//! differently:
+//! a digital signature covers the file's exact bytes. an unsigned
+//! document's edits are written out again whole by lopdf, which would move
+//! those bytes and break a signature. so signing, and every change after
+//! it, is done differently:
 //!
 //! 1. the document must be saved first, so the bytes signed are the
 //!    bytes of the person's file. when saves are rewritten (Protect's
@@ -14,9 +14,17 @@
 //! 3. the result is made the new version and written over the person's
 //!    file exactly as it is (`EditSession::adopt_exact_bytes`), never
 //!    through lopdf or the clean writer.
-//! 4. the session now protects the file: a later Save that would write a
+//! 4. the session now protects the file (a file opened already signed is
+//!    protected from the start): a later Save that would write a
 //!    rewritten version over it is refused with a message pointing to
-//!    Save As, and the ui warns before the first change.
+//!    Save As, and the ui asks before the first change.
+//! 5. every later change to a signed document is stored as an incremental
+//!    update of the version before it (`incremental_version`, core/forms'
+//!    `save_incremental`): the signed bytes stay exactly where they are and
+//!    the change is appended. so Save may write it over the signed file and
+//!    every signature still checks out; a verifier lists the change as made
+//!    after signing. a save that would not keep the signed bytes at the
+//!    start (an undo back past the signature, a clean rewrite) is refused.
 //!
 //! a password (or restrictions) can't go together with a signature yet:
 //! the engine signs only unencrypted files, and locking a signed file
@@ -26,7 +34,10 @@
 
 use std::fmt;
 use std::fs;
+use std::io::{self, BufReader, Read};
 use std::path::Path;
+
+use lopdf::Document;
 
 use crate::protect::clean_save::LockOnSave;
 use crate::protect::protection::Protection;
@@ -107,13 +118,98 @@ pub fn sign_saved_document<T, E>(
     } else {
         session.working_copy()
     };
-    let saved = fs::read(source).map_err(|error| SignError::CannotRead(error.to_string()))?;
+    let mut saved = fs::read(source).map_err(|error| SignError::CannotRead(error.to_string()))?;
     // a locked file on disk (however it got there) is never signed or rewritten
     if matches!(inspect_lock(&saved), Ok(Some(_))) {
         return Err(SignError::PasswordProtected);
     }
+    end_with_line_break(&mut saved);
     let signed = sign(&saved).map_err(SignError::Sign)?;
     session
         .adopt_exact_bytes(&signed, reload)
         .map_err(SignError::Session)
+}
+
+/// lopdf ends a file right after "%%EOF". an incremental update begins
+/// with the line break that file lacks, so the revision the file keeps is
+/// the bytes with it, while a change shown the bytes without it records
+/// those: the audit trail's hash of "the file as it was" then names a
+/// version that isn't in the file's history, and the trail reads as broken
+/// (measured in the app: an entry appended to a saved form). adding the
+/// line break first, as the update would, makes the two the same; a pdf
+/// reader ignores it.
+fn end_with_line_break(bytes: &mut Vec<u8>) {
+    // the same test core/forms' incremental writer makes before appending
+    if !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
+    }
+}
+
+/// every signature dictionary has a /ByteRange (iso 32000-1 12.8.1), so a
+/// file without one has nothing to protect. a stray match only means the
+/// document's saves are appended, which costs a few bytes and breaks nothing.
+const SIGNATURE_MARKER: &[u8] = b"/ByteRange";
+
+/// how much of a file is read at a time when looking through it
+const PIECE_BYTES: usize = 64 * 1024;
+
+/// whether a file holds a digital signature. reads it in pieces, so a big
+/// scan isn't held in memory while it opens.
+pub fn looks_signed(path: &Path) -> bool {
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    let mut reader = BufReader::new(file);
+    let mut window: Vec<u8> = Vec::new();
+    let mut piece = vec![0u8; PIECE_BYTES];
+    loop {
+        let read = match reader.read(&mut piece) {
+            Ok(0) | Err(_) => return false,
+            Ok(read) => read,
+        };
+        window.extend_from_slice(&piece[..read]);
+        if window
+            .windows(SIGNATURE_MARKER.len())
+            .any(|part| part == SIGNATURE_MARKER)
+        {
+            return true;
+        }
+        // keep the tail, so a marker split between two pieces is still found
+        let keep = window.len().min(SIGNATURE_MARKER.len() - 1);
+        window.drain(..window.len() - keep);
+    }
+}
+
+/// whether `file` begins with every byte of `start`. this is the test of an
+/// incremental update: the earlier file, signatures and all, is untouched.
+pub fn file_starts_with(file: &Path, start: &Path) -> bool {
+    starts_with(file, start).unwrap_or(false)
+}
+
+fn starts_with(file: &Path, start: &Path) -> io::Result<bool> {
+    let start_length = fs::metadata(start)?.len();
+    if fs::metadata(file)?.len() < start_length {
+        return Ok(false);
+    }
+    let mut longer = BufReader::new(fs::File::open(file)?).take(start_length);
+    let mut shorter = BufReader::new(fs::File::open(start)?);
+    let mut from_file = vec![0u8; PIECE_BYTES];
+    let mut from_start = vec![0u8; PIECE_BYTES];
+    loop {
+        let read = shorter.read(&mut from_start)?;
+        if read == 0 {
+            return Ok(true);
+        }
+        longer.read_exact(&mut from_file[..read])?;
+        if from_file[..read] != from_start[..read] {
+            return Ok(false);
+        }
+    }
+}
+
+/// the changed `document` written as an incremental update of the version
+/// file it was loaded from, through core/forms' `save_incremental`.
+pub fn incremental_version(version: &Path, document: &Document) -> Result<Vec<u8>, String> {
+    let before = fs::read(version).map_err(|error| error.to_string())?;
+    letters_forms::save_incremental(&before, document).map_err(|error| error.to_string())
 }

@@ -19,6 +19,7 @@ the code so source folders hold only what is built or read with it.
 - [`shell-core-ai.md`](shell-core-ai.md): `app/shell-core/src/ai/`
 - [`shell-core-associations.md`](shell-core-associations.md): `app/shell-core/src/associations/`
 - [`shell-core-code.md`](shell-core-code.md): `app/shell-core/src/code/`
+- [`shell-core-forms.md`](shell-core-forms.md): `app/shell-core/src/forms/`
 - [`shell-core-compare.md`](shell-core-compare.md): `app/shell-core/src/compare/`
 - [`shell-core-drive.md`](shell-core-drive.md): `app/shell-core/src/drive/`
 - [`shell-core-edit.md`](shell-core-edit.md): `app/shell-core/src/edit/`
@@ -30,6 +31,7 @@ the code so source folders hold only what is built or read with it.
 - [`shell-core-settings_store.md`](shell-core-settings_store.md): `app/shell-core/src/settings_store/`
 - [`shell-core-slides.md`](shell-core-slides.md): `app/shell-core/src/slides/`
 - [`shell-core-sheets.md`](shell-core-sheets.md): `app/shell-core/src/sheets/`
+- [`shell-core-standards.md`](shell-core-standards.md): `app/shell-core/src/standards/`
 - [`shell-core-writer.md`](shell-core-writer.md): `app/shell-core/src/writer/`
 - [`ui-a11y.md`](ui-a11y.md): `app/ui/src/lib/a11y/`
 - [`ui-ai.md`](ui-ai.md): `app/ui/src/lib/ai/`
@@ -37,6 +39,7 @@ the code so source folders hold only what is built or read with it.
 - [`ui-compare.md`](ui-compare.md): `app/ui/src/lib/compare/`
 - [`ui-edit.md`](ui-edit.md): `app/ui/src/lib/edit/`
 - [`ui-export.md`](ui-export.md): `app/ui/src/lib/export/`
+- [`ui-forms.md`](ui-forms.md): `app/ui/src/lib/forms/`
 - [`ui-library.md`](ui-library.md): `app/ui/src/lib/library/`
 - [`ui-longform.md`](ui-longform.md): `app/ui/src/lib/longform/`
 - [`ui-ocr.md`](ui-ocr.md): `app/ui/src/lib/ocr/`
@@ -45,4 +48,5 @@ the code so source folders hold only what is built or read with it.
 - [`ui-settings.md`](ui-settings.md): `app/ui/src/lib/settings/`
 - [`ui-slides.md`](ui-slides.md): `app/ui/src/lib/slides/`
 - [`ui-sheets.md`](ui-sheets.md): `app/ui/src/lib/sheets/`
+- [`ui-standards.md`](ui-standards.md): `app/ui/src/lib/standards/`
 - [`ui-writer.md`](ui-writer.md): `app/ui/src/lib/writer/`

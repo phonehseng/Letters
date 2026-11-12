@@ -11,27 +11,30 @@
 //! so it is made on the saved file and written back exactly through the
 //! edit session (see shell-core's forms/signed.rs), never through lopdf.
 //!
-//! everything happens on this computer: no server, no time stamps, no
-//! record of who opened or filled a form.
+//! everything happens on this computer: no server and no record of who
+//! opened or filled a form. the one exception is a time stamp the person
+//! asks for, which sends only a hash (see signing_commands.rs).
 
 use std::path::Path;
 use std::sync::Mutex;
 
 use letters_forms::{
-    self as forms, CertificateRequest, DetectedField, FieldChanges, FieldInfo, FieldValue,
-    FlattenOptions, FormError, NewField, SignRequest, SignatureAppearance, SignatureImage,
-    SignaturePlacement, SignatureReport, VisibleRect, TRUST_NOTE,
+    self as forms, CertificateRequest, ChangeVerdict, DetectedField, DocumentVerification,
+    FieldChanges, FieldInfo, FlattenOptions, FormError, NewField, SignRequest, SignatureAppearance,
+    SignatureImage, SignaturePlacement, SignatureReport, VisibleRect, TRUST_NOTE,
 };
 use letters_pdf::DocumentId;
 use letters_shell_core::forms::{
-    data_url, has_calculations, password_blocks_signing, picture_mime, read_chosen_file,
-    sign_saved_document, write_chosen_bytes, PictureKind, SavedSignature, SignaturePictures,
+    data_url, picture_mime, read_chosen_file, write_chosen_bytes, PictureKind, SavedSignature,
+    SignaturePictures,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 use crate::documents::DocumentState;
 use crate::errors::CommandError;
+use crate::settings_commands::SettingsState;
+use crate::signing_commands::{change_saved_bytes, signing_options, SigningChoices};
 use crate::state::AppState;
 
 /// a certificate file is a few kilobytes; anything bigger is the wrong file.
@@ -73,10 +76,14 @@ pub struct FormsOverview {
     fields: Vec<FieldInfo>,
     /// why the form can't be filled (an xfa form, say), as the engine words it
     problem: Option<String>,
-    /// the form expects scripts to calculate answers, which Letters never runs
-    has_calculations: bool,
+    /// the engine's sentence naming fields whose scripts Letters leaves
+    /// alone; the standard calculations, formats and checks it runs itself
+    custom_script_note: Option<String>,
     signatures: Vec<SignatureReport>,
-    /// the saved file is signed, so Save won't write a changed version over it
+    /// for each signature, the engine's verdict on what changed after it:
+    /// a change the author allowed doesn't make it "changed since"
+    verdicts: Vec<Option<ChangeVerdict>>,
+    /// the saved file is signed, so changes are saved after its signatures
     protected: bool,
     /// the engine's sentence about what checking a signature does and doesn't mean
     trust_note: &'static str,
@@ -157,25 +164,28 @@ fn yes() -> bool {
 #[tauri::command(async)]
 pub fn forms_overview(state: State<AppState>, id: u64) -> Result<FormsOverview, CommandError> {
     let document_id = DocumentId(id);
-    let (fields, problem, calculates) = state.read_document(document_id, |document| {
-        let calculates = has_calculations(document);
+    let (fields, problem, custom_script_note) = state.read_document(document_id, |document| {
+        let note = forms::form_logic(document)
+            .ok()
+            .and_then(|logic| logic.custom_script_note);
         Ok(match forms::fields(document) {
-            Ok(fields) => (fields, None, calculates),
-            Err(error) => (Vec::new(), Some(error.to_string()), calculates),
+            Ok(fields) => (fields, None, note),
+            Err(error) => (Vec::new(), Some(error.to_string()), note),
         })
     })?;
     // checking signatures reads the whole file, so only signed forms pay for it
     let any_signed = fields.iter().any(|field| field.signed);
-    let (signatures, protected) = if any_signed {
+    let (signatures, verdicts, protected) = if any_signed {
         signature_reports(&state, document_id)?
     } else {
-        (Vec::new(), false)
+        (Vec::new(), Vec::new(), false)
     };
     Ok(FormsOverview {
         fields,
         problem,
-        has_calculations: calculates,
+        custom_script_note,
         signatures,
+        verdicts,
         protected,
         trust_note: TRUST_NOTE,
     })
@@ -183,34 +193,42 @@ pub fn forms_overview(state: State<AppState>, id: u64) -> Result<FormsOverview, 
 
 /// checks the signatures of what is shown. a signed file opened without
 /// changes gets the session's guard, so Save never rewrites it.
-fn signature_reports(
-    state: &AppState,
-    id: DocumentId,
-) -> Result<(Vec<SignatureReport>, bool), CommandError> {
+fn signature_reports(state: &AppState, id: DocumentId) -> Result<SignedState, CommandError> {
     let worker = state.worker().map_err(CommandError::engine_unavailable)?;
     let (answer, _) = state.documents.with_session(worker, id, |session, _| {
         let bytes = std::fs::read(session.working_copy())
             .map_err(|error| CommandError::failed(error.to_string()))?;
-        let reports = forms::verify(&bytes).unwrap_or_default();
+        // the whole check, so later changes come with the engine's verdict on them
+        let (reports, verdicts) = match forms::verify_document(&bytes) {
+            Ok(checked) => verdicts_by_signature(checked),
+            Err(_) => (forms::verify(&bytes).unwrap_or_default(), Vec::new()),
+        };
         if !session.is_dirty() && !reports.is_empty() {
             session.protect_original(true);
         }
-        Ok(((reports, session.original_is_protected()), None))
+        Ok(((reports, verdicts, session.original_is_protected()), None))
     })?;
     Ok(answer)
 }
 
-/// fills one field. the engine checks the answer first and says what is wrong.
-#[tauri::command(async)]
-pub fn forms_set_value(
-    state: State<AppState>,
-    id: u64,
-    name: String,
-    value: FieldValue,
-) -> Result<DocumentState, CommandError> {
-    state.edit(DocumentId(id), |document| {
-        forms::set_value(document, &name, &value)
-    })
+/// the signatures, and for each the verdict on what changed after it.
+type SignedState = (Vec<SignatureReport>, Vec<Option<ChangeVerdict>>, bool);
+
+fn verdicts_by_signature(
+    checked: DocumentVerification,
+) -> (Vec<SignatureReport>, Vec<Option<ChangeVerdict>>) {
+    let verdicts = checked
+        .signatures
+        .iter()
+        .map(|report| {
+            checked
+                .changes
+                .iter()
+                .find(|changes| changes.field == report.field)
+                .map(|changes| changes.verdict)
+        })
+        .collect();
+    (checked.signatures, verdicts)
 }
 
 /// adds fields, all in one undo step (Add Fields after Find Fields adds many).
@@ -414,14 +432,18 @@ pub fn forms_create_certificate(
 }
 
 /// signs the saved document with a certificate file. the password is
-/// used for this one signature and never kept.
+/// used for this one signature and never kept. `choices` are the extras
+/// (a trusted time, certifying, locks...), see signing_commands.rs.
 #[tauri::command(async)]
 pub fn forms_sign(
     state: State<AppState>,
     forms_state: State<FormsState>,
+    settings_state: State<SettingsState>,
     id: u64,
     settings: SignSettings,
+    choices: Option<SigningChoices>,
 ) -> Result<DocumentState, CommandError> {
+    let options = signing_options(&state, &settings_state, &choices.unwrap_or_default())?;
     let pkcs12 = read_chosen_file(Path::new(&settings.certificate_path), MAX_CERTIFICATE_BYTES)
         .map_err(CommandError::failed)?;
     let image_png = match &settings.signature_id {
@@ -448,35 +470,10 @@ pub fn forms_sign(
             show_details: settings.show_details,
         },
     };
-    let worker = state.worker().map_err(CommandError::engine_unavailable)?;
     // a password set under Protect (or one the file still has) can't go with a signature yet
-    let password_blocked = password_blocks_signing(&state.protection.get(id));
-    let (_, document) = state
-        .documents
-        .with_session(worker, DocumentId(id), |session, show| {
-            let shown = sign_saved_document(
-                session,
-                password_blocked,
-                |bytes| forms::sign(bytes, &request),
-                |path| show(path),
-            )
-            .map_err(|error| CommandError::failed(error.to_string()))?;
-            Ok(((), Some(shown)))
-        })?;
-    Ok(document)
-}
-
-/// after Save a Copy: the copy is the person's to change, so its guard goes.
-#[tauri::command(async)]
-pub fn forms_release_signature_guard(state: State<AppState>, id: u64) -> Result<(), CommandError> {
-    let worker = state.worker().map_err(CommandError::engine_unavailable)?;
-    state
-        .documents
-        .with_session(worker, DocumentId(id), |session, _| {
-            session.protect_original(false);
-            Ok(((), None))
-        })?;
-    Ok(())
+    change_saved_bytes(&state, id, |bytes| {
+        forms::sign_with_options(bytes, &request, &options)
+    })
 }
 
 /// adds ".p12" to a certificate name typed without it.

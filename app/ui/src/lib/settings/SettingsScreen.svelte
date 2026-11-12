@@ -12,11 +12,13 @@
   import AccountsSection from "./AccountsSection.svelte";
   import AiSection from "./AiSection.svelte";
   import LibrarySettingsPanel from "../library/LibrarySettingsPanel.svelte";
+  import SigningSettings from "../forms/SigningSettings.svelte";
   import * as api from "./settingsApi";
   import { OCR_LANGUAGES, privacyItems, ZOOM_CHOICES, type AppSettings } from "./settingsModel";
 
   // "Search" is the library folders and the index (lib/library/LibrarySettingsPanel.svelte)
-  const SECTIONS = ["General", "Typing", "Files", "Fonts", "Scanning", "Search", "Accounts", "AI Tools", "Privacy"] as const;
+  // "Signing" is the time stamp server for digital signatures (lib/forms/SigningSettings.svelte)
+  const SECTIONS = ["General", "Typing", "Files", "Fonts", "Scanning", "Signing", "Search", "Accounts", "AI Tools", "Privacy"] as const;
   type Section = (typeof SECTIONS)[number];
 
   let section = $state<Section>("General");
@@ -173,6 +175,9 @@
         </select>
         <span class="hint">Text recognition reads scans and photos best in the language they are written in.</span>
       </label>
+    {:else if section === "Signing"}
+      <!-- forms round two: the time stamp server (lib/forms/SigningSettings.svelte) -->
+      <SigningSettings {settings} onChange={change} />
     {:else if section === "Search"}
       <LibrarySettingsPanel embedded />
     {:else if section === "Accounts"}

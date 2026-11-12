@@ -45,6 +45,12 @@ impl FontsState {
     pub fn index(&self) -> Arc<letters_fonts::FontIndex> {
         self.library.index()
     }
+
+    /// forms round two: pdf/a conversion embeds fonts from the library
+    /// (standards_commands.rs)
+    pub fn library(&self) -> &FontLibrary {
+        &self.library
+    }
 }
 
 /// where the shipped fonts can be: the installed app's resources, beside

@@ -7,9 +7,14 @@
   //
   // the signature covers the saved file, so unsaved changes are saved
   // first. the password is used for this one signature and never kept.
-  import { untrack } from "svelte";
-  import { signEffect } from "../../forms/fillSignEffects";
+  //
+  // forms round two: Signing Options adds a trusted time, certifying,
+  // field locks, the signing order, validation data and the audit trail.
+  import { onMount, untrack } from "svelte";
   import { chooseCertificate, type SignaturePlacement } from "../../forms/formsApi";
+  import { signingNotes, type SigningNotes } from "../../forms/signingApi";
+  import { choicesProblem, noChoices, signChoicesEffect } from "../../forms/signingWords";
+  import SigningOptions from "./SigningOptions.svelte";
   import { fileNameOf } from "../../pageApi";
   import { fieldLabel } from "../../forms/tabOrder";
   import type { ToolContext } from "../../inspector";
@@ -36,6 +41,17 @@
   let withPicture = $state(false);
   let makingCertificate = $state(false);
   const drawingPlace = $derived(session.tool === "signArea");
+  let choices = $state(noChoices());
+  let lockKind = $state<"none" | "all" | "chosen">("none");
+  let notes = $state<SigningNotes | null>(null);
+  const signatureFields = $derived(session.fields.filter((field) => field.kind === "signature"));
+
+  // the server can change in Settings while the document is open, so it is read on each opening
+  onMount(() => {
+    signingNotes()
+      .then((read) => (notes = read))
+      .catch(() => (notes = null));
+  });
 
   // a signature field clicked on the page, or the first empty one, is the natural place
   $effect(() => {
@@ -77,7 +93,7 @@
           ? where === "draw"
             ? "Draw where the signature goes, or choose Invisible."
             : "Choose a signature field."
-          : null,
+          : choicesProblem(choices, notes?.timestampServer ?? "", lockKind),
   );
 
   function drawPlace(event: MouseEvent) {
@@ -94,19 +110,22 @@
   async function sign() {
     const chosen = placement();
     if (!certificatePath || !chosen || !(await session.saveBeforeSigning())) return;
-    const signed = await session.sign({
-      certificatePath,
-      password,
-      placement: chosen,
-      reason: reason || null,
-      location: location || null,
-      signatureId: withPicture ? session.chosenPicture : null,
-      showDetails: true,
-    });
+    const signed = await session.sign(
+      {
+        certificatePath,
+        password,
+        placement: chosen,
+        reason: reason || null,
+        location: location || null,
+        signatureId: withPicture ? session.chosenPicture : null,
+        showDetails: true,
+      },
+      $state.snapshot(choices),
+    );
     if (signed) {
       // the password is forgotten as soon as it has been used
       password = "";
-      context.notify("Signed and saved. Changing the document now would make the signature show as changed.");
+      context.notify("Signed and saved. Later changes are saved after the signature, which lists them.");
     }
   }
 </script>
@@ -117,7 +136,7 @@
   {onToggle}
   actionLabel={context.document.dirty ? "Save and Sign" : "Sign"}
   ready={missing === null}
-  effect={signEffect(context.document.dirty, missing === null, missing)}
+  effect={missing ?? signChoicesEffect(context.document.dirty, choices, notes?.timestampServer ?? "")}
   onAction={sign}
 >
   <div class="setting">
@@ -168,6 +187,14 @@
     <span class="caption">Place (optional)</span>
     <input class="field" placeholder="Toronto" bind:value={location} />
   </label>
+  <SigningOptions
+    bind:choices
+    bind:lockKind
+    {notes}
+    fields={session.fields}
+    canCertify={!signatureFields.some((field) => field.signed)}
+    hasSigningOrder={signatureFields.length > 1}
+  />
 </ToolSection>
 
 {#if makingCertificate}

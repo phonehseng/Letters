@@ -25,6 +25,13 @@ use crate::slides_commands;
 use crate::{edit_flow_commands, edit_page_commands, edit_shape_commands, ocr_editable_commands};
 // spreadsheets, on their own line for the same reason
 use crate::{sheets_commands, sheets_help_commands};
+// forms round two: form logic, preparing forms, form data, signing options
+// and pdf standards, on their own line for the same reason
+use crate::form_logic_commands;
+use crate::form_building_commands;
+use crate::form_data_commands;
+use crate::signing_commands;
+use crate::standards_commands;
 
 /// one feature's commands: its handler, and the names it answers to.
 struct Feature {
@@ -88,6 +95,43 @@ fn features() -> Vec<Feature> {
         // spreadsheets: the sheets screen and its formula help
         spreadsheets(),
         spreadsheet_help(),
+        // forms round two (see forms_round_two below)
+        forms_round_two(),
+    ]
+}
+
+/// forms round two: form logic, preparing forms, form data, signing
+/// options and checking, and pdf standards.
+fn forms_round_two() -> Feature {
+    feature![
+        form_logic_commands::forms_logic,
+        form_logic_commands::forms_fill_field,
+        form_logic_commands::forms_set_field_logic,
+        form_logic_commands::forms_recalculate,
+        form_building_commands::forms_tab_order,
+        form_building_commands::forms_set_tab_order,
+        form_building_commands::forms_group_fields,
+        form_building_commands::forms_duplicate_across_pages,
+        form_building_commands::forms_set_export_value,
+        form_building_commands::forms_set_default_value,
+        form_building_commands::forms_reset_form,
+        form_building_commands::forms_add_button,
+        form_data_commands::forms_export_data,
+        form_data_commands::forms_import_data,
+        form_data_commands::forms_merge_data,
+        signing_commands::forms_signing_notes,
+        signing_commands::forms_signing_workflow,
+        signing_commands::forms_set_signing_order,
+        signing_commands::forms_add_validation_data,
+        signing_commands::forms_verify_document,
+        signing_commands::forms_audit_trail,
+        signing_commands::forms_append_audit_entry,
+        signing_commands::forms_add_audit_pages,
+        standards_commands::standards_check_pdfa,
+        standards_commands::standards_convert_pdfa,
+        standards_commands::standards_preflight,
+        standards_commands::standards_optimize,
+        standards_commands::standards_check_pdfx,
     ]
 }
 
@@ -217,7 +261,6 @@ fn writer_drive() -> Feature {
 fn forms() -> Feature {
     feature![
         forms_commands::forms_overview,
-        forms_commands::forms_set_value,
         forms_commands::forms_add_fields,
         forms_commands::forms_update_field,
         forms_commands::forms_remove_field,
@@ -230,7 +273,6 @@ fn forms() -> Feature {
         forms_commands::forms_read_picture,
         forms_commands::forms_create_certificate,
         forms_commands::forms_sign,
-        forms_commands::forms_release_signature_guard,
     ]
 }
 

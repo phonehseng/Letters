@@ -306,10 +306,13 @@ Filling it should feel like typing into the paper itself, as in Preview.
   certificate is made. Passwords are never kept.
 - **A signed document is protected from surprises.** A quiet banner says
   who signed and whether it has changed since. The first change asks, as a
-  sheet like the unsaved changes question: "Changing this document will
-  make its signature show as changed. Save a copy instead?" with Save a
-  Copy… (prominent), Cancel and Edit Anyway at the leading edge, the way a
-  mac sets a destructive choice apart.
+  sheet like the unsaved changes question: "Your changes will be saved
+  after the signature. It stays valid for what was signed, and lists what
+  changed since. Keep the signed file as it is and save a copy instead?"
+  with Save a Copy… (prominent), Cancel and Edit Anyway at the leading
+  edge, the way a mac sets a destructive choice apart. Every save of a
+  signed document appends the change (an incremental update), so no save
+  ever breaks a signature.
 - **Everything stays on this computer**: no server, no tracking of who
   opened, filled or signed; kept signatures live in the app's own folder.
 

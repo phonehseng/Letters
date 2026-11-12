@@ -119,6 +119,8 @@
   import ViewerToolbar from "./ViewerToolbar.svelte";
   // export, the ai tools panel and find a topic (lib/export, lib/ai)
   import ExportSheet from "./export/ExportSheet.svelte";
+  // forms round two: Prepare & Check (lib/standards)
+  import StandardsSheet from "./standards/StandardsSheet.svelte";
   import AiPanel from "./ai/AiPanel.svelte";
   import type { AiTab, Rect as AiRect } from "./ai/aiPanel";
   import { currentSettings, openSettingsWindow } from "./settings/settingsApi";
@@ -169,6 +171,8 @@
   // tab and topic; whether the tools are on in Settings (read again when
   // the window comes forward, since Settings is another window)
   let exporting = $state(false);
+  // forms round two: the Prepare & Check sheet is open (lib/standards)
+  let preparing = $state(false);
   let aiTab = $state<AiTab | undefined>(undefined);
   let aiTopic = $state("");
   let aiEnabled = $state(false);
@@ -845,6 +849,8 @@
       ["find", openFind],
       // export and ai tools
       ["export-to", () => (exporting = true)],
+      // forms round two: pdf/a, preflight, smaller copies, print checks
+      ["prepare-and-check", () => (preparing = true)],
       ["toggle-ai-tools", () => aiEnabled && toggleAi()],
       ["find-topic", () => openAi("findTopic", "")],
       ["toggle-thumbnails", () => setSidebar(toggleSidebarMode(sidebar, "thumbnails"))],
@@ -1179,6 +1185,10 @@
     <!-- export: Export To… (lib/export) -->
     {#if exporting}
       <ExportSheet document={doc} top={toolbarHeight} wordStyle={wordExportStyle} onClose={() => (exporting = false)} />
+    {/if}
+    <!-- forms round two: Prepare & Check… (lib/standards) -->
+    {#if preparing}
+      <StandardsSheet document={doc} top={toolbarHeight} onClose={() => (preparing = false)} />
     {/if}
 
     {#if notice}

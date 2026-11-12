@@ -10,6 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as showOpenDialog, save as showSaveDialog } from "@tauri-apps/plugin-dialog";
 import type { DocumentState } from "../api";
 import type { Rect } from "../pageTools/pagePoints";
+import type { ChangeVerdict, SigningChoices } from "./signingApi";
 
 export type FieldKind = "text" | "multilineText" | "checkbox" | "radioGroup" | "dropdown" | "list" | "date" | "signature" | "button";
 export type Alignment = "left" | "center" | "right";
@@ -148,9 +149,12 @@ export interface FormsOverview {
   fields: FieldInfo[];
   /** why the form can't be filled (an xfa form), in the engine's words */
   problem: string | null;
-  hasCalculations: boolean;
+  /** "This form has a custom script Letters doesn’t run: a, b", when it has any */
+  customScriptNote: string | null;
   signatures: SignatureReport[];
-  /** the saved file is signed: Save won't write a changed version over it */
+  /** for each signature, the engine's verdict on what changed after it */
+  verdicts: (ChangeVerdict | null)[];
+  /** the saved file is signed: changes are saved after its signatures */
   protected: boolean;
   trustNote: string;
 }
@@ -203,10 +207,6 @@ export function formsOverview(id: number): Promise<FormsOverview> {
   return invoke("forms_overview", { id });
 }
 
-export function setFieldValue(id: number, name: string, value: FieldValue): Promise<DocumentState> {
-  return invoke("forms_set_value", { id, name, value });
-}
-
 export function addFields(id: number, fields: NewField[]): Promise<{ document: DocumentState; names: string[] }> {
   return invoke("forms_add_fields", { id, fields });
 }
@@ -252,12 +252,9 @@ export function createCertificate(request: CertificateRequest, path: string): Pr
   return invoke("forms_create_certificate", { request, path });
 }
 
-export function signDocument(id: number, settings: SignSettings): Promise<DocumentState> {
-  return invoke("forms_sign", { id, settings });
-}
-
-export function releaseSignatureGuard(id: number): Promise<void> {
-  return invoke("forms_release_signature_guard", { id });
+/** `choices` are the signing extras (signingApi.ts); leave out for a plain signature */
+export function signDocument(id: number, settings: SignSettings, choices: SigningChoices | null = null): Promise<DocumentState> {
+  return invoke("forms_sign", { id, settings, choices });
 }
 
 /** the file picker for a certificate file. */

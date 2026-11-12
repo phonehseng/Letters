@@ -1,6 +1,6 @@
 //! Fill & Sign glue run the way the app runs it: signing through an edit
-//! session, the guard on a signed file, kept signature pictures, and
-//! spotting forms that calculate.
+//! session, the guard on a signed file, kept signature pictures and
+//! chosen files.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ use letters_forms::{
     create_self_signed_certificate, sign, verify, CertificateRequest, KeyKind, SignRequest,
     SignatureAppearance, SignaturePlacement,
 };
-use lopdf::{dictionary, Document, Object};
+use lopdf::Document;
 
 use super::*;
 use crate::session::{EditSession, SessionError};
@@ -156,15 +156,39 @@ fn a_wrong_password_changes_nothing() {
 }
 
 #[test]
-fn a_later_full_save_is_refused_and_save_as_makes_a_copy() {
+fn a_later_change_is_appended_and_saved_over_the_signed_file() {
     let Signed {
         original,
         mut session,
     } = signed_document("sign-then-edit");
     let signed = fs::read(&original).unwrap();
 
-    // edit anyway: the working copy is rewritten, its signature broken
     session.apply(turn_first_page, show).unwrap();
+    session.save().unwrap();
+
+    let saved = fs::read(&original).unwrap();
+    assert!(
+        saved.starts_with(&signed),
+        "the signed bytes are kept as they are"
+    );
+    let reports = verify(&saved).unwrap();
+    assert_eq!(reports.len(), 1);
+    assert!(reports[0].valid, "the signature still checks out");
+    assert!(reports[0].changed_after_signing, "and the change shows");
+    assert!(session.original_is_protected());
+}
+
+#[test]
+fn a_clean_rewrite_of_a_signed_file_is_refused_and_save_as_makes_a_copy() {
+    let Signed {
+        original,
+        mut session,
+    } = signed_document("sign-rewrite");
+    let signed = fs::read(&original).unwrap();
+    // protect's clean save writer (after a redaction) rewrites every save
+    session.write_saves_with(Box::new(|path: &Path| Ok(fs::read(path).unwrap())), false);
+    session.apply(turn_first_page, show).unwrap();
+
     let result = session.save();
 
     assert!(matches!(result, Err(SessionError::SignedOriginal { .. })));
@@ -174,29 +198,10 @@ fn a_later_full_save_is_refused_and_save_as_makes_a_copy() {
         signed,
         "the signed file is untouched"
     );
-    assert!(only_report_is_valid(&fs::read(&original).unwrap()));
-
-    // the way out: a copy, which then saves normally
     let copy = original.with_file_name("form edited.pdf");
     session.save_as(&copy).unwrap();
-    assert!(!session.original_is_protected());
-    session.apply(turn_first_page, show).unwrap();
-    session.save().unwrap();
+    assert!(!session.original_is_protected(), "the copy was rewritten");
     assert_eq!(fs::read(&original).unwrap(), signed);
-}
-
-#[test]
-fn the_edited_copy_reports_the_signature_as_broken() {
-    let Signed { mut session, .. } = signed_document("sign-broken");
-    session.apply(turn_first_page, show).unwrap();
-
-    let reports = verify(&fs::read(session.working_copy()).unwrap()).unwrap();
-
-    assert_eq!(reports.len(), 1);
-    assert!(
-        !reports[0].valid,
-        "a rewritten file no longer matches its signature"
-    );
 }
 
 #[test]
@@ -305,97 +310,6 @@ fn the_oldest_pictures_go_once_there_are_too_many() {
 
     assert_eq!(store.list().len(), signature_pictures::MAX_SAVED);
     assert!(store.read(&first.id).is_err(), "its file is removed too");
-}
-
-// ---- forms that calculate ----
-
-/// a one page document whose form holds `fields` (and `extra` in /AcroForm).
-fn form_with(fields: Vec<lopdf::Dictionary>, extra: Option<(&str, Object)>) -> Document {
-    let mut document = Document::with_version("1.7");
-    let pages = document.new_object_id();
-    let page = document.add_object(dictionary! { "Type" => "Page", "Parent" => pages });
-    document.objects.insert(
-        pages,
-        Object::Dictionary(dictionary! {
-            "Type" => "Pages", "Kids" => vec![page.into()], "Count" => 1,
-            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
-        }),
-    );
-    let field_refs: Vec<Object> = fields
-        .into_iter()
-        .map(|field| document.add_object(field).into())
-        .collect();
-    let mut form = dictionary! { "Fields" => field_refs };
-    if let Some((key, value)) = extra {
-        form.set(key, value);
-    }
-    let form = document.add_object(form);
-    let catalog = document
-        .add_object(dictionary! { "Type" => "Catalog", "Pages" => pages, "AcroForm" => form });
-    document.trailer.set("Root", catalog);
-    document
-}
-
-fn javascript(script: &str) -> Object {
-    Object::Dictionary(dictionary! { "S" => "JavaScript", "JS" => Object::string_literal(script) })
-}
-
-#[test]
-fn a_plain_form_or_no_form_has_no_calculations() {
-    let mut no_form = Document::with_version("1.7");
-    let catalog = no_form.add_object(dictionary! { "Type" => "Catalog" });
-    no_form.trailer.set("Root", catalog);
-    assert!(!has_calculations(&no_form));
-
-    let plain = form_with(
-        vec![dictionary! { "FT" => "Tx", "T" => Object::string_literal("Name") }],
-        None,
-    );
-    assert!(!has_calculations(&plain));
-}
-
-#[test]
-fn a_date_format_script_is_not_a_calculation() {
-    let date = dictionary! {
-        "FT" => "Tx", "T" => Object::string_literal("Date"),
-        "AA" => dictionary! { "F" => javascript("AFDate_FormatEx(\"dd/mm/yyyy\");") },
-    };
-    assert!(!has_calculations(&form_with(vec![date], None)));
-}
-
-#[test]
-fn a_calculation_order_or_a_calculate_action_is_found() {
-    let total = dictionary! {
-        "FT" => "Tx", "T" => Object::string_literal("Total"),
-        "AA" => dictionary! { "C" => javascript("AFSimple_Calculate(\"SUM\", [\"A\", \"B\"]);") },
-    };
-    assert!(has_calculations(&form_with(vec![total.clone()], None)));
-
-    let order = Object::Array(vec![Object::Integer(0)]);
-    let plain = dictionary! { "FT" => "Tx", "T" => Object::string_literal("A") };
-    assert!(has_calculations(&form_with(
-        vec![plain],
-        Some(("CO", order))
-    )));
-
-    // deep in the tree, as forms with grouped names are
-    let mut document = form_with(vec![], None);
-    let child = document.add_object(total);
-    let parent = document.add_object(
-        dictionary! { "T" => Object::string_literal("Sums"), "Kids" => vec![child.into()] },
-    );
-    let form = document
-        .catalog()
-        .unwrap()
-        .get(b"AcroForm")
-        .unwrap()
-        .as_reference()
-        .unwrap();
-    document
-        .get_dictionary_mut(form)
-        .unwrap()
-        .set("Fields", vec![Object::Reference(parent)]);
-    assert!(has_calculations(&document));
 }
 
 // ---- chosen files ----

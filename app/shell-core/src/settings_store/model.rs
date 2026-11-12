@@ -20,6 +20,8 @@ pub struct AppSettings {
     pub ai: letters_ai::Settings,
     /// a model server Letters starts itself, if the person chose one
     pub ai_server: AiServerLaunch,
+    /// forms round two: the time stamp server signatures may ask
+    pub signing: Signing,
     /// anything a newer version of Letters wrote that this one doesn't
     /// know. it is kept, so opening Settings here never loses it
     #[serde(flatten)]
@@ -35,6 +37,7 @@ impl Default for AppSettings {
             scanning: Scanning::default(),
             ai: letters_ai::Settings::default(),
             ai_server: AiServerLaunch::default(),
+            signing: Signing::default(),
             unknown: Map::new(),
         }
     }
@@ -103,6 +106,16 @@ pub struct AiServerLaunch {
     pub model_file: String,
 }
 
+/// forms round two: signing. empty means no server, so no time stamp is
+/// ever asked for; the signer's clock is used and the signature says so.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Signing {
+    /// the address of the time stamp authority the person chose, such as
+    /// https://tsa.example.org/tsr. only a hash is ever sent to it
+    pub timestamp_server: String,
+}
+
 impl AppSettings {
     /// reads a stored file of any version this one understands.
     ///
@@ -167,6 +180,14 @@ mod tests {
         let settings = AppSettings::from_json(odd);
         assert_eq!(settings.files.document, "docx");
         assert_eq!(settings.files.picture, "jpeg");
+    }
+
+    #[test]
+    fn no_time_stamp_server_is_set_until_the_person_chooses_one() {
+        assert_eq!(AppSettings::default().signing.timestamp_server, "");
+        let chosen = serde_json::json!({ "signing": { "timestampServer": "http://127.0.0.1:3180/tsr" } });
+        let settings = AppSettings::from_json(chosen);
+        assert_eq!(settings.signing.timestamp_server, "http://127.0.0.1:3180/tsr");
     }
 
     #[test]

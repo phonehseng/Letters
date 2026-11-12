@@ -57,7 +57,10 @@
   });
 
   function commit() {
-    if (cancelled || text === sent) return;
+    // the same text as stored still goes through when a refusal is showing,
+    // so typing the old answer back takes the refusal away (seen in the app)
+    const refused = field.name in session.errors;
+    if (cancelled || (text === sent && !refused)) return;
     sent = text;
     session.commitText(field.name, text);
   }

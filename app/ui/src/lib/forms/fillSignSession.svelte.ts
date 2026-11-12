@@ -30,9 +30,7 @@ import {
   formsOverview,
   keepSignaturePicture,
   placeSignature,
-  releaseSignatureGuard,
   removeField,
-  setFieldValue,
   signaturePictures,
   signDocument,
   updateField,
@@ -44,6 +42,9 @@ import {
   type SignaturePicture,
   type SignSettings,
 } from "./formsApi";
+import { fillField, type ChangedField } from "./formLogicApi";
+import type { SigningChoices } from "./signingApi";
+import { recalculatedSentence } from "./formRules";
 import { NEW_FIELD_SIZE, newFieldSpec, parseChoices, suggestedName, type AddableKind } from "./newFields";
 import { acceptAll, moveProposal, newFieldsFrom, proposalsFrom, setKind, setStatus, type Proposal, type ProposalStatus } from "./proposals";
 import { fitInField, placedAround, PLACED_SIGNATURE_WIDTH } from "./signaturePicture";
@@ -270,15 +271,17 @@ export class FillSignSession {
     return true;
   }
 
-  /** saves the document as a copy; the signed file stays as it is, and the copy is free to change. */
+  /**
+   * saves the document as a copy; the signed file stays exactly as it is.
+   * the copy is still signed, so its own changes are saved after the
+   * signature as well (shell-core's forms/signed.rs).
+   */
   async saveCopy(): Promise<boolean> {
     const doc = this.#host.document();
     const path = await chooseSaveLocation(pathBeside(doc.path, `${stemOf(doc.path)} (edited).pdf`));
     if (!path) return false;
     try {
       const saved = await saveDocumentAs(doc.id, path);
-      await releaseSignatureGuard(doc.id);
-      if (this.overview) this.overview = { ...this.overview, protected: false };
       this.#host.accept(saved);
       return true;
     } catch (problem) {
@@ -365,9 +368,13 @@ export class FillSignSession {
   async #setValue(field: FieldInfo, value: FieldValue): Promise<boolean> {
     const id = this.#host.documentId();
     let refusal: string | null = null;
+    let changed: ChangedField[] = [];
     const worked = await this.#host.change(async () => {
       try {
-        return await setFieldValue(id, field.name, value);
+        // the field's format and checks run first, then every calculation again
+        const filled = await fillField(id, field.name, value);
+        changed = filled.changed;
+        return filled.document;
       } catch (problem) {
         refusal = asCommandError(problem).message;
         return documentState(id);
@@ -382,7 +389,16 @@ export class FillSignSession {
     if (!worked) return false;
     this.#clearError(field.name);
     this.#patchField(field.name, value);
+    this.#patchCalculated(field.name, changed);
     return true;
+  }
+
+  /** shows the totals the engine worked out again at once, and says them. */
+  #patchCalculated(filled: string, changed: ChangedField[]) {
+    const calculated = changed.filter((each) => each.name !== filled);
+    for (const each of calculated) this.#patchField(each.name, { kind: "text", value: each.value });
+    const said = recalculatedSentence(calculated, (name) => this.field(name));
+    if (said) this.#host.announce(said);
   }
 
   #clearError(name: string) {
@@ -643,12 +659,12 @@ export class FillSignSession {
   }
 
   /** signs the saved document. the guard isn't asked: signing never rewrites the file. */
-  async sign(settings: SignSettings): Promise<boolean> {
+  async sign(settings: SignSettings, choices: SigningChoices | null = null): Promise<boolean> {
     const id = this.#host.documentId();
     this.#bypassGuard = true;
     let worked: boolean;
     try {
-      worked = await this.#host.change(() => signDocument(id, settings));
+      worked = await this.#host.change(() => signDocument(id, settings, choices));
     } finally {
       this.#bypassGuard = false;
     }

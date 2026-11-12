@@ -55,6 +55,8 @@ pub mod code;
 pub mod slides;
 // spreadsheets: open workbooks, their edits, undo and saving, see sheets/mod.rs
 pub mod sheets;
+// forms round two: pdf/a, preflight and optimising copies, see standards/mod.rs
+pub mod standards;
 
 #[cfg(test)]
 mod annotation_tools_tests;

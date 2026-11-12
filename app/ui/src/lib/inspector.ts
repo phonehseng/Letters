@@ -124,11 +124,16 @@ export const INSPECTOR_TABS: InspectorTab[] = [
       "findFields",
       "addField",
       "editFields",
+      // forms round two: making a form (inspector/fillsign/PrepareFormTool.svelte)
+      "prepareForm",
+      "formData",
       "flattenForm",
       "signWithPicture",
       "signWithCertificate",
       "selfSignedCertificate",
       "signatures",
+      // forms round two: the audit trail (inspector/fillsign/AuditTrailTool.svelte)
+      "auditTrail",
     ],
     load: () => import("./inspector/FillSignTab.svelte"),
   },

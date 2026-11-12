@@ -65,6 +65,15 @@ mod slides_commands;
 // spreadsheets (the sheets screen) and their formula help
 mod sheets_commands;
 mod sheets_help_commands;
+// forms round two: form logic and Prepare Form (the Fill & Sign tab)
+// forms round two: form logic, Prepare Form and Form Data (the Fill & Sign tab)
+mod form_building_commands;
+mod form_data_commands;
+mod form_logic_commands;
+// forms round two: signing options, Verify and the audit trail
+mod signing_commands;
+// forms round two: Prepare & Check (pdf/a, preflight, optimise, pdf/x)
+mod standards_commands;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
