@@ -55,6 +55,7 @@
     documentOutline,
     newWindow,
     redo,
+    setViewport,
     undo,
     type DocumentState,
     type OutlineItem,
@@ -199,6 +200,22 @@
   const shownPages = $derived.by(() => {
     const range = visiblePages(layout.pages, scrollTop, viewportHeight, viewportHeight / 2);
     return range ? layout.pages.slice(range.first, range.last + 1) : [];
+  });
+
+  // the engine draws the tiles of these pages first and drops those of
+  // pages a fast scroll passed (core/pdf viewport.rs). only a change of
+  // pages or scale is sent; the generation lets a late message lose
+  let viewportGeneration = 0;
+  let viewportSent = "";
+  $effect(() => {
+    if (shownPages.length === 0) return;
+    const first = shownPages[0].index;
+    const last = shownPages[shownPages.length - 1].index;
+    const shown = `${first}-${last}@${scale}`;
+    if (shown === viewportSent) return;
+    viewportSent = shown;
+    viewportGeneration += 1;
+    setViewport(doc.id, viewportGeneration, first, last, scale).catch(() => {});
   });
 
   // where each page on screen sits, for turning pointer positions into page points

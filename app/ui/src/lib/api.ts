@@ -55,6 +55,21 @@ export function openDocument(path: string, password?: string): Promise<OpenedDoc
   return invoke("open_document", { path, password: password ?? null });
 }
 
+/**
+ * tells the engine which pages are on screen and at what scale, so their
+ * tiles are drawn first and tiles of pages scrolled well past are dropped
+ * (core/pdf viewport.rs). `generation` counts up with every change.
+ */
+export function setViewport(
+  id: number,
+  generation: number,
+  firstPage: number,
+  lastPage: number,
+  scaleMilli: number,
+): Promise<void> {
+  return invoke("set_viewport", { id, generation, firstPage, lastPage, scaleMilli });
+}
+
 /** closes a document and throws away its unsaved changes. ask first. */
 export function closeDocument(id: number): Promise<void> {
   return invoke("close_document", { id });

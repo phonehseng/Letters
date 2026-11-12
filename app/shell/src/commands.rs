@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use letters_pdf::{
-    DocumentId, OutlineItem, RenderWorker, SearchMatch, SearchResults, TextRect, TileKey,
+    DocumentId, OutlineItem, RenderWorker, SearchMatch, SearchResults, TextRect, TileKey, Viewport,
 };
 use serde::Serialize;
 use tauri::{AppHandle, State, Window};
@@ -183,6 +183,32 @@ pub fn engine_stats(state: State<AppState>) -> Result<EngineStats, CommandError>
         cached_tiles: stats.cached_tiles,
         cached_bytes: stats.cached_bytes,
     })
+}
+
+/// the pages the viewer shows, so the engine draws their tiles first and
+/// drops the tiles of pages scrolled well away from (core/pdf viewport.rs).
+/// the viewer counts `generation` up with every change, so a message that
+/// arrives late can't undo a newer one.
+#[tauri::command(async)]
+pub fn set_viewport(
+    state: State<AppState>,
+    id: u64,
+    generation: u64,
+    first_page: u32,
+    last_page: u32,
+    scale_milli: u32,
+) -> Result<(), CommandError> {
+    let worker = state.worker().map_err(engine_unavailable)?;
+    worker.set_viewport(
+        DocumentId(id),
+        Viewport {
+            generation,
+            first_page,
+            last_page,
+            scale_milli,
+        },
+    );
+    Ok(())
 }
 
 /// the document's table of contents, flattened in reading order.
