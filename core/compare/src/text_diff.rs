@@ -241,9 +241,16 @@ pub(crate) fn text_changes(
             Piece::Changed { left: a, right: b } => {
                 let change = changed_text(left, right, a, b, pages);
                 let index = findings.changes.len();
+                // a replacement may hide a move: a paragraph that left the spot
+                // where new text arrived reads as "replaced" here, so its old
+                // words may be a move's source and its new words a destination
                 match change.kind {
                     ChangeKind::Deleted => findings.removed.push((index, keys_of(left, a))),
                     ChangeKind::Inserted => findings.added.push((index, keys_of(right, b))),
+                    ChangeKind::Replaced => {
+                        findings.removed.push((index, keys_of(left, a)));
+                        findings.added.push((index, keys_of(right, b)));
+                    }
                     _ => {}
                 }
                 findings.changes.push(change);

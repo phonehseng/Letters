@@ -469,6 +469,11 @@ fn overall_notes(
 }
 
 /// turns removed-and-added passage pairs into single moved changes.
+///
+/// a plain removal becomes the move; a plain addition is absorbed into it.
+/// a replacement (a paragraph left the spot where new text arrived) keeps
+/// its other half: the move is added beside it and the replacement becomes
+/// the insertion (or removal) that is left once the moved words are taken out.
 fn apply_moves(pairs: &mut [PagePair], passages: &Passages, min_words: usize) {
     let moves = find_moves(&passages.removed, &passages.added, min_words);
     let mut absorbed: Vec<(usize, usize)> = Vec::new();
@@ -476,25 +481,56 @@ fn apply_moves(pairs: &mut [PagePair], passages: &Passages, min_words: usize) {
         let from = &passages.removed[found.removed];
         let to = &passages.added[found.added];
         let addition = pairs[to.pair].changes[to.change].clone();
-        let change = &mut pairs[from.pair].changes[from.change];
-        change.kind = ChangeKind::Moved;
-        change.right_page = addition.right_page;
-        change.right_rects = addition.right_rects;
-        change.new_text = addition.new_text;
-        change.detail = sentences::moved(
-            change.old_text.as_deref().unwrap_or_default(),
-            change.left_page.unwrap_or(0),
-            change.right_page.unwrap_or(0),
-            from.pair == to.pair,
-            found.similarity < 1.0,
-        );
-        absorbed.push((to.pair, to.change));
+        let source = &pairs[from.pair].changes[from.change];
+        let moved = moved_change(source, &addition, from.pair == to.pair, found.similarity);
+        if source.kind == ChangeKind::Replaced {
+            keep_only_the_new_text(&mut pairs[from.pair].changes[from.change]);
+            pairs[from.pair].changes.push(moved);
+        } else {
+            pairs[from.pair].changes[from.change] = moved;
+        }
+        if addition.kind == ChangeKind::Replaced {
+            keep_only_the_old_text(&mut pairs[to.pair].changes[to.change]);
+        } else {
+            absorbed.push((to.pair, to.change));
+        }
     }
     // remove from the back so earlier positions stay valid
     absorbed.sort_unstable_by(|a, b| b.cmp(a));
     for (pair, change) in absorbed {
         pairs[pair].changes.remove(change);
     }
+}
+
+/// one moved change: where the words were, and where they went.
+fn moved_change(source: &Change, addition: &Change, same_page: bool, similarity: f32) -> Change {
+    let mut moved = source.clone();
+    moved.kind = ChangeKind::Moved;
+    moved.right_page = addition.right_page;
+    moved.right_rects = addition.right_rects.clone();
+    moved.new_text = addition.new_text.clone();
+    moved.detail = sentences::moved(
+        moved.old_text.as_deref().unwrap_or_default(),
+        moved.left_page.unwrap_or(0),
+        moved.right_page.unwrap_or(0),
+        same_page,
+        similarity < 1.0,
+    );
+    moved
+}
+
+/// a replacement whose old words moved away: what's left is an insertion.
+fn keep_only_the_new_text(change: &mut Change) {
+    change.kind = ChangeKind::Inserted;
+    change.old_text = None;
+    change.detail = sentences::added(change.new_text.as_deref().unwrap_or_default());
+}
+
+/// a replacement whose new words arrived from elsewhere: what's left is a removal.
+fn keep_only_the_old_text(change: &mut Change) {
+    change.kind = ChangeKind::Deleted;
+    change.new_text = None;
+    change.detail = sentences::removed(change.old_text.as_deref().unwrap_or_default());
 }
 
 /// page-wide changes first, then the rest in the order they appear on the page.
