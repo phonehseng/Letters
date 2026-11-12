@@ -38,3 +38,20 @@ title and saved exactly as they came; editing them is not part of Letters.
 Found in the real app and fixed: the toolbar's menus opened under the
 formula bar (the toolbar now stacks above it), and the keys stayed on a
 menu button after a menu command (they go back to the grid now).
+
+## 2026-11-12 conditional formats on the grid
+
+The painter now draws what the shell sends in a cell's `conditional`: the
+rule's fill over the cell's own, its text colour over the number format's
+or font's, its bold, italic, underline and strike over the style, and data
+bars on the fill and under the text, 2 px inside the cell, from the left
+edge or from the axis (right for positive numbers, left for negative, with
+a dashed axis line), solid or fading to white. A rule that shows the bar
+alone hides the text. The choices live in `conditionalLook.ts` with tests,
+so `painter.ts` stays drawing calls.
+
+Edits need nothing new: every edit's revision marks all fetched blocks
+stale, each paint asks for the blocks on screen again, and the shell works
+the rules out afresh, so rules that read other cells follow a typed value.
+The grid's spoken cell text is unchanged. Not checked in the running app
+(the brief was not to start it); covered by the engine and helper tests.
