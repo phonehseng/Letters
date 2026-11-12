@@ -191,10 +191,11 @@ pub fn box_font(name: &str, glyphs: &[BoxGlyph], fs_type: u16) -> Vec<u8> {
         (*b"name", name_table),
         (*b"post", post),
     ]);
-    write_font(&tables)
+    write_font_tables(&tables)
 }
 
-fn write_font(tables: &BTreeMap<[u8; 4], Vec<u8>>) -> Vec<u8> {
+/// writes tables into a font file with the directory readers expect.
+pub fn write_font_tables(tables: &BTreeMap<[u8; 4], Vec<u8>>) -> Vec<u8> {
     let count = tables.len() as u16;
     let mut file = Vec::new();
     file.extend_from_slice(&0x0001_0000u32.to_be_bytes());

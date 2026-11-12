@@ -6,6 +6,10 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+# reading jpeg and png pixels to crop pictures and to read scans (mit or apache-2.0)
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+# the recognition result's types (OcrPage, OcrWord); recognition itself is the caller's
+letters-ocr = { path = "../ocr" }
 lopdf = "0.47"
 png = "0.18"
 serde = { version = "1", features = ["derive"] }
@@ -13,6 +17,8 @@ thiserror = "2"
 ttf-parser = "0.25"
 
 [dev-dependencies]
+# encoding the jpeg scans the scan tests convert (mit or apache-2.0)
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 letters-pdf = { path = "../pdf" }
 png = "0.18"
 serde_json = "1"

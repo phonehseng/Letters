@@ -105,7 +105,7 @@ impl Rect {
         Some(Rect::new(left, top, right - left, bottom - top))
     }
 
-    pub(crate) fn union(&self, other: &Rect) -> Rect {
+    pub fn union(&self, other: &Rect) -> Rect {
         Rect::around([
             Point::new(self.x, self.y),
             Point::new(self.right(), self.bottom()),
@@ -116,7 +116,7 @@ impl Rect {
     }
 
     /// top left, top right, bottom left, bottom right.
-    pub(crate) fn corners(&self) -> [Point; 4] {
+    pub fn corners(&self) -> [Point; 4] {
         [
             Point::new(self.x, self.y),
             Point::new(self.right(), self.y),

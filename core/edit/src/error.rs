@@ -1,3 +1,6 @@
+//! the errors an edit can end with, each a sentence for the person using
+//! the app.
+
 use thiserror::Error;
 
 /// everything that can go wrong when editing page content.
@@ -41,4 +44,9 @@ pub enum EditError {
 
     #[error("This page can’t be changed because part of the file is damaged. ({0})")]
     Damaged(String),
+
+    /// the file carries digital signatures that any content change breaks;
+    /// the ui asks first and then repeats the edit with consent
+    #[error("This PDF is digitally signed{0}. Changing its content will make the signature invalid. Confirm to edit it anyway.")]
+    SignaturesWouldBreak(String),
 }

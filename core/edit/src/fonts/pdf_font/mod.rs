@@ -24,6 +24,12 @@ use crate::pdf_values::{
 };
 
 /// the kind of font program, as the ui may want to show it.
+mod dictionary;
+mod program;
+
+use dictionary::*;
+use program::embedded_program;
+pub(crate) use program::Program;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FontKind {
@@ -94,6 +100,25 @@ pub(crate) struct PdfFont {
     pub missing_from_to_unicode: BTreeSet<char>,
 }
 
+/// the font's ascent and descent in thousandths of the size: from its
+/// descriptor, else from the standard font of that name, else 750 and 250.
+fn ascent_and_descent(doc: &Document, descriptor: Option<&Dictionary>, name: &str) -> (f32, f32) {
+    let standard = StandardFont::from_name(name);
+    let (default_ascent, default_descent) = standard
+        .map(|font| font.ascent_and_descent())
+        .unwrap_or((750.0, 250.0));
+    let ascent = descriptor
+        .and_then(|d| dict_number(doc, d, b"Ascent"))
+        .filter(|a| *a > 0.0)
+        .unwrap_or(default_ascent);
+    let descent = descriptor
+        .and_then(|d| dict_number(doc, d, b"Descent"))
+        .map(f32::abs)
+        .filter(|d| *d > 0.0)
+        .unwrap_or(default_descent);
+    (ascent, descent)
+}
+
 /// the subset prefix is six capital letters and a plus sign.
 fn split_subset_prefix(base: &str) -> (bool, String) {
     let bytes = base.as_bytes();
@@ -134,19 +159,7 @@ impl PdfFont {
             flags,
             descriptor.and_then(|d| dict_number(doc, d, b"FontWeight")),
         );
-        let standard = StandardFont::from_name(&name);
-        let (default_ascent, default_descent) = standard
-            .map(|font| font.ascent_and_descent())
-            .unwrap_or((750.0, 250.0));
-        let ascent = descriptor
-            .and_then(|d| dict_number(doc, d, b"Ascent"))
-            .filter(|a| *a > 0.0)
-            .unwrap_or(default_ascent);
-        let descent = descriptor
-            .and_then(|d| dict_number(doc, d, b"Descent"))
-            .map(f32::abs)
-            .filter(|d| *d > 0.0)
-            .unwrap_or(default_descent);
+        let (ascent, descent) = ascent_and_descent(doc, descriptor, &name);
         let program = descriptor.and_then(|d| embedded_program(doc, d));
         let to_unicode = font
             .get(b"ToUnicode")
@@ -453,271 +466,6 @@ impl PdfFont {
             if self.italic { " italic" } else { "" }
         );
         StandardFont::from_name(&name).unwrap_or_default()
-    }
-}
-
-fn single_char(text: &str) -> Option<char> {
-    let mut chars = text.chars();
-    let first = chars.next()?;
-    chars.next().is_none().then_some(first)
-}
-
-fn descendant<'a>(doc: &'a Document, font: &'a Dictionary) -> Option<&'a Dictionary> {
-    let descendants = dict_array(doc, font, b"DescendantFonts")?;
-    resolve(doc, descendants.first()?).as_dict().ok()
-}
-
-/// reads a /W array: "c [w1 w2 ...]" or "first last w".
-fn read_cid_widths(doc: &Document, list: &[Object]) -> Vec<(u32, f32)> {
-    let mut widths = Vec::new();
-    let mut index = 0;
-    while index < list.len() {
-        let Some(first) = crate::pdf_values::number(doc, &list[index]) else {
-            break;
-        };
-        match list.get(index + 1).map(|item| resolve(doc, item)) {
-            Some(Object::Array(values)) => {
-                for (offset, value) in values.iter().enumerate() {
-                    if let Some(width) = crate::pdf_values::number(doc, value) {
-                        widths.push((first as u32 + offset as u32, width));
-                    }
-                }
-                index += 2;
-            }
-            Some(last) => {
-                let (Some(last), Some(width)) = (
-                    crate::pdf_values::number(doc, last),
-                    list.get(index + 2)
-                        .and_then(|width| crate::pdf_values::number(doc, width)),
-                ) else {
-                    break;
-                };
-                for cid in first as u32..=(last as u32).min(first as u32 + 65_535) {
-                    widths.push((cid, width));
-                }
-                index += 3;
-            }
-            None => break,
-        }
-    }
-    widths
-}
-
-/// a /CIDToGIDMap stream as a table; none means /Identity (or missing,
-/// which readers also treat as identity for embedded TrueType).
-fn cid_to_gid_map(doc: &Document, descendant: &Dictionary) -> Option<HashMap<u16, u16>> {
-    let map = descendant.get(b"CIDToGIDMap").ok()?;
-    let bytes = stream_bytes(doc, map)?;
-    Some(
-        bytes
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .enumerate()
-            .map(|(cid, glyph)| (cid as u16, u16::from_be_bytes(*glyph)))
-            .collect(),
-    )
-}
-
-/// the glyph name for every code of a simple font: base encoding first,
-/// then /Differences on top.
-fn simple_glyph_names(
-    doc: &Document,
-    font: &Dictionary,
-    kind: FontKind,
-    symbolic: bool,
-) -> Vec<Option<String>> {
-    let encoding = font
-        .get(b"Encoding")
-        .ok()
-        .map(|encoding| resolve(doc, encoding));
-    let named = encoding
-        .and_then(|encoding| encoding.as_name().ok())
-        .and_then(BaseEncoding::from_name);
-    let dictionary = encoding.and_then(|encoding| encoding.as_dict().ok());
-    let base = named
-        .or_else(|| {
-            dictionary
-                .and_then(|d| dict_name(doc, d, b"BaseEncoding"))
-                .and_then(BaseEncoding::from_name)
-        })
-        .or(match (kind, symbolic) {
-            // symbolic fonts have their own built-in encoding, unknown here
-            (_, true) => None,
-            (FontKind::TrueType, false) => Some(BaseEncoding::WinAnsi),
-            _ => Some(BaseEncoding::Standard),
-        });
-    let mut names: Vec<Option<String>> = (0..=255u8)
-        .map(|code| {
-            base.and_then(|base| base.glyph_name(code))
-                .map(str::to_owned)
-        })
-        .collect();
-    if let Some(differences) = dictionary.and_then(|d| dict_array(doc, d, b"Differences")) {
-        let mut code = 0usize;
-        for item in differences {
-            match resolve(doc, item) {
-                Object::Integer(start) => code = (*start).clamp(0, 255) as usize,
-                Object::Name(name) => {
-                    if let Some(slot) = names.get_mut(code) {
-                        *slot = Some(String::from_utf8_lossy(name).into_owned());
-                    }
-                    code += 1;
-                }
-                _ => {}
-            }
-        }
-    }
-    names
-}
-
-/// glyph names a Type1 descriptor's /CharSet lists ("/a/b/eacute").
-fn charset_names(doc: &Document, descriptor: &Dictionary) -> Option<HashSet<String>> {
-    let text = resolve(doc, descriptor.get(b"CharSet").ok()?)
-        .as_str()
-        .ok()?;
-    let text = String::from_utf8_lossy(text);
-    Some(
-        text.split('/')
-            .filter(|name| !name.is_empty())
-            .map(|name| name.trim().to_owned())
-            .collect(),
-    )
-}
-
-/// guesses serif, bold and italic from the font's name, flags and weight.
-fn guess_style(name: &str, flags: u32, weight: Option<f32>) -> (FontFamily, bool, bool) {
-    const FIXED_PITCH: u32 = 1;
-    const SERIF: u32 = 2;
-    const ITALIC: u32 = 64;
-    const FORCE_BOLD: u32 = 1 << 18;
-    let lower = name.to_ascii_lowercase();
-    let family = if flags & FIXED_PITCH != 0
-        || ["courier", "mono", "consol", "typewriter"]
-            .iter()
-            .any(|word| lower.contains(word))
-    {
-        FontFamily::Monospace
-    } else if [
-        "sans",
-        "arial",
-        "helvetica",
-        "verdana",
-        "calibri",
-        "segoe",
-        "tahoma",
-    ]
-    .iter()
-    .any(|word| lower.contains(word))
-    {
-        FontFamily::SansSerif
-    } else if flags & SERIF != 0
-        || [
-            "times", "serif", "roman", "georgia", "garamond", "cambria", "minion",
-        ]
-        .iter()
-        .any(|word| lower.contains(word))
-    {
-        FontFamily::Serif
-    } else {
-        FontFamily::SansSerif
-    };
-    let bold = flags & FORCE_BOLD != 0
-        || weight.is_some_and(|weight| weight >= 600.0)
-        || ["bold", "black", "heavy", "semibold", "demi"]
-            .iter()
-            .any(|word| lower.contains(word));
-    let italic = flags & ITALIC != 0 || lower.contains("italic") || lower.contains("oblique");
-    (family, bold, italic)
-}
-
-/// an embedded font program and what it is.
-pub(crate) enum Program {
-    TrueType(Vec<u8>),
-    Type1(Vec<u8>, usize),
-    /// CFF or OpenType: kept, but only OpenType can be looked inside
-    Other,
-}
-
-fn embedded_program(doc: &Document, descriptor: &Dictionary) -> Option<Program> {
-    if let Some(bytes) = descriptor
-        .get(b"FontFile2")
-        .ok()
-        .and_then(|file| stream_bytes(doc, file))
-    {
-        return Some(Program::TrueType(bytes));
-    }
-    if let Ok(file) = descriptor.get(b"FontFile") {
-        let clear_length = resolve(doc, file)
-            .as_stream()
-            .ok()
-            .and_then(|stream| dict_number(doc, &stream.dict, b"Length1"))
-            .unwrap_or(0.0) as usize;
-        return stream_bytes(doc, file).map(|bytes| Program::Type1(bytes, clear_length));
-    }
-    let file = descriptor.get(b"FontFile3").ok()?;
-    let subtype = resolve(doc, file)
-        .as_stream()
-        .ok()
-        .and_then(|stream| dict_name(doc, &stream.dict, b"Subtype"));
-    let bytes = stream_bytes(doc, file)?;
-    Some(if subtype == Some(b"OpenType") {
-        Program::TrueType(bytes)
-    } else {
-        Program::Other
-    })
-}
-
-/// a way of checking glyphs in an embedded program.
-pub(crate) enum GlyphCheck<'a> {
-    TrueType(Box<FontProgram<'a>>, bool),
-    Named(HashSet<String>),
-}
-
-impl Program {
-    fn truetype(&self) -> Option<FontProgram<'_>> {
-        match self {
-            Program::TrueType(bytes) => FontProgram::parse(bytes, 0),
-            _ => None,
-        }
-    }
-
-    fn glyph_check(&self) -> Option<GlyphCheck<'_>> {
-        match self {
-            Program::TrueType(bytes) => FontProgram::parse(bytes, 0).map(|face| {
-                let symbolic_cmap = face.face.tables().cmap.is_some_and(|cmap| {
-                    !cmap.subtables.into_iter().any(|table| table.is_unicode())
-                });
-                GlyphCheck::TrueType(Box::new(face), symbolic_cmap)
-            }),
-            Program::Type1(bytes, clear_length) => {
-                type1::glyph_names(bytes, *clear_length).map(GlyphCheck::Named)
-            }
-            Program::Other => None,
-        }
-    }
-}
-
-impl GlyphCheck<'_> {
-    /// whether a simple font's code really has a glyph in the program.
-    fn has_simple_glyph(&self, code: u8, glyph_name: Option<&str>, character: char) -> bool {
-        match self {
-            GlyphCheck::TrueType(face, only_symbolic) => {
-                // readers try the unicode cmap for named glyphs first and
-                // the symbolic or mac cmap by code otherwise
-                let glyph = if *only_symbolic {
-                    face.glyph_for_code(code)
-                } else {
-                    face.glyph_for_char(character)
-                        .or_else(|| face.glyph_for_code(code))
-                };
-                glyph.is_some_and(|glyph| {
-                    face.has_outline(glyph)
-                        || (character.is_whitespace() && face.glyph_exists(glyph))
-                })
-            }
-            GlyphCheck::Named(names) => glyph_name.is_some_and(|name| names.contains(name)),
-        }
     }
 }
 

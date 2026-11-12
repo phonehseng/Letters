@@ -88,6 +88,16 @@ impl PageSpace {
         self.to_visible.apply_vector(vector)
     }
 
+    /// screen points to user space, as a matrix.
+    pub fn to_user_matrix(self) -> Matrix {
+        self.to_user
+    }
+
+    /// user space to screen points, as a matrix.
+    pub fn to_visible_matrix(self) -> Matrix {
+        self.to_visible
+    }
+
     pub fn visible_rect_of(&self, user_points: &[Point]) -> Option<Rect> {
         Rect::around(user_points.iter().map(|point| self.visible_point(*point)))
     }

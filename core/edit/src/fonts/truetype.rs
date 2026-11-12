@@ -209,16 +209,19 @@ fn damaged_font() -> EditError {
     EditError::UnsupportedFont("The font file is damaged.".into())
 }
 
-fn read_u16(bytes: &[u8], at: usize) -> Option<u16> {
+pub(crate) fn read_u16(bytes: &[u8], at: usize) -> Option<u16> {
     Some(u16::from_be_bytes([*bytes.get(at)?, *bytes.get(at + 1)?]))
 }
 
-fn read_u32(bytes: &[u8], at: usize) -> Option<u32> {
+pub(crate) fn read_u32(bytes: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_be_bytes(bytes.get(at..at + 4)?.try_into().ok()?))
 }
 
 /// where each table of the font at `index` sits in the file.
-fn table_directory(data: &[u8], index: u32) -> Option<BTreeMap<[u8; 4], std::ops::Range<usize>>> {
+pub(crate) fn table_directory(
+    data: &[u8],
+    index: u32,
+) -> Option<BTreeMap<[u8; 4], std::ops::Range<usize>>> {
     let start = if data.starts_with(b"ttcf") {
         read_u32(data, 12 + 4 * index as usize)? as usize
     } else {
@@ -238,7 +241,7 @@ fn table_directory(data: &[u8], index: u32) -> Option<BTreeMap<[u8; 4], std::ops
     Some(tables)
 }
 
-fn read_loca(loca: &[u8], glyph_count: usize, long: bool) -> Option<Vec<usize>> {
+pub(crate) fn read_loca(loca: &[u8], glyph_count: usize, long: bool) -> Option<Vec<usize>> {
     (0..=glyph_count)
         .map(|glyph| {
             if long {

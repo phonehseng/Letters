@@ -60,6 +60,13 @@ impl Plan {
         self.ops.entry((source, op)).or_default()
     }
 
+    /// whether this edit already replaces an operator.
+    pub fn has_replacement(&self, source: usize, op: usize) -> bool {
+        self.ops
+            .get(&(source, op))
+            .is_some_and(|edit| edit.replace.is_some())
+    }
+
     pub fn append(&mut self, content: &[u8]) {
         self.append.extend_from_slice(content);
         self.append.push(b'\n');
@@ -129,8 +136,22 @@ impl Plan {
     }
 }
 
+/// one named resource of a stream (or of the page, for `None`), e.g. the
+/// pattern "P1" or the colour space "Cs1".
+pub(crate) fn resource_in<'a>(
+    doc: &'a Document,
+    run: &Interpretation,
+    source: Option<usize>,
+    category: &[u8],
+    name: &[u8],
+) -> Option<&'a Object> {
+    let resources = resources_of(doc, run, source)?;
+    let category = resolve(doc, resources.get(category).ok()?).as_dict().ok()?;
+    category.get(name).ok()
+}
+
 /// the resource dictionary a stream (or the page) uses.
-fn resources_of<'a>(
+pub(crate) fn resources_of<'a>(
     doc: &'a Document,
     run: &Interpretation,
     source: Option<usize>,

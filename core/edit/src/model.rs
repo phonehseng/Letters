@@ -23,6 +23,96 @@ pub struct PageObjects {
     pub height: f32,
     pub text_blocks: Vec<TextBlock>,
     pub images: Vec<ImageObject>,
+    /// vector drawings: each path painted on its own
+    #[serde(default)]
+    pub paths: Vec<PathObject>,
+    /// paths that look like one object (a logo, a drawing in one group),
+    /// so the ui can select them together
+    #[serde(default)]
+    pub path_groups: Vec<PathGroup>,
+}
+
+/// the outline of a drawn path, as far as editing its points goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PathShape {
+    /// four straight sides at right angles on screen; corners can be edited
+    Rectangle,
+    /// one straight segment; its ends can be edited
+    Line,
+    /// four curves around a centre
+    Ellipse,
+    /// anything else: it can be moved, resized and restyled, not reshaped
+    Free,
+    /// a smooth colour blend filling an area
+    Shading,
+}
+
+/// a fill or stroke colour exactly as the file sets it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaintInfo {
+    /// how it looks on screen (an approximation for special colour spaces)
+    pub color: Color,
+    /// "DeviceRGB", "DeviceGray", "DeviceCMYK", "Pattern" or the name of a
+    /// colour space in the page's resources
+    pub color_space: String,
+    pub components: Vec<f32>,
+}
+
+/// how a path's outline is drawn.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StrokeInfo {
+    pub paint: PaintInfo,
+    /// the line width as seen on the page, in points
+    pub width: f32,
+    /// dash lengths in points as seen; empty for a solid line
+    pub dash: Vec<f32>,
+}
+
+/// one drawn path (or one shading) on the page.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathObject {
+    pub id: String,
+    /// the box around it on screen, including half the line width
+    pub rect: Rect,
+    pub shape: PathShape,
+    pub fill: Option<PaintInfo>,
+    pub stroke: Option<StrokeInfo>,
+    /// 0 to 1
+    pub fill_opacity: f32,
+    pub stroke_opacity: f32,
+    /// drawn through a clipping path that cuts part of it off
+    pub clipped: bool,
+    /// whether its points can be edited with `set_path_points`
+    pub point_editable: bool,
+    /// a rectangle's corners (top left, top right, bottom left, bottom
+    /// right) or a line's two ends, on screen; empty for other shapes
+    pub points: Vec<Point>,
+}
+
+/// why some paths are suggested as one object.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GroupReason {
+    /// drawn inside one q ... Q block
+    SameBlock,
+    /// drawn inside one marked-content sequence
+    MarkedContent,
+    /// many small paths drawn one after another, touching: a logo or icon
+    Cluster,
+}
+
+/// a suggested group of paths.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathGroup {
+    pub id: String,
+    pub path_ids: Vec<String>,
+    pub rect: Rect,
+    pub reason: GroupReason,
 }
 
 /// how a block's lines line up.
@@ -121,4 +211,18 @@ pub struct ImageObject {
     pub inline: bool,
     /// e.g. "DCTDecode" for a jpeg
     pub filter: Option<String>,
+    /// the part that shows, when a clipping path (a crop) hides the rest
+    #[serde(default)]
+    pub crop_rect: Option<Rect>,
+    /// pixels per inch at the size it is placed (the lower of across and
+    /// down), so the ui can warn about blurry pictures; 0 when unknown
+    #[serde(default)]
+    pub pixels_per_inch: f32,
+    /// 0 to 1
+    #[serde(default = "fully_opaque")]
+    pub opacity: f32,
+}
+
+fn fully_opaque() -> f32 {
+    1.0
 }

@@ -156,6 +156,30 @@ pub(crate) fn write_two_byte_to_unicode(entries: &BTreeMap<u16, String>) -> Vec<
     text.into_bytes()
 }
 
+/// a /ToUnicode map for a simple font: one-byte codes to text.
+pub(crate) fn write_one_byte_to_unicode(entries: &BTreeMap<u8, String>) -> Vec<u8> {
+    let mut text = String::from(
+        "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n\
+         /CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n\
+         /CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n\
+         1 begincodespacerange\n<00> <FF>\nendcodespacerange\n",
+    );
+    let entries: Vec<(&u8, &String)> = entries.iter().collect();
+    // a cmap section may hold at most 100 entries
+    for chunk in entries.chunks(100) {
+        text.push_str(&format!("{} beginbfchar\n", chunk.len()));
+        for (code, value) in chunk {
+            let utf16: String = value
+                .encode_utf16()
+                .map(|unit| format!("{unit:04X}"))
+                .collect();
+            text.push_str(&format!("<{code:02X}> <{utf16}>\n"));
+        }
+        text.push_str("endbfchar\n");
+    }
+    text.push_str("endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n");
+    text.into_bytes()
+}
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -6,6 +6,7 @@
 #![allow(dead_code)]
 
 pub mod font;
+pub mod subset;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -104,6 +105,21 @@ impl PdfBuilder {
             .map(|content| self.stream("", content.as_bytes()))
             .collect();
         self.page_with_streams(setup, &streams, resources)
+    }
+
+    /// a page with more entries in its dictionary, e.g. "/Annots [7 0 R]".
+    pub fn page_with_extra(
+        &mut self,
+        setup: &PageSetup,
+        contents: &[&str],
+        resources: &str,
+        extra: &str,
+    ) -> usize {
+        let page = self.page(setup, contents, resources);
+        let body = String::from_utf8(self.objects[page - 1].clone()).unwrap();
+        let body = format!("{} {extra} >>", body.trim_end_matches(">>").trim_end());
+        self.objects[page - 1] = body.into_bytes();
+        page
     }
 
     pub fn page_with_streams(
@@ -268,6 +284,14 @@ impl Image {
         [self.rgba[start], self.rgba[start + 1], self.rgba[start + 2]]
     }
 
+    /// the pixels as rgb bytes, row by row.
+    pub fn rgb_bytes(&self) -> Vec<u8> {
+        self.rgba
+            .chunks(4)
+            .flat_map(|pixel| [pixel[0], pixel[1], pixel[2]])
+            .collect()
+    }
+
     /// how many pixels differ inside a region (left, top, right, bottom).
     pub fn differences_in(&self, other: &Image, region: (u32, u32, u32, u32)) -> usize {
         let (left, top, right, bottom) = region;
@@ -301,19 +325,24 @@ pub fn is_dark(pixel: [u8; 3]) -> bool {
 pub const WHITE: [u8; 3] = [255, 255, 255];
 
 pub fn render(bytes: &[u8], page: u32) -> Image {
+    render_scaled(bytes, page, 1000)
+}
+
+/// a rendered page at `scale_milli` / 1000 pixels per point.
+pub fn render_scaled(bytes: &[u8], page: u32, scale_milli: u32) -> Image {
     let path = temp_file("render");
     fs::write(&path, bytes).unwrap();
     let worker = worker();
     let info = worker.open(&path, None).unwrap();
     let size = info.page_sizes[page as usize];
-    let (width, height) = page_pixel_size(size, 1000);
+    let (width, height) = page_pixel_size(size, scale_milli);
     let mut rgba = vec![0; (width * height * 4) as usize];
     for row in 0..height.div_ceil(TILE_SIZE) {
         for column in 0..width.div_ceil(TILE_SIZE) {
             let key = TileKey {
                 document: info.id,
                 page,
-                scale_milli: 1000,
+                scale_milli,
                 column,
                 row,
             };

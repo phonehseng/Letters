@@ -196,6 +196,53 @@ fn color_restore(fill: &crate::interpret::FillColor, source: usize) -> String {
     }
 }
 
+/// whether two placed glyphs can share one TJ.
+fn same_group(a: &Placed, b: &Placed) -> bool {
+    a.font == b.font
+        && a.size == b.size
+        && a.color == b.color
+        && a.line == b.line
+        && a.rise == b.rise
+}
+
+/// one TJ for the glyphs from `start` on that share a font, size,
+/// colour and line; small differences in position become TJ numbers.
+/// returns the operator and where the next group starts.
+pub(crate) fn show_group(state: &TextState, glyphs: &[Placed], start: usize) -> (String, usize) {
+    let first = &glyphs[start];
+    let mut items: Vec<Object> = Vec::new();
+    let mut codes: Vec<u8> = Vec::new();
+    let mut pen = first.x;
+    let mut index = start;
+    while index < glyphs.len() && same_group(first, &glyphs[index]) {
+        let glyph = &glyphs[index];
+        let distance = glyph.x - pen;
+        if distance.abs() > 1e-4 {
+            if !codes.is_empty() {
+                items.push(Object::String(
+                    std::mem::take(&mut codes),
+                    StringFormat::Hexadecimal,
+                ));
+            }
+            items.extend(adjustment(state, glyph.size, distance).map(Object::Real));
+        }
+        match &glyph.code {
+            Some(code) => {
+                codes.extend_from_slice(code);
+                pen = glyph.x + advance(state, glyph.width, glyph.size, glyph.is_word_space);
+            }
+            // a space the font can't draw: the next glyph's position moves the pen
+            None => pen = glyph.x,
+        }
+        index += 1;
+    }
+    if !codes.is_empty() {
+        items.push(Object::String(codes, StringFormat::Hexadecimal));
+    }
+    let operator = writer::operation("TJ", &[Object::Array(items)]);
+    (String::from_utf8_lossy(&operator).into_owned(), index)
+}
+
 /// writes the placed glyphs after the anchor operator, then sets the text
 /// state back.
 pub(crate) fn write(
@@ -262,47 +309,9 @@ pub(crate) fn write(
         .map(|(x, y)| to_page.apply(Point::new(x, y)));
         plan.reach(source, &reach);
         out.push(matrix_operator(start));
-        // one TJ for every following glyph in the same font, size, colour
-        // and line; small differences in position become TJ numbers
-        let mut items: Vec<Object> = Vec::new();
-        let mut codes: Vec<u8> = Vec::new();
-        let mut pen = first.x;
-        while index < glyphs.len() {
-            let glyph = &glyphs[index];
-            if glyph.font != first.font
-                || glyph.size != first.size
-                || glyph.color != first.color
-                || glyph.line != first.line
-                || glyph.rise != first.rise
-            {
-                break;
-            }
-            let distance = glyph.x - pen;
-            if distance.abs() > 1e-4 {
-                if !codes.is_empty() {
-                    items.push(Object::String(
-                        std::mem::take(&mut codes),
-                        StringFormat::Hexadecimal,
-                    ));
-                }
-                items.extend(adjustment(state, glyph.size, distance).map(Object::Real));
-            }
-            match &glyph.code {
-                Some(code) => {
-                    codes.extend_from_slice(code);
-                    pen = glyph.x + advance(state, glyph.width, glyph.size, glyph.is_word_space);
-                }
-                // a space the font can't draw: the next glyph's position moves the pen
-                None => pen = glyph.x,
-            }
-            index += 1;
-        }
-        if !codes.is_empty() {
-            items.push(Object::String(codes, StringFormat::Hexadecimal));
-        }
-        out.push(
-            String::from_utf8_lossy(&writer::operation("TJ", &[Object::Array(items)])).into_owned(),
-        );
+        let (shown, next) = show_group(state, glyphs, index);
+        out.push(shown);
+        index = next;
     }
 
     if font_changed {
