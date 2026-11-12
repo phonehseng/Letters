@@ -7,3 +7,15 @@ publish.workspace = true
 
 [dependencies]
 thiserror = "2"
+# reading font files: bounds checked, never panics on bad input (mit or apache-2.0)
+ttf-parser = "0.25"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# woff (zlib) and the compressed catalogue (mit, zlib or apache-2.0)
+miniz_oxide = "0.8"
+# woff2 (bsd-3-clause or mit)
+brotli-decompressor = "5"
+# checking downloaded files against the catalogue's git blob hashes (mit or apache-2.0)
+sha1 = "0.10"
+# downloading open fonts from the online library, https through rustls (mit or apache-2.0)
+ureq = { version = "3", default-features = false, features = ["rustls"] }
