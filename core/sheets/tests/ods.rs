@@ -171,3 +171,62 @@ fn broken_ods_files_give_errors_not_panics() {
         let _ = read_ods(&write_zip(&parts, &["mimetype"]).unwrap());
     }
 }
+
+/// libreoffice's conditional formats as it writes them, put into a file
+/// letters wrote: a "Bad" style and B1:B3 greater than 50 in it
+const LIBREOFFICE_RULE: &str = r#"<calcext:conditional-formats><calcext:conditional-format calcext:target-range-address="Sheet1.A1:Sheet1.A3"><calcext:condition calcext:apply-style-name="Bad" calcext:value="&gt;50" calcext:base-cell-address="Sheet1.A1"/></calcext:conditional-format></calcext:conditional-formats>"#;
+const BAD_STYLE: &str = r##"<style:style style:name="Bad" style:family="table-cell"><style:table-cell-properties fo:background-color="#ffc7ce"/><style:text-properties fo:color="#9c0006"/></style:style>"##;
+
+fn libreoffice_file() -> Vec<u8> {
+    let mut book = Workbook::new();
+    for (row, mark) in [30.0, 60.0, 90.0].into_iter().enumerate() {
+        book.sheets[0]
+            .cells
+            .set(row as u32, 0, Cell::value(Value::Number(mark)));
+    }
+    let package = Package::read(&write_ods(&book).unwrap()).unwrap();
+    let mut parts = package.parts.clone();
+    let content = parts.iter_mut().find(|p| p.name == "content.xml").unwrap();
+    let xml = String::from_utf8(content.bytes.clone()).unwrap();
+    let xml = xml
+        .replacen(
+            "</office:automatic-styles>",
+            &format!("{BAD_STYLE}</office:automatic-styles>"),
+            1,
+        )
+        .replacen(
+            "</table:table>",
+            &format!("{LIBREOFFICE_RULE}</table:table>"),
+            1,
+        );
+    content.bytes = xml.into_bytes();
+    write_zip(&parts, &["mimetype"]).unwrap()
+}
+
+#[test]
+fn libreoffice_conditional_formats_are_drawn_and_saved_as_they_came() {
+    use letters_sheets::numfmt::Locale;
+    use letters_sheets::view::cells_in;
+    let book = read_ods(&libreoffice_file()).unwrap();
+    let view = Range::parse("A1:A3").unwrap();
+    let fills = |book: &Workbook| -> Vec<Option<String>> {
+        cells_in(book, 0, view, &Locale::default())
+            .into_iter()
+            .map(|cell| cell.conditional.and_then(|look| look.fill))
+            .collect()
+    };
+    let pink = Some("#FFC7CE".to_string());
+    assert_eq!(fills(&book), vec![None, pink.clone(), pink.clone()]);
+    // saved to ods, the rule is the file's own xml
+    let saved = write_ods(&book).unwrap();
+    let content = Package::read(&saved).unwrap();
+    let content = String::from_utf8(content.bytes("content.xml").unwrap().to_vec()).unwrap();
+    assert_eq!(content.matches(LIBREOFFICE_RULE).count(), 1);
+    // converted to xlsx, it becomes excel's rule with its differential format
+    let as_xlsx = read_xlsx(&write_xlsx(&book).unwrap()).unwrap();
+    assert_eq!(
+        as_xlsx.sheets[0].conditional_formats,
+        book.sheets[0].conditional_formats
+    );
+    assert_eq!(fills(&as_xlsx), vec![None, pink.clone(), pink]);
+}

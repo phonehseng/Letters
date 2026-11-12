@@ -1,7 +1,8 @@
 //! one `<table:table>` of an ods file: columns, rows and cells with their
 //! repeats, values, formulas (openformula turned into excel syntax),
 //! merged ranges, notes and links. elements the model does not read
-//! (shapes, forms, conditional formats) are kept as their xml.
+//! (shapes, forms) are kept as their xml; conditional formats are read
+//! for the screen and kept as their xml for saving.
 
 use std::collections::HashMap;
 
@@ -10,6 +11,7 @@ use crate::model::carry::Section;
 use crate::model::*;
 use crate::xml::{Event, Reader, Tag};
 
+use super::read_conditional::{read_conditional_formats, ConditionalContext};
 use super::styles::StyleSheet;
 
 /// what reading tables needs from the rest of the file
@@ -119,6 +121,17 @@ fn read_children(
             }
             name => {
                 let raw = reader.skip_element(&tag)?;
+                if name == "conditional-formats" {
+                    // read for the screen; the xml below is what ods saving writes
+                    let mut conditional = ConditionalContext {
+                        styles: context.styles,
+                        table: context.table,
+                        made: HashMap::new(),
+                        priority: 0,
+                    };
+                    let formats = read_conditional_formats(raw, &mut conditional);
+                    sheet.conditional_formats.extend(formats);
+                }
                 sheet.carry.sections.push(Section {
                     name: name.to_string(),
                     xml: raw.to_string(),
