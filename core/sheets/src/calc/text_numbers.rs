@@ -82,7 +82,8 @@ fn thousands_are_well_placed(body: &str) -> bool {
             .all(|group| group.len() == 3 && group.bytes().all(|b| b.is_ascii_digit()))
 }
 
-fn month_number(word: &str) -> Option<i64> {
+/// the month a word names ("mar", "March", "sept."), counted from 1.
+pub(crate) fn month_number(word: &str) -> Option<i64> {
     let word = word.trim_end_matches('.').to_ascii_lowercase();
     if word.len() < 3 {
         return None;
@@ -138,6 +139,17 @@ fn parse_date(text: &str, system: DateSystem) -> Option<f64> {
         .split(['/', '-', ' ', ','])
         .filter(|piece| !piece.is_empty())
         .collect();
+    // a date of numbers alone is written with '/' or with '-' between its
+    // parts ("3/1/2024", "2024-03-01"); spaces and commas only come with a
+    // month name ("Mar 1, 2024"). otherwise "1,5" was 5 january and the
+    // fraction "1 1/2" was 1 january 2002, as excel never reads them
+    if !pieces.iter().any(|piece| month_number(piece).is_some()) {
+        let slashes = text.contains('/');
+        let dashes = text.contains('-');
+        if text.contains([' ', ',']) || (slashes && dashes) {
+            return None;
+        }
+    }
     let (year, month, day) = match pieces.as_slice() {
         [a, b, c] => three_part_date(a, b, c)?,
         [a, b] => two_part_date(a, b)?,
