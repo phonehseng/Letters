@@ -21,15 +21,19 @@
 
   /* --- colour: text, from most to least important --- */
   --label: rgb(0 0 0 / 0.85);
-  --label-secondary: rgb(0 0 0 / 0.55);
+  /* 0.6, not 0.55: on a control on the glass panel 0.55 fell just under 4.5:1 */
+  --label-secondary: rgb(0 0 0 / 0.6);
   --label-tertiary: rgb(0 0 0 / 0.3);
 
   /* --- colour: the one accent, used rarely --- */
-  --accent: rgb(0 136 255);
+  /* accent, accent label and danger are a little deeper than apple's
+     system colours so white text on the accent and red text on the
+     window reach wcag's 4.5:1 (see docs/ACCESSIBILITY.md) */
+  --accent: rgb(0 112 230);
   --accent-soft: rgb(0 136 255 / 0.14);
-  --accent-label: rgb(0 110 220);
+  --accent-label: rgb(0 90 190);
   --on-accent: #ffffff;
-  --danger: rgb(255 56 60);
+  --danger: rgb(215 0 21);
 
   /* --- depth --- */
   --shadow-glass: 0 0 0 0.5px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 20px rgb(0 0 0 / 0.08);
@@ -94,10 +98,11 @@ body {
     --shadow-segment: 0 1px 2px rgb(0 0 0 / 0.3);
 
     --label: rgb(255 255 255 / 0.88);
-    --label-secondary: rgb(255 255 255 / 0.58);
+    --label-secondary: rgb(255 255 255 / 0.62);
     --label-tertiary: rgb(255 255 255 / 0.3);
 
-    --accent: rgb(0 145 255);
+    /* deep enough for white text on it (4.5:1), bright enough for a focus ring (3:1) */
+    --accent: rgb(0 110 220);
     --accent-soft: rgb(0 145 255 / 0.22);
     --accent-label: rgb(64 170 255);
     --danger: rgb(255 66 69);
@@ -127,6 +132,8 @@ body {
     --separator: rgb(255 255 255 / 0.4);
     --accent: rgb(92 184 255);
     --accent-label: rgb(92 184 255);
+    /* white on this light blue is 2.2:1; black is 9.7:1 */
+    --on-accent: #000000;
     --glass: #2a2a2c;
   }
 }

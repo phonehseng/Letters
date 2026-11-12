@@ -25,6 +25,10 @@ pub mod forms;
 pub mod protect;
 // the font library's folders, see fonts/mod.rs
 pub mod fonts;
+// comparing two versions of a document, see compare/mod.rs
+pub mod compare;
+// the accessibility checker and fix wizard, see a11y/mod.rs
+pub mod a11y;
 
 #[cfg(test)]
 mod annotation_tools_tests;

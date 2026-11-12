@@ -13,6 +13,8 @@ import { writerTools } from "./writer/writerTools";
 import { fillSignTools } from "./forms/fillSignTools";
 import { protectTools } from "./protect/protectTools";
 import { fontTools } from "./fonts/fontTools";
+import { compareTools } from "./compare/compareTools";
+import { a11yTools } from "./a11y/a11yTools";
 
 export interface ToolHelp {
   label: string;
@@ -420,6 +422,10 @@ export const tools = {
   ...protectTools,
   // the font library and the font picker: listed in fonts/fontTools.ts
   ...fontTools,
+  // comparing two versions: listed in compare/compareTools.ts
+  ...compareTools,
+  // the accessibility checker and fix wizard: listed in a11y/a11yTools.ts
+  ...a11yTools,
 } satisfies Record<string, ToolHelp>;
 
 export type ToolName = keyof typeof tools;

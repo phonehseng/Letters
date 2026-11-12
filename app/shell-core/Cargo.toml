@@ -25,6 +25,12 @@ keyring = { version = "3", features = ["windows-native", "apple-native"] }
 letters-redact = { path = "../../core/redact" }
 # the font library (see src/fonts)
 letters-fonts = { path = "../../core/fonts" }
+# comparing two versions (see src/compare) and the accessibility checker
+# (see src/a11y); png reads the engine's tiles and writes overlay pictures.
+# MIT or Apache-2.0
+letters-compare = { path = "../../core/compare" }
+letters-a11y = { path = "../../core/a11y" }
+png = "0.18"
 
 [dev-dependencies]
 # the annotation engine, run through an edit session in the tests

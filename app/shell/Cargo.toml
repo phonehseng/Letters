@@ -31,6 +31,9 @@ letters-forms = { path = "../../core/forms" }
 letters-redact = { path = "../../core/redact" }
 # the font library (fonts_commands.rs)
 letters-fonts = { path = "../../core/fonts" }
+# comparing two versions (compare_commands.rs) and the accessibility checker (a11y_commands.rs)
+letters-compare = { path = "../../core/compare" }
+letters-a11y = { path = "../../core/a11y" }
 letters-shell-core = { path = "../shell-core" }
 # the document type every edit closure receives (mit licence)
 lopdf = "0.47"

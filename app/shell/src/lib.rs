@@ -27,6 +27,10 @@ mod protect_commands;
 mod protect_menu;
 // the font library (system, added, bundled and downloadable fonts)
 mod fonts_commands;
+// comparing two versions of a document (the Compare screen)
+mod compare_commands;
+// the accessibility checker and fix wizard (the Accessibility tab)
+mod a11y_commands;
 // every command the interface can call, one block per feature
 mod command_routes;
 
@@ -79,6 +83,8 @@ fn manage_feature_states(app: &tauri::App) {
     app.manage(forms_commands::FormsState::start(handle));
     // the font library starts scanning system fonts on its own thread
     app.manage(fonts_commands::FontsState::start(handle));
+    // compare: the comparisons open in each window
+    app.manage(compare_commands::CompareState::start(handle));
 }
 
 fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
@@ -98,4 +104,6 @@ fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
 fn close_window_parts(handle: &tauri::AppHandle, label: &str) {
     handle.state::<AppState>().close_documents_of_window(label);
     writer_commands::close_window(handle, label);
+    // compare: the window's comparisons close with it
+    compare_commands::close_window(handle, label);
 }

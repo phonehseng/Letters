@@ -48,6 +48,17 @@ const FILE_COMMANDS: [Command; 2] = [
     command(NEW_WINDOW, "New Window", "CmdOrCtrl+N"),
 ];
 
+/// compare and accessibility, in the File menu: both look at the whole
+/// document. next and previous change use Option with the arrows, as the
+/// Compare screen does (it sends them on as next-change and previous-change)
+const COMPARE_COMMANDS: [Command; 5] = [
+    plain("compare-with-version", "Compare with Another Version…"),
+    plain("compare-two-pdfs", "Compare Two PDFs…"),
+    plain("next-change", "Next Change"),
+    plain("previous-change", "Previous Change"),
+    plain("check-accessibility", "Check Accessibility…"),
+];
+
 const SAVE_COMMANDS: [Command; 2] = [
     command("save", "Save", "CmdOrCtrl+S"),
     command("save-as", "Save As…", "CmdOrCtrl+Shift+S"),
@@ -165,6 +176,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let file_menu = SubmenuBuilder::new(app, "File")
         .items(&as_items(&menu_items(app, &FILE_COMMANDS)?))
         .separator()
+        // compare and accessibility (compare_commands.rs, a11y_commands.rs)
+        .items(&as_items(&menu_items(app, &COMPARE_COMMANDS)?))
+        .separator()
         .item(&close_window)
         .items(&as_items(&menu_items(app, &SAVE_COMMANDS)?))
         .build()?;
@@ -281,6 +295,7 @@ fn is_window_command(id: &str) -> bool {
         .chain(&ANNOTATE_MARK_COMMANDS)
         .chain(&ANNOTATE_ADD_COMMANDS)
         .chain(&ANNOTATE_LIST_COMMANDS)
+        .chain(&COMPARE_COMMANDS)
         .any(|command| command.id == id)
         || crate::writer_menu::is_writer_command(id)
         || crate::forms_menu::is_forms_command(id)

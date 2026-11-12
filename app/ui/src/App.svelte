@@ -29,8 +29,16 @@
   import WriterScreen from "./lib/writer/WriterScreen.svelte";
   // protect: the question before marks for redaction are lost (lib/protect)
   import { protectMayLeave } from "./lib/protect/protectGuard";
+  // compare: its own screen over the document or Recents (lib/compare)
+  import CompareScreen from "./lib/compare/CompareScreen.svelte";
+  import { compareCommands } from "./lib/compare/compareKeys";
+  import { EMPTY_SETUP, setupFromDocument, type CompareSetup } from "./lib/compare/setup";
 
   let openedDocument = $state<DocumentState | null>(null);
+  /** the Compare screen while it shows; the document (or Recents) waits underneath */
+  let comparing = $state<CompareSetup | null>(null);
+  /** commands go to the Compare screen while it shows, else to the window's screen */
+  const dispatcher = () => (comparing ? compareCommands : appCommands);
   let openedWriter = $state<WriterOpened | null>(null);
   let errorMessage = $state<string | null>(null);
   /** the locked file we are asking a password for, if any */
@@ -176,7 +184,7 @@
     event.preventDefault();
     // while the save question is open, the window behind it waits
     if (saveQuestion) return;
-    appCommands.dispatch(command, "keyboard");
+    dispatcher().dispatch(command, "keyboard");
   }
 
   /**
@@ -195,7 +203,19 @@
     }
     // option + up and down move the cursor in a text field; pages stay put
     if (typing && (command === "move-pages-up" || command === "move-pages-down")) return;
-    appCommands.dispatch(command, "menu");
+    dispatcher().dispatch(command, "menu");
+  }
+
+  /** shows the Compare screen; Back (onClose) returns to what was there. */
+  function openCompare(setup: CompareSetup) {
+    errorMessage = null;
+    comparing = setup;
+  }
+
+  /** the saved report opens in the viewer: here from Recents, or in a new window. */
+  function openFromCompare(path: string) {
+    comparing = null;
+    openPath(path);
   }
 
   // commands that work on every screen. the viewer and the recents
@@ -217,6 +237,18 @@
         }),
       );
     }
+    return () => takeBack.forEach((unregister) => unregister());
+  });
+
+  // compare: with a document open it is the newer version; from Recents both are chosen
+  $effect(() => {
+    if (openedWriter) return;
+    const takeBack = [
+      appCommands.register("compare-with-version", () => {
+        if (openedDocument) openCompare(setupFromDocument(openedDocument));
+      }),
+      appCommands.register("compare-two-pdfs", () => openCompare(EMPTY_SETUP)),
+    ];
     return () => takeBack.forEach((unregister) => unregister());
   });
 
@@ -242,8 +274,8 @@
   // several windows can be told apart in the taskbar. an edited document
   // says so, as on a mac
   $effect(() => {
-    // the writer names the window itself while it shows
-    if (openedWriter) return;
+    // the writer names the window itself while it shows, and so does compare
+    if (openedWriter || comparing) return;
     getCurrentWindow().setTitle(windowTitle(openedDocument));
   });
 
@@ -282,7 +314,9 @@
 
 <svelte:window onkeydown={onKeyDown} />
 
-<div class="screen">
+<!-- compare: the screen underneath stays as it was (scroll, tools, marks) but out of sight and out of reach -->
+<!-- accessibility: while the save question is open the screen behind is inert too, so Tab can't leave the sheet -->
+<div class="screen" class:waiting={!!comparing} inert={!!comparing || !!saveQuestion}>
   {#if openedDocument}
     {#key openedDocument.id}
       <Viewer
@@ -306,6 +340,12 @@
     <Home onOpenPath={openPath} onChooseFile={chooseAndOpen} onNewWindow={() => newWindow()} />
   {/if}
 </div>
+
+{#if comparing}
+  <div class="screen compare-screen">
+    <CompareScreen setup={comparing} onClose={() => (comparing = null)} onOpenPdf={openFromCompare} />
+  </div>
+{/if}
 
 <!-- messages float just under the toolbar and never push the document around -->
 {#if errorMessage}
@@ -338,6 +378,16 @@
 
   .screen {
     height: 100%;
+  }
+
+  /* compare: the screen underneath keeps its size and scroll, but is not shown */
+  .screen.waiting {
+    visibility: hidden;
+  }
+
+  .compare-screen {
+    position: absolute;
+    inset: 0;
   }
 
   .message {

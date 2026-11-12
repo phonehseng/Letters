@@ -10,7 +10,7 @@ const items = (entries: ReturnType<typeof documentMenuEntries>) =>
   entries.filter((entry): entry is DocumentMenuItem => entry !== SEPARATOR);
 
 describe("documentMenuEntries", () => {
-  it("lists save, history and rotation in three groups", () => {
+  it("lists save, history, rotation and compare in four groups", () => {
     const entries = documentMenuEntries(fresh);
     expect(entries.map((entry) => (entry === SEPARATOR ? "—" : entry.command))).toEqual([
       "save",
@@ -21,6 +21,8 @@ describe("documentMenuEntries", () => {
       "—",
       "rotate-left",
       "rotate-right",
+      "—",
+      "compare-with-version",
     ]);
   });
 

@@ -95,10 +95,14 @@
       <FolderList {search} {now} {onOpenPath} />
     </main>
 
+    <!-- accessibility: the toolbar sits in the window's banner, so every part is in a landmark -->
+    <header>
     <div class="toolbar" role="toolbar" aria-label="File tools">
       <div class="glass group">
         <ToolButton name="open" icon="open" onClick={onChooseFile} />
         <ToolButton name="newWindow" icon="newWindow" onClick={onNewWindow} />
+        <!-- compare: choose (or drop) two versions; the window shows the Compare screen -->
+        <ToolButton name="compareTwoPdfs" icon="twoPages" onClick={() => appCommands.dispatch("compare-two-pdfs", "pointer")} />
       </div>
 
       <div class="trailing">
@@ -117,10 +121,11 @@
         </div>
       </div>
     </div>
+    </header>
   </div>
 
   {#if showExplain}
-    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "pinFolder", "explain"] }]} onClose={() => (showExplain = false)} />
+    <HelpPanel groups={[{ title: "On this screen", names: ["open", "newWindow", "compareTwoPdfs", "pinFolder", "explain"] }]} onClose={() => (showExplain = false)} />
   {/if}
 </div>
 
@@ -306,12 +311,13 @@
   /* only shown when the pointer or keyboard is on the document, to keep the grid calm */
   .forget {
     position: absolute;
-    top: -0.4375rem;
-    left: -0.4375rem;
+    top: -0.5625rem;
+    left: -0.5625rem;
     display: grid;
     place-items: center;
-    width: 1.25rem;
-    height: 1.25rem;
+    /* accessibility: 24 px, the smallest target wcag 2.2 asks for */
+    width: 1.5rem;
+    height: 1.5rem;
     border: 0;
     border-radius: 50%;
     background: var(--glass);

@@ -9,6 +9,8 @@ import { WRITER_COMMANDS } from "./writer/writerCommands";
 import { FILL_SIGN_COMMANDS, FILL_SIGN_KEYS } from "./forms/fillSignCommands";
 import { PROTECT_COMMANDS, PROTECT_KEYS } from "./protect/protectCommands";
 import { FONT_COMMANDS, fontKey, registerFontCommands } from "./fonts/fontCommands";
+import { COMPARE_COMMANDS } from "./compare/compareCommands";
+import { A11Y_COMMANDS } from "./a11y/a11yCommands";
 
 export const COMMANDS = [
   "open",
@@ -56,6 +58,10 @@ export const COMMANDS = [
   ...PROTECT_COMMANDS,
   // the font library (fonts/fontCommands.ts)
   ...FONT_COMMANDS,
+  // comparing two versions (compare/compareCommands.ts)
+  ...COMPARE_COMMANDS,
+  // the accessibility checker (a11y/a11yCommands.ts)
+  ...A11Y_COMMANDS,
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];

@@ -10,8 +10,8 @@ use tauri::ipc::Invoke;
 use tauri::Wry;
 
 use crate::{
-    annotate_commands, commands, drive_commands, fonts_commands, forms_commands, page_commands,
-    protect_commands, writer_commands,
+    a11y_commands, annotate_commands, commands, compare_commands, drive_commands, fonts_commands,
+    forms_commands, page_commands, protect_commands, writer_commands,
 };
 
 /// one feature's commands: its handler, and the names it answers to.
@@ -58,6 +58,8 @@ fn features() -> Vec<Feature> {
         forms(),
         protect(),
         fonts(),
+        compare(),
+        accessibility(),
     ]
 }
 
@@ -235,7 +237,31 @@ fn fonts() -> Feature {
     ]
 }
 
+/// comparing two versions (the Compare screen).
+fn compare() -> Feature {
+    feature![
+        compare_commands::compare_start,
+        compare_commands::compare_status,
+        compare_commands::compare_result,
+        compare_commands::compare_cancel,
+        compare_commands::compare_close,
+        compare_commands::compare_pair_pictures,
+        compare_commands::compare_save_report,
+    ]
+}
 
+/// the accessibility checker and fix wizard.
+fn accessibility() -> Feature {
+    feature![
+        a11y_commands::a11y_check,
+        a11y_commands::a11y_fix,
+        a11y_commands::a11y_heading_proposal,
+        a11y_commands::a11y_reading_blocks,
+        a11y_commands::a11y_region_picture,
+        a11y_commands::a11y_save_report,
+        a11y_commands::a11y_words,
+    ]
+}
 
 
 

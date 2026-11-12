@@ -32,6 +32,9 @@
   import { ProtectSession } from "./protect/protectSession.svelte";
   import ProtectSheets from "./protect/ProtectSheets.svelte";
   import RedactionMarks from "./protect/RedactionMarks.svelte";
+  // the accessibility checker and fix wizard (the Accessibility tab)
+  import { A11ySession } from "./a11y/a11ySession.svelte";
+  import A11yMarks from "./a11y/A11yMarks.svelte";
   import {
     asCommandError,
     chooseFile,
@@ -233,6 +236,17 @@
       annotate.setTool("select");
       fillSign.setTool("none");
     },
+  });
+
+  // the Accessibility tab's shared state: the report, the fix wizard and
+  // what is outlined on the page (see a11y/a11ySession.svelte.ts)
+  const a11y = new A11ySession({
+    documentId: () => doc.id,
+    change: (action) => change(null, action),
+    reveal: revealOnPage,
+    goToPage: (page) => goToPage(page),
+    announce,
+    showError: (message) => onError(message),
   });
 
   // the one page tool in use: a Protect or Fill & Sign tool while one is picked, else the Annotate session's
@@ -625,6 +639,7 @@
     annotate,
     fillSign,
     protect,
+    a11y,
   });
 
   function onWindowKeyDown(event: KeyboardEvent) {
@@ -685,6 +700,8 @@
       ["sign-with-picture", () => openTool("signWithPicture")],
       ["sign-with-certificate", () => openTool("signWithCertificate")],
       ["show-signatures", () => openTool("signatures")],
+      // accessibility: opens the tab and checks the document
+      ["check-accessibility", () => (openTool("checkAccessibility"), a11y.check())],
     ];
     const takeBack = handlers.map(([command, handler]) => appCommands.register(command, handler));
     return () => takeBack.forEach((unregister) => unregister());
@@ -726,6 +743,11 @@
   $effect(() => {
     const revision = doc.revision;
     untrack(() => protect.setRevision(revision));
+  });
+  // accessibility: an open fix wizard checks again after undo and redo
+  $effect(() => {
+    const revision = doc.revision;
+    untrack(() => a11y.setRevision(revision));
   });
   $effect(() => {
     if (annotate.tool !== "select" || fillSign.tool !== "none") untrack(() => protect.dropTool());
@@ -835,7 +857,9 @@
     />
   {/if}
 
-  <div class="stage">
+  <!-- accessibility: the document and its toolbar are the window's main part, named by its one heading -->
+  <main class="stage">
+    <h1 class="visually-hidden">{doc.name}</h1>
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
       class="scroller"
@@ -897,6 +921,7 @@
           <AnnotateOverlay session={annotate} {frame} onFocusDocument={focusDocument} />
           <FormsOverlay session={fillSign} {frame} quiet={annotate.tool !== "select" || protect.pageTool !== null} onFocusDocument={focusDocument} />
           <RedactionMarks session={protect} {frame} onFocusDocument={focusDocument} />
+          <A11yMarks session={a11y} {frame} />
         {/each}
         {#if selectionBarAt}
           <SelectionBar
@@ -965,7 +990,7 @@
         onClose={closeFind}
       />
     {/if}
-  </div>
+  </main>
 
   {#if showInspector}
     <InspectorPanel
@@ -1039,6 +1064,11 @@
     outline: none;
     box-shadow: none;
     background: var(--desk);
+  }
+
+  /* accessibility: the pages show when they have the keyboard, inside the edge so nothing is cut off */
+  .scroller:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--accent);
   }
 
   .content {

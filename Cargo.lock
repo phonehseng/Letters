@@ -2774,7 +2774,9 @@ dependencies = [
 name = "letters-shell"
 version = "0.1.0"
 dependencies = [
+ "letters-a11y",
  "letters-annotate",
+ "letters-compare",
  "letters-fonts",
  "letters-forms",
  "letters-pages",
@@ -2796,7 +2798,9 @@ version = "0.1.0"
 dependencies = [
  "getrandom 0.4.3",
  "keyring",
+ "letters-a11y",
  "letters-annotate",
+ "letters-compare",
  "letters-fonts",
  "letters-forms",
  "letters-office",

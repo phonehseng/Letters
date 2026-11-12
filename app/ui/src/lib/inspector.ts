@@ -15,6 +15,7 @@ import type { DocumentState } from "./api";
 import type { CropBox } from "./cropRect";
 import type { FillSignSession } from "./forms/fillSignSession.svelte";
 import type { ProtectSession } from "./protect/protectSession.svelte";
+import type { A11ySession } from "./a11y/a11ySession.svelte";
 import { tools, type ToolName } from "./tools";
 
 /** what every tool in the inspector can see and do. */
@@ -48,6 +49,8 @@ export interface ToolContext {
   fillSign?: FillSignSession;
   /** the Protect tools' shared state: marks for redaction, the review, passwords (see protect/protectSession.svelte.ts) */
   protect?: ProtectSession;
+  /** the Accessibility tab's shared state: the report, the fix wizard, what is outlined (see a11y/a11ySession.svelte.ts) */
+  a11y?: A11ySession;
 }
 
 export interface InspectorTabProps {
@@ -141,6 +144,14 @@ export const INSPECTOR_TABS: InspectorTab[] = [
       "removePassword",
     ],
     load: () => import("./inspector/ProtectTab.svelte"),
+  },
+  // the accessibility checker and fix wizard (see a11y/a11ySession.svelte.ts)
+  {
+    id: "accessibility",
+    label: "Accessibility",
+    tooltip: "Check how well this PDF works with screen readers, and fix what Letters can",
+    tools: ["checkAccessibility", "fixAccessibility", "addTagsAutomatically", "markPdfUa", "saveAccessibilityReport", "showOnPage"],
+    load: () => import("./inspector/AccessibilityTab.svelte"),
   },
 ];
 

@@ -36,6 +36,8 @@ const GROUPS: [Command, ToolName][][] = [
     ["rotate-left", "rotateLeft"],
     ["rotate-right", "rotateRight"],
   ],
+  // compare: this document as the newer version (compare/CompareScreen.svelte)
+  [["compare-with-version", "compareWithVersion"]],
 ];
 
 /** whether a document command can run on this document now. */
