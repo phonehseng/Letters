@@ -344,10 +344,18 @@ pub fn slides_save(
     slides: State<SlidesState>,
     id: u64,
     to: Option<String>,
+    replace_changed: Option<bool>,
 ) -> Result<SavedDeck, CommandError> {
+    let replace_changed = replace_changed.unwrap_or(false);
+    // Save over its own file: a change another program made is asked about first
+    if to.is_none() && !replace_changed {
+        if let Some(message) = slides.sessions.changed_on_disk(id).map_err(failed)? {
+            return Err(CommandError::changed_on_disk(message));
+        }
+    }
     let saved = slides
         .sessions
-        .save(id, to.as_deref().map(Path::new))
+        .save(id, to.as_deref().map(Path::new), replace_changed)
         .map_err(failed)?;
     let count = slides
         .sessions

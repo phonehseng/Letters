@@ -273,7 +273,9 @@ export const pasteText = (id: number, sheet: number, at: CellRef, text: string |
 export const copyCells = (id: number, sheet: number, range: Range) => invoke<{ text: string; html: string }>("sheets_copy", { id, sheet, range });
 export const undoWorkbook = (id: number) => invoke<EditOutcome | null>("sheets_undo", { id });
 export const redoWorkbook = (id: number) => invoke<EditOutcome | null>("sheets_redo", { id });
-export const saveWorkbook = (id: number, path: string | null, sheet: number) => invoke<SavedSheet>("sheets_save", { id, path, sheet });
+/** `replaceChanged`: the person chose to write over a change made to the file elsewhere. */
+export const saveWorkbook = (id: number, path: string | null, sheet: number, replaceChanged = false) =>
+  invoke<SavedSheet>("sheets_save", { id, path, sheet, replaceChanged });
 export const saveLosses = (id: number, path: string) => invoke<string | null>("sheets_save_losses", { id, path });
 export const autosaveWorkbook = (id: number) => invoke<void>("sheets_autosave", { id });
 export const discardWorkbookRecovery = (id: number) => invoke<void>("sheets_discard_recovery", { id });

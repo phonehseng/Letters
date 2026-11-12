@@ -18,6 +18,7 @@ use super::new_objects::{build, next_object_id, picture, NewObject, PointBox};
 use super::pictures::{LeftOut, PictureViewer, SlidePicture, SlidePictures};
 use super::recovery::DeckRecovery;
 use super::view::{deck_view, slide_view, DeckView, SlideView};
+use crate::disk_stamp::{changed_on_disk_message, DiskStamp};
 use crate::session::file_name;
 use crate::writer::recovery::RecoveryInfo;
 use crate::writer::save::write_atomically;
@@ -61,6 +62,8 @@ struct OpenDeck {
     deck: SlideDeck,
     pictures: SlidePictures,
     window: String,
+    /// the file as this window last read or wrote it (disk_stamp.rs)
+    disk_stamp: Option<DiskStamp>,
 }
 
 pub struct SlidesSessions {
@@ -108,6 +111,7 @@ impl SlidesSessions {
                 .join(format!("{}-{id}", std::process::id())),
         );
         let entry = OpenDeck {
+            disk_stamp: DiskStamp::of(&deck.path),
             deck,
             pictures,
             window: window.to_string(),
@@ -319,10 +323,39 @@ impl SlidesSessions {
     }
 
     /// saves to the deck's file or to `to`; the recovery copy goes.
-    pub fn save(&self, id: u64, to: Option<&Path>) -> Result<SavedDeck, String> {
+    /// the sentence for a save over the deck's own file that another
+    /// program changed since this window read or wrote it, or `None`.
+    pub fn changed_on_disk(&self, id: u64) -> Result<Option<String>, String> {
+        self.with(id, |open| {
+            let path = &open.deck.path;
+            Ok(open
+                .disk_stamp
+                .is_some_and(|stamp| stamp.changed_since(path))
+                .then(|| changed_on_disk_message(&file_name(path))))
+        })
+    }
+
+    /// `replace_changed`: the person chose to write over a change made to
+    /// the file elsewhere; otherwise a save over it is refused.
+    pub fn save(
+        &self,
+        id: u64,
+        to: Option<&Path>,
+        replace_changed: bool,
+    ) -> Result<SavedDeck, String> {
         self.with(id, |open| {
             let old_path = open.deck.path.clone();
+            let over_own_file = to.is_none_or(|path| path == old_path);
+            if over_own_file
+                && !replace_changed
+                && open
+                    .disk_stamp
+                    .is_some_and(|stamp| stamp.changed_since(&old_path))
+            {
+                return Err(changed_on_disk_message(&file_name(&old_path)));
+            }
             let notes = open.deck.save(to)?;
+            open.disk_stamp = DiskStamp::of(&open.deck.path);
             self.recovery.discard(&old_path);
             Ok(SavedDeck {
                 name: file_name(&open.deck.path),

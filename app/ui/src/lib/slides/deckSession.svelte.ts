@@ -233,10 +233,10 @@ export class DeckSession {
     return chosen ? this.writeTo(chosen) : false;
   }
 
-  private async writeTo(path: string | null): Promise<boolean> {
+  private async writeTo(path: string | null, replaceChanged = false): Promise<boolean> {
     await this.queue;
     try {
-      const saved = await saveDeck(this.id, path);
+      const saved = await saveDeck(this.id, path, replaceChanged);
       this.name = saved.name;
       this.path = saved.path;
       this.format = saved.format;
@@ -244,6 +244,11 @@ export class DeckSession {
       if (saved.notes.length > 0) this.notice = { text: `Saved as OpenDocument. ${saved.notes.join(" ")}` };
       return true;
     } catch (problem) {
+      // another program changed the file: Replace writes over it on purpose (the sentence names Save As)
+      if (asCommandError(problem).kind === "changed-on-disk") {
+        this.notice = { text: asCommandError(problem).message, action: { label: "Replace", run: () => void this.writeTo(path, true).then((saved) => saved && (this.notice = null)) } };
+        return false;
+      }
       this.fail(problem);
       return false;
     }

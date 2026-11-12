@@ -64,6 +64,9 @@ pub struct SheetDocument {
     /// functions the file uses that letters doesn't have; their cells
     /// keep the values the file stored
     pub unknown_functions: Vec<String>,
+    /// the file as this window last read or wrote it, so a save doesn't
+    /// throw away a change another program made since (disk_stamp.rs)
+    pub disk_stamp: Option<crate::disk_stamp::DiskStamp>,
 }
 
 impl SheetDocument {
@@ -81,6 +84,7 @@ impl SheetDocument {
         unknown_functions.sort();
         unknown_functions.dedup();
         SheetDocument {
+            disk_stamp: path.as_deref().and_then(crate::disk_stamp::DiskStamp::of),
             unknown_functions,
             book,
             engine,

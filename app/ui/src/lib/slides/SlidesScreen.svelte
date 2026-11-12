@@ -290,6 +290,11 @@
   {:else if session.notice}
     <div class="glass notice" role="status">
       <span>{session.notice.text}</span>
+      <!-- a notice can carry one action, such as Replace for a file changed elsewhere -->
+      {#if session.notice.action}
+        {@const action = session.notice.action}
+        <button class="button" onclick={() => action.run()}>{action.label}</button>
+      {/if}
       <button class="button" onclick={() => (session.notice = null)}>OK</button>
     </div>
   {/if}

@@ -136,17 +136,23 @@ export class SheetsSession {
     return false;
   }
 
-  private writeTo(path: string): Promise<boolean> {
+  private writeTo(path: string, replaceChanged = false): Promise<boolean> {
     return this.queue(async () => {
       try {
-        const saved = await saveWorkbook(this.id, path, this.activeSheet);
+        const saved = await saveWorkbook(this.id, path, this.activeSheet, replaceChanged);
         this.name = saved.name;
         this.path = saved.path;
         this.format = saved.format;
         this.state = saved.state;
         return true;
       } catch (problem) {
-        this.onError(asCommandError(problem).message);
+        const error = asCommandError(problem);
+        // another program changed the file: Replace writes over it on purpose (the sentence names Save As)
+        if (error.kind === "changed-on-disk") {
+          this.notice = { text: error.message, action: { label: "Replace", run: () => void this.writeTo(path, true).then((saved) => saved && (this.notice = null)) } };
+          return false;
+        }
+        this.onError(error.message);
         return false;
       }
     });

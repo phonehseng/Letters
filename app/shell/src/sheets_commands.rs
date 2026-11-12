@@ -292,10 +292,19 @@ pub fn sheets_save(
     id: u64,
     path: Option<String>,
     sheet: usize,
+    replace_changed: Option<bool>,
 ) -> Result<SavedSheet, CommandError> {
+    let replace_changed = replace_changed.unwrap_or(false);
+    // a save over its own file: a change another program made is asked about first
+    if !replace_changed {
+        let to = path.as_deref().map(Path::new);
+        if let Some(message) = sheets.sessions.changed_on_disk(id, to).map_err(failed)? {
+            return Err(CommandError::changed_on_disk(message));
+        }
+    }
     let saved = sheets
         .sessions
-        .save(id, path.as_deref().map(Path::new), sheet)
+        .save(id, path.as_deref().map(Path::new), sheet, replace_changed)
         .map_err(failed)?;
     remember(&state, Path::new(&saved.path));
     Ok(saved)
