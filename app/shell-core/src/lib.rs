@@ -51,6 +51,8 @@ pub mod reading;
 pub mod organise;
 // code files: the code editor's files, checks and exports, see code/mod.rs
 pub mod code;
+// presentations: the slide editor's decks, pictures and saves, see slides/mod.rs
+pub mod slides;
 
 #[cfg(test)]
 mod annotation_tools_tests;
