@@ -1,0 +1,9 @@
+[package]
+name = "letters-exact"
+description = "converts a pdf to a docx that word renders the same, glyph for glyph"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2"
