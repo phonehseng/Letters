@@ -31,6 +31,8 @@ export interface SkippedField {
 export interface ImportReport {
   filled: string[];
   skipped: SkippedField[];
+  /** about the file itself, such as which of a csv's rows of answers was used */
+  note?: string;
 }
 
 export interface MergeResult {
@@ -80,6 +82,6 @@ export function importSummary(report: ImportReport): string {
   const filled = report.filled.length;
   const said = `${filled} ${filled === 1 ? "answer" : "answers"} filled in.`;
   const skipped = report.skipped.length;
-  if (skipped === 0) return said;
-  return `${said} ${skipped} left out: ${report.skipped.map((each) => `${each.field} (${each.reason})`).join("; ")}`;
+  const left = skipped === 0 ? "" : ` ${skipped} left out: ${report.skipped.map((each) => `${each.field} (${each.reason})`).join("; ")}`;
+  return `${said}${left}${report.note ? ` ${report.note}` : ""}`;
 }
