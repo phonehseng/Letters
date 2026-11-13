@@ -3,7 +3,7 @@
 // the shell through the session and writerApi.
 
 import { copySavedSentence, formatForPath, saveFilters } from "./formats";
-import { printPdfFile } from "./print";
+import { openPrintDialog, printPdfFile } from "./print";
 import * as api from "./writerApi";
 import { errorText, type WriterSession } from "./writerSession.svelte";
 
@@ -71,6 +71,7 @@ export async function printDocument(session: WriterSession) {
     await printPdfFile(made.path);
   } catch {
     session.say("Word and LibreOffice aren’t installed, so Letters prints its own pages. Page breaks may differ from Word’s.");
-    setTimeout(() => window.print(), SURFACE_PRINT_DELAY_MS);
+    // through the shell: a mac's web view ignores window.print()
+    setTimeout(() => void openPrintDialog(), SURFACE_PRINT_DELAY_MS);
   }
 }

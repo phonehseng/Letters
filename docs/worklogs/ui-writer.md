@@ -91,3 +91,12 @@ From docs/ACCESSIBILITY.md: Add Header and Add Footer now #5f5f66 on white
 accent; the status bar's controls and the typing switches are 24 px tall at
 least; the writer's stage is the main landmark, so the toolbar, ruler, page
 and status bar sit inside one. Not done: sideways scrolling at 200% text.
+
+## 2026-11-12 printing on a mac
+
+A mac's web view ignores window.print(), so Print, Cmd P and Export as PDF
+without Word or LibreOffice did nothing there. writer_system_print now opens
+the mac's print panel through the web view's print operation (macOS 11 and
+later), which also has Save as PDF, and every print path in the writer goes
+through openPrintDialog instead of calling window.print() itself. Linux keeps
+the web view's own printing, which works there.

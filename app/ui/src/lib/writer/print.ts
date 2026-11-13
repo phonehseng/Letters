@@ -63,8 +63,9 @@ function waitForImages(root: HTMLElement): Promise<void> {
 }
 
 /**
- * opens windows' own print dialog for the print view (the shell's
- * writer_system_print); where that isn't there, the web view's printing.
+ * opens the system's own print dialog for the print view (the shell's
+ * writer_system_print, on windows and macs); where that isn't there, as on
+ * linux, the web view's printing.
  * returns which one opened.
  */
 export async function openPrintDialog(): Promise<"system" | "webview"> {
