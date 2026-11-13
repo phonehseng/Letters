@@ -100,3 +100,15 @@ the mac's print panel through the web view's print operation (macOS 11 and
 later), which also has Save as PDF, and every print path in the writer goes
 through openPrintDialog instead of calling window.print() itself. Linux keeps
 the web view's own printing, which works there.
+
+## 2026-11-13 zooming no longer moves line breaks on a mac
+
+The page was zoomed with css zoom. A mac's web view applies that by laying
+the text out again at the zoomed font size, where words come out a hair
+wider or narrower than at 100%, so Zoom In and Zoom Out moved where lines
+broke. The page is now scaled as a whole with a transform, and a box the
+size of the zoomed page holds it, so the desk scrolls and centres as
+before. Measuring was already done in screen pixels divided by the zoom,
+which a transform gives too. Printing turns the scale off. Checked on
+Windows: the first word of every line is the same from 96% to 170%, and a
+click at 170% puts the cursor before the letter clicked.

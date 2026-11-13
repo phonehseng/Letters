@@ -45,6 +45,8 @@
 
   let body = $state<HTMLDivElement>();
   let lastPageUsed = $state(0);
+  /** the pages' height before zooming, for the box that holds them zoomed */
+  let paperHeight = $state(0);
   /** each page's top edge in the editor root's coordinates (surfaceLayout.ts) */
   let pageEdges = $state<number[]>([0]);
   /** the footnotes on each page (0-based), in order */
@@ -256,7 +258,13 @@
 </script>
 
 <div class="desk-content" style:padding-bottom="{DESK_GAP * zoom}px">
-  <div class="zoom" style:zoom>
+  <!-- zoom scales the laid-out page as a picture. css zoom made a mac's
+       web view lay the text out again at the zoomed size, where words are
+       a hair wider or narrower, so lines broke in other places at each
+       zoom. a scaled element keeps its unzoomed size in the layout, so
+       this box takes the zoomed size and the desk scrolls and centres it -->
+  <div class="zoom-box" style:width="{twipsToPx(page.width) * zoom}px" style:height="{paperHeight * zoom}px">
+  <div class="zoom" style:transform="scale({zoom})" bind:offsetHeight={paperHeight}>
     <div
       class="paper"
       class:night={nightMode}
@@ -359,6 +367,7 @@
       </div>
     </div>
   </div>
+  </div>
 </div>
 
 <style>
@@ -367,6 +376,28 @@
     justify-content: center;
     min-width: max-content;
     padding-top: 0.5rem;
+  }
+
+  .zoom-box {
+    flex: none;
+  }
+
+  /* scaled from the page's top left corner, which the box holds in place */
+  .zoom {
+    width: max-content;
+    transform-origin: 0 0;
+  }
+
+  /* printing lays the page out at its real size */
+  @media print {
+    .zoom-box {
+      width: auto !important;
+      height: auto !important;
+    }
+
+    .zoom {
+      transform: none !important;
+    }
   }
 
   /* the page is always white, like paper (Pages does the same in dark mode) */
