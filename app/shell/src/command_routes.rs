@@ -428,6 +428,8 @@ fn export() -> Feature {
         export_commands::export_document,
         export_commands::export_cancel,
         export_commands::convert_office_to_pdf,
+        export_commands::convert_file_choices,
+        export_commands::convert_file,
         export_commands::show_office_as_pdf,
         export_commands::open_pdf_as_document_window,
         export_commands::take_open_as_document,

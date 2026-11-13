@@ -1,5 +1,5 @@
-//! the Export dialog's commands, office files to pdf, and "Open PDF as
-//! Document…".
+//! the Export dialog's commands, office files to pdf, Convert File…, and
+//! "Open PDF as Document…".
 //!
 //! the work is in letters-shell-core (src/export), where it is tested.
 //! an export runs on its own thread inside an async command, sends
@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 use letters_convert::{find_office_converters, CancelFlag, PageSelection, PdfSource};
 use letters_pdf::DocumentId;
 use letters_shell_core::export::choices::{export_capabilities, ExportCapabilities};
+use letters_shell_core::export::convert_file::{self, ConvertChoices, ConvertedFile, TargetFormat};
 use letters_shell_core::export::exact::ExactPlaces;
 use letters_shell_core::export::office::{convert_to_pdf, shown_as_pdf, ConvertedToPdf};
 use letters_shell_core::export::request::{ExportJob, ExportOutcome, ExportProgress};
@@ -155,6 +156,23 @@ pub fn convert_office_to_pdf(
         &CancelFlag::new(),
     )
     .map_err(failed)
+}
+
+/// Convert File…: the types a file can become on this computer.
+#[tauri::command(async)]
+pub fn convert_file_choices(path: String) -> ConvertChoices {
+    convert_file::choices(Path::new(&path))
+}
+
+/// Convert File…: a file saved as another type, without opening it. the
+/// original is only read.
+#[tauri::command(async)]
+pub fn convert_file(
+    path: String,
+    format: TargetFormat,
+    destination: String,
+) -> Result<ConvertedFile, CommandError> {
+    convert_file::convert(Path::new(&path), format, Path::new(&destination)).map_err(failed)
 }
 
 /// a spreadsheet, a presentation or an rtf shown in the viewer as a pdf

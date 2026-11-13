@@ -11,7 +11,9 @@ use tauri::{AppHandle, Wry};
 const APP_ITEMS: [(&str, &str, Option<&str>); 1] =
     [("open-settings", "Settings…", Some("CmdOrCtrl+,"))];
 
-const FILE_ITEMS: [(&str, &str, Option<&str>); 2] = [
+const FILE_ITEMS: [(&str, &str, Option<&str>); 3] = [
+    // any file to another type, without opening it (export/ConvertSheet.svelte)
+    ("convert-file", "Convert File…", None),
     ("export-to", "Export To…", Some("CmdOrCtrl+Shift+E")),
     ("open-pdf-as-document", "Open PDF as Document…", None),
 ];
@@ -42,7 +44,7 @@ pub fn app_items(app: &AppHandle) -> tauri::Result<Vec<MenuItem<Wry>>> {
     items(app, &APP_ITEMS)
 }
 
-/// Export To… and Open PDF as Document…, for the File menu.
+/// Convert File…, Export To… and Open PDF as Document…, for the File menu.
 pub fn file_items(app: &AppHandle) -> tauri::Result<Vec<MenuItem<Wry>>> {
     items(app, &FILE_ITEMS)
 }
