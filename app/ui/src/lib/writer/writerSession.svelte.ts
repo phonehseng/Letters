@@ -30,6 +30,7 @@ import * as api from "./writerApi";
 import { WriterObjects } from "./writerObjects.svelte";
 import { copySelection, pasteFromClipboard } from "./clipboardBridge";
 import { saveFormatsFrom, type SaveFormat } from "./formats";
+import { openPrintDialog } from "./print";
 import { applyEngineModel } from "./textBlocks";
 
 type Data = Record<string, unknown>;
@@ -548,8 +549,9 @@ export class WriterSession {
           run: () => import("../api").then(({ newWindow }) => newWindow(exported.path)),
         });
       } else {
-        this.say("Word and LibreOffice aren’t installed, so Letters prints its own pages: choose “Save as PDF” or “Microsoft Print to PDF”. Page breaks may differ from Word’s.");
-        setTimeout(() => window.print(), 300);
+        this.say("Word and LibreOffice aren’t installed, so Letters prints its own pages: in the print dialog choose “Save as PDF” (on Windows, “Microsoft Print to PDF”). Page breaks may differ from Word’s.");
+        // through the shell: a mac's web view ignores window.print()
+        setTimeout(() => void openPrintDialog(), 300);
       }
     } catch (problem) {
       this.notice = null;

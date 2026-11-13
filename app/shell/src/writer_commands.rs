@@ -322,11 +322,11 @@ pub fn writer_formats() -> Formats {
     }
 }
 
-/// opens windows' own print dialog (not the web view's preview) for what
-/// the window shows for printing: the print view print.ts lays out. the
-/// person picks the printer there; nothing about the default printer or
-/// any other setting changes. Err on systems without it, and the ui then
-/// uses the web view's own printing.
+/// opens the system's own print dialog (not the web view's preview) for
+/// what the window shows for printing: the print view print.ts lays out.
+/// the person picks the printer there; nothing about the default printer
+/// or any other setting changes. Err on systems without it, and the ui
+/// then uses the web view's own printing.
 ///
 /// it runs off the main thread (async), because the web view is reached on
 /// the main thread and this command waits for the answer.
@@ -345,7 +345,17 @@ pub fn writer_system_print(window: tauri::WebviewWindow) -> Result<(), CommandEr
             .map_err(|_| failed("The print dialog didn’t open.".into()))?
             .map_err(failed)
     }
-    #[cfg(not(windows))]
+    // a mac's web view ignores window.print(), so Cmd P did nothing there;
+    // the web view's print operation opens the mac's print panel instead,
+    // with Save as PDF in it (needs macOS 11, the app's minimum)
+    #[cfg(target_os = "macos")]
+    {
+        window
+            .print()
+            .map_err(|error| failed(format!("The print dialog didn’t open. ({error})")))
+    }
+    // linux: the web view's own window.print() works, so the ui uses it
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = window;
         Err(failed(
