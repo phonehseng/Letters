@@ -39,6 +39,8 @@
     check: "M5.5 12.5l4 4 9-9",
     close: "M6.5 6.5l11 11 M17.5 6.5l-11 11",
     plus: "M12 5.5v13 M5.5 12h13",
+    // two arrows passing each other: one type becoming another (Convert File…)
+    convert: "M5 8.5h13 M15 5.5l3 3-3 3 M19 15.5H6 M9 12.5l-3 3 3 3",
   };
 
   export type IconName = keyof typeof paths;

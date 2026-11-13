@@ -3,6 +3,8 @@
 // so the menu bar and the keys reach them through the same dispatcher.
 
 export const CONVERSION_COMMANDS = [
+  // Convert File…: any file saved as another type (export/ConvertSheet.svelte)
+  "convert-file",
   // Export To… for pdfs (ctrl or command, shift, e)
   "export-to",
   // "Open PDF as Document…" from the writer and the viewer

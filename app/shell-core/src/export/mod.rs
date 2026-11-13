@@ -11,8 +11,10 @@
 //! | `renderer.rs` | whole pages drawn by the app's pdf engine, for the converters |
 //! | `summary.rs` | the result line, in plain words, from each engine's report |
 //! | `office.rs` | office files to pdf through a program on this computer |
+//! | `convert_file.rs` | Convert File…: a file saved as another type, without a window |
 
 pub mod choices;
+pub mod convert_file;
 pub mod easy_edit;
 pub mod exact;
 pub mod office;

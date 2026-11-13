@@ -3,8 +3,9 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { save as showSaveDialog } from "@tauri-apps/plugin-dialog";
+import { open as showOpenDialog, save as showSaveDialog } from "@tauri-apps/plugin-dialog";
 import type { WriterOpened } from "../writer/writerApi";
+import { CONVERTIBLE_EXTENSIONS, type ConvertChoices, type ConvertedFile, type ConvertFormat } from "./convertFile";
 import type { ExportCapabilities, ExportOutcome, ExportRequest, PageSelection } from "./exportChoices";
 
 export function exportCapabilities(): Promise<ExportCapabilities> {
@@ -81,4 +82,31 @@ export type OpenRoute = "viewer" | "writer" | "picture" | "sheets" | "slides" | 
 /** where a file opens, by its kind (shell-core/src/associations). */
 export function openRoute(path: string): Promise<OpenRoute> {
   return invoke("open_route", { path });
+}
+
+// --- Convert File… (app/shell-core/src/export/convert_file.rs)
+
+/** the types a file can become on this computer. */
+export function convertFileChoices(path: string): Promise<ConvertChoices> {
+  return invoke("convert_file_choices", { path });
+}
+
+/** saves `path` as `format` at `destination`; the original is only read. */
+export function convertFile(path: string, format: ConvertFormat, destination: string): Promise<ConvertedFile> {
+  return invoke("convert_file", { path, format, destination });
+}
+
+/** the file picker for Convert File…: every kind Letters converts or sends on. */
+export async function chooseFileToConvert(): Promise<string | null> {
+  const chosen = await showOpenDialog({
+    multiple: false,
+    filters: [{ name: "Files Letters converts", extensions: CONVERTIBLE_EXTENSIONS }],
+  });
+  return typeof chosen === "string" ? chosen : null;
+}
+
+/** where the converted copy goes, suggested beside the original. */
+export async function chooseConvertDestination(suggested: string, extension: string, label: string): Promise<string | null> {
+  const chosen = await showSaveDialog({ defaultPath: suggested, filters: [{ name: label, extensions: [extension] }] });
+  return typeof chosen === "string" ? chosen : null;
 }

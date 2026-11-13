@@ -58,3 +58,19 @@ removed or renamed: a script compared all 221 names before the change.
 
 Split the long test builders (`handbook`, `study_guide_pdf`) into one
 function per page, so each fits on a screen.
+
+## 2026-11-12 Convert File…
+
+`convert_file.rs` saves any file Letters reads as another type without
+opening it in a window: documents between .docx and .odt (.rtf and .doc
+too, as sources), spreadsheets between .xlsx, .ods and .csv, presentations
+between .pptx and .odp. Each goes through the same reader and writer the
+editors use, so a conversion keeps what saving from the editor keeps, and
+says what the new type couldn't (odt_losses, save_losses, odp's notes).
+Every office file can also become a PDF through Microsoft Office or
+LibreOffice; without one, PDF stays in the list, greyed, saying what it
+needs. PDFs and pictures are not converted here: Export To… and New from
+Images… have the choices those need (pages, picture quality, text
+recognition), so the sheet sends them there. A name typed without an
+extension gets the chosen type's, and converting onto the file itself is
+refused.

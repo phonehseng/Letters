@@ -9,6 +9,12 @@ const NOTHING = "Nothing. The file is not changed.";
 const NEW_FILE = "This document and its file on disk don’t change; a new file is made where you choose.";
 
 export const conversionTools = {
+  convertFile: {
+    label: "Convert File…",
+    tooltip: "Save a copy of a file as another type: Word, OpenDocument, Excel, CSV, PowerPoint or PDF",
+    whenToUse: "When a teacher or a form wants a different type: an .odt as a Word document, a spreadsheet as CSV, slides as PowerPoint, or any of them as a PDF.",
+    fileEffect: "The file you choose doesn’t change; the new type is a copy, saved where you choose.",
+  },
   exportTo: {
     label: "Export To…",
     tooltip: "Save a copy as Word, Excel, PowerPoint, pictures, a web page or text",
