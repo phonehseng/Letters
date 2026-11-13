@@ -17,7 +17,7 @@ pub mod pictures;
 pub mod recovery;
 pub mod sessions;
 #[cfg(test)]
-mod test_decks;
+pub(crate) mod test_decks;
 pub mod view;
 pub mod view_text;
 
