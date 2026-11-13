@@ -108,6 +108,8 @@
         <ToolButton name="newWindow" icon="newWindow" onClick={onNewWindow} />
         <!-- compare: choose (or drop) two versions; the window shows the Compare screen -->
         <ToolButton name="compareTwoPdfs" icon="twoPages" onClick={() => appCommands.dispatch("compare-two-pdfs", "pointer")} />
+        <!-- export: any file to another type (lib/export/ConvertSheet.svelte) -->
+        <ToolButton name="convertFile" icon="convert" onClick={() => appCommands.dispatch("convert-file", "pointer")} />
       </div>
 
       <div class="trailing">
@@ -155,7 +157,18 @@
             <span class="name">New from Images…</span>
             <span class="details">photos or scans to a PDF</span>
           </button>
-        </li>        <!-- spreadsheets: a blank or starter workbook in the sheets screen (lib/sheets) -->
+        </li>
+        <!-- export: any file to another type, beside the ways to start one (lib/export/ConvertSheet.svelte) -->
+        <li>
+          <button class="document" onclick={() => appCommands.dispatch("convert-file", "pointer")} title={tooltipFor("convertFile")}>
+            <span class="sheet placeholder quiet">
+              <Icon name="convert" size={1.75} />
+            </span>
+            <span class="name">Convert a File…</span>
+            <span class="details">Word, PDF, Excel and more</span>
+          </button>
+        </li>
+        <!-- spreadsheets: a blank or starter workbook in the sheets screen (lib/sheets) -->
         <li>
           <button class="document" onclick={() => (choosingSpreadsheet = true)} title={tooltipFor("sheetsNewSpreadsheet")}>
             <span class="sheet placeholder quiet">

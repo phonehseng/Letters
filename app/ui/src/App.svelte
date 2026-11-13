@@ -44,6 +44,8 @@
   // scan: New from Images, and pictures opened or dropped (lib/ocr)
   import { isPicturePath, picturePathsAmong } from "./lib/ocr/imagesToPdf";
   import NewFromImagesSheet from "./lib/ocr/NewFromImagesSheet.svelte";
+  import ConvertSheet from "./lib/export/ConvertSheet.svelte";
+  import { tick } from "svelte";
   import { forgetNewDocument, newDocumentPath } from "./lib/ocr/newDocuments";
   // conversion and export, settings: the Settings window, "Open PDF as
   // Document…", spreadsheets and presentations shown as pdfs (lib/export, lib/settings)
@@ -87,6 +89,8 @@
   let changedQuestion = $state<{ name: string; message: string; answer: (choice: ChangedChoice) => void } | null>(null);
   /** scan: the New from Images sheet while it shows, with the pictures it starts with */
   let newFromImages = $state<string[] | null>(null);
+  /** export: Convert File… while it shows, with the file it starts with (undefined: closed) */
+  let converting = $state<string | null | undefined>(undefined);
   /** code: the code or text file this window shows, if any */
   let openedCode = $state<CodeDocument | null>(null);
   /** presentations: the deck this window shows, if any */
@@ -273,6 +277,19 @@
   }
 
   /** "Open PDF as Document…": the pdf on screen, or one chosen, in a new window. */
+  /**
+   * Convert File… chose a pdf: Export To… has its choices. the pdf shown
+   * here gets it at once; another opens here (or in a new window when this
+   * one shows a file, where Export To… is then one click away).
+   */
+  async function exportPdfFromConvert(path: string) {
+    converting = undefined;
+    if (openedDocument?.path !== path) await openPath(path);
+    // the viewer registers Export To… once it is drawn
+    await tick();
+    if (openedDocument?.path === path) appCommands.dispatch("export-to", "pointer");
+  }
+
   async function chooseAndOpenAsDocument() {
     const path = openedDocument?.path ?? (await choosePdf());
     if (path) await openPdfAsDocumentWindow(path);
@@ -576,9 +593,14 @@
     openPath(hit.path);
   }
 
-  // export and settings: Settings… and Open PDF as Document… work on every screen
+  // export and settings: Settings…, Open PDF as Document… and Convert File… work on every screen
   $effect(() => {
-    const takeBack = [appCommands.register("open-settings", () => openSettingsWindow()), appCommands.register("open-pdf-as-document", chooseAndOpenAsDocument)];
+    const takeBack = [
+      appCommands.register("open-settings", () => openSettingsWindow()),
+      appCommands.register("open-pdf-as-document", chooseAndOpenAsDocument),
+      // starts with the file this window shows, if any
+      appCommands.register("convert-file", () => (converting = openedDocument?.path ?? openedWriter?.path ?? openedCode?.path ?? openedSlides?.path ?? openedSheet?.path ?? null)),
+    ];
     return () => takeBack.forEach((unregister) => unregister());
   });
 
@@ -755,6 +777,10 @@
 
 {#if updateNote}
   <UpdateNoteView note={updateNote} onLater={() => (updateNote = null)} />
+{/if}
+
+{#if converting !== undefined}
+  <ConvertSheet initialPath={converting} onClose={() => (converting = undefined)} onExportPdf={exportPdfFromConvert} onPicturesToPdf={(path) => ((converting = undefined), (newFromImages = [path]))} onOpen={(path) => ((converting = undefined), void openFromHome(path))} />
 {/if}
 
 {#if newFromImages}

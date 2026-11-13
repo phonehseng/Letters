@@ -17,6 +17,7 @@ describe("documentMenuEntries", () => {
       "save-as",
       // export (export/ExportSheet.svelte)
       "export-to",
+      "convert-file",
       "open-pdf-as-document",
       "—",
       "undo",

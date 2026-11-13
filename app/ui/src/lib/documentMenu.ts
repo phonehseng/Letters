@@ -29,6 +29,7 @@ const GROUPS: [Command, ToolName][][] = [
     ["save-as", "saveAs"],
     // export: a copy in another format, or the text as a document (export/ExportSheet.svelte)
     ["export-to", "exportTo"],
+    ["convert-file", "convertFile"],
     ["open-pdf-as-document", "openPdfAsDocument"],
   ],
   [

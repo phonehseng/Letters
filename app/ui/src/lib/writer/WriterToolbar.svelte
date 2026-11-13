@@ -86,6 +86,8 @@
     { label: tools.wPrint.label, shortcut: "Ctrl P", title: tools.wPrint.tooltip, run: () => onCommand("print") },
     // conversion: a pdf rebuilt as an editable document, in a new window (lib/export)
     { label: tools.wOpenPdfAsDocument.label, title: tools.wOpenPdfAsDocument.tooltip, run: () => appCommands.dispatch("open-pdf-as-document", "pointer") },
+    // this document's file as another type (export/ConvertSheet.svelte)
+    { label: tools.convertFile.label, title: tools.convertFile.tooltip, run: () => appCommands.dispatch("convert-file", "pointer") },
     { label: tools.undo.label, shortcut: "Ctrl Z", disabled: !canUndo, separatorBefore: true, run: () => onCommand("undo") },
     { label: tools.redo.label, shortcut: "Ctrl Shift Z", disabled: !canRedo, run: () => onCommand("redo") },
   ]);
