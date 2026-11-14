@@ -2,6 +2,7 @@
 // app/shell/src/slides_commands.rs), with the shapes of what comes back,
 // so the editor's components never need to know command names.
 
+import { suggestedPath } from "../export/convertFile";
 import { invoke } from "@tauri-apps/api/core";
 import { open as showOpenDialog, save as showSaveDialog } from "@tauri-apps/plugin-dialog";
 import type { Operation } from "./operations";
@@ -193,13 +194,17 @@ export const openAudienceWindow = (id: number) => invoke<string>("slides_open_au
 export const closeAudienceWindow = (id: number) => invoke<void>("slides_close_audience", { id });
 
 /** Save As: PowerPoint or OpenDocument, the deck's own format first. */
+/** what Save As offers for a deck; pdf opens the Export as PDF sheet. */
+export const DECK_SAVE_FORMATS = [
+  { id: "pptx", label: "PowerPoint presentation", extension: "pptx", available: true, note: "Opens in PowerPoint, Keynote and Google Slides, with everything kept." },
+  { id: "odp", label: "OpenDocument presentation", extension: "odp", available: true, note: "Opens in LibreOffice Impress. A few PowerPoint effects are drawn more simply; Letters says which after saving." },
+  { id: "pdf", label: "PDF", extension: "pdf", available: true, note: "Every slide as a page that looks the same everywhere, for handing in or sharing. The next step chooses slides and notes." },
+] as const;
+
+/** the save panel for a deck in one format, suggested beside the deck with that extension. */
 export async function chooseDeckSaveLocation(suggested: string, format: DeckFormat): Promise<string | null> {
-  const filters = [
-    { name: "PowerPoint presentation", extensions: ["pptx"] },
-    { name: "OpenDocument presentation", extensions: ["odp"] },
-  ];
-  if (format === "odp") filters.reverse();
-  const chosen = await showSaveDialog({ defaultPath: suggested, filters });
+  const name = format === "odp" ? "OpenDocument presentation" : "PowerPoint presentation";
+  const chosen = await showSaveDialog({ defaultPath: suggestedPath(suggested, format), filters: [{ name, extensions: [format] }] });
   return typeof chosen === "string" ? chosen : null;
 }
 

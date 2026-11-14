@@ -4,6 +4,8 @@
   // inspector float as glass around it. every edit is one of the engine's
   // operations, sent to the shell (deckSession.svelte.ts); the slide show
   // takes the whole window, or the screens, while it runs.
+  import { chooseSaveFormat } from "../export/saveAsFormat.svelte";
+  import { DECK_SAVE_FORMATS } from "./slidesApi";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { pictureSize } from "../annotate/annotateApi";
@@ -132,7 +134,14 @@
 
   async function saveAs() {
     await keepTyping();
-    return session.saveAs();
+    // the format first (export/saveAsFormat.svelte.ts); pdf is the Export as PDF sheet, with its choices
+    const chosen = await chooseSaveFormat(DECK_SAVE_FORMATS, session.format);
+    if (!chosen) return false;
+    if (chosen.id === "pdf") {
+      exporting = true;
+      return false;
+    }
+    return session.saveAs(chosen.id);
   }
 
   async function restack(to: "front" | "back" | "forward" | "backward") {

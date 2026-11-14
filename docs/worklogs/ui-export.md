@@ -32,3 +32,17 @@ beside New from Images…, in the PDF viewer's document menu, the writer's
 document menu, and the mac's File menu. A PDF chosen there opens with
 Export To…, and a picture with New from Images…. The result offers Show
 in Folder and Open.
+
+## 2026-11-14 Save As asks for the format first
+
+Asked for: Save As on a Mac couldn't change the format. A mac's save panel
+shows no format menu for a list of file types, so it kept the document's
+own. Save As now asks in Letters first (`SaveAsFormatSheet.svelte`, one
+request at a time through `saveAsFormat.svelte.ts`), then opens the save
+panel with that one type and the same name beside the document. The
+writer offers its engine's formats and PDF; Sheets offers Excel,
+OpenDocument, CSV and PDF; Slides offers PowerPoint, OpenDocument and PDF
+(its Export as PDF sheet); a PDF offers itself or Export To…. A format this
+computer can't make stays in the list, greyed, saying why. In the writer, a
+PDF without Word or LibreOffice goes straight to the print dialog, which
+asks where to save, instead of asking twice.

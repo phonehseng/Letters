@@ -17,6 +17,8 @@ export interface SaveFormat {
   becomes: "own" | "copy";
   available: boolean;
   note: string;
+  /** pdf without word or libreoffice: the print dialog makes it and asks where, so no save panel first */
+  throughPrint?: boolean;
 }
 
 const ID_FOR_ENGINE: Record<FormatCapability["format"], SaveFormatId> = {
@@ -29,6 +31,8 @@ const ID_FOR_ENGINE: Record<FormatCapability["format"], SaveFormatId> = {
   doc: "doc",
 };
 
+// without word or libreoffice the writer prints its own pages, and the print dialog makes the pdf
+const PDF_NOTE_WITHOUT_CONVERTER = "Looks the same everywhere and can’t be edited as a document. Word and LibreOffice aren’t on this computer, so Letters opens the print dialog: choose Save as PDF there.";
 const PDF_NOTE = "Looks the same everywhere and can’t be edited as a document. Word makes it with Word’s exact pages; without Word, LibreOffice makes a close copy.";
 
 /** the engine's table as Save As shows it; `converter` is true when Word or LibreOffice is installed. */
@@ -49,7 +53,7 @@ export function saveFormatsFrom(capabilities: FormatCapability[], converter: boo
     });
   // pdf goes after the two document formats, where people look for it
   const at = Math.min(2, formats.length);
-  formats.splice(at, 0, { id: "pdf", label: "PDF", extension: "pdf", becomes: "copy", available: true, note: PDF_NOTE });
+  formats.splice(at, 0, { id: "pdf", label: "PDF", extension: "pdf", becomes: "copy", available: true, note: converter ? PDF_NOTE : PDF_NOTE_WITHOUT_CONVERTER, throughPrint: !converter });
   return formats;
 }
 

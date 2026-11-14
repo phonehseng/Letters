@@ -45,6 +45,8 @@
   import { isPicturePath, picturePathsAmong } from "./lib/ocr/imagesToPdf";
   import NewFromImagesSheet from "./lib/ocr/NewFromImagesSheet.svelte";
   import ConvertSheet from "./lib/export/ConvertSheet.svelte";
+  import SaveAsFormatSheet from "./lib/export/SaveAsFormatSheet.svelte";
+  import { chooseSaveFormat, PDF_SAVE_FORMATS, saveAsFormat } from "./lib/export/saveAsFormat.svelte";
   import { tick } from "svelte";
   import { forgetNewDocument, newDocumentPath } from "./lib/ocr/newDocuments";
   // conversion and export, settings: the Settings window, "Open PDF as
@@ -361,6 +363,17 @@
   }
 
   /** asks where to save a copy, then saves it there. the document then belongs to the copy. */
+  /**
+   * Save As from the menu, the keys or the document menu: the format first,
+   * as in every editor. a pdf saves as a pdf here; the other formats are
+   * Export To…, which has their choices.
+   */
+  async function saveAsChoosingFormat() {
+    const chosen = await chooseSaveFormat(PDF_SAVE_FORMATS, "pdf");
+    if (chosen?.id === "pdf") await saveAs();
+    else if (chosen) appCommands.dispatch("export-to", "pointer");
+  }
+
   async function saveAs(): Promise<boolean> {
     const shown = openedDocument;
     if (!shown) return false;
@@ -525,7 +538,7 @@
           if (openedDocument && isAvailable("save", openedDocument)) save();
         }),
         appCommands.register("save-as", () => {
-          if (openedDocument) saveAs();
+          if (openedDocument) void saveAsChoosingFormat();
         }),
         // printing a pdf: its pages at printer resolution (lib/writer/print.ts)
         appCommands.register("print", () => {
@@ -777,6 +790,13 @@
 
 {#if updateNote}
   <UpdateNoteView note={updateNote} onLater={() => (updateNote = null)} />
+{/if}
+
+<!-- Save As: the format first, for every editor (lib/export/saveAsFormat.svelte.ts) -->
+{#if saveAsFormat.current}
+  {#key saveAsFormat.current}
+    <SaveAsFormatSheet />
+  {/key}
 {/if}
 
 {#if converting !== undefined}
