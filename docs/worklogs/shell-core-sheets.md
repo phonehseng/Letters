@@ -63,3 +63,11 @@ never answers, so the window's queue of edits waited forever. Calculating is
 now guarded: if the engine fails, the edits are taken back, the engine is
 built afresh and the person reads a sentence instead. The engine's missing
 check is reported for core/sheets to fix.
+
+## 2026-11-14 Save As › PDF
+
+`SheetSessions::export_pdf` makes a PDF of a workbook as it is now,
+unsaved changes included, through Microsoft Office or LibreOffice: Letters
+has no page layout for spreadsheets. The workbook goes to a temporary .xlsx
+named like the workbook (the converter takes the PDF's title from it),
+which is removed afterwards; the workbook's own file isn't touched.

@@ -583,6 +583,7 @@ fn spreadsheets() -> Feature {
         sheets_commands::sheets_redo,
         sheets_commands::sheets_save,
         sheets_commands::sheets_save_losses,
+        sheets_commands::sheets_export_pdf,
         sheets_commands::sheets_autosave,
         sheets_commands::sheets_discard_recovery,
         sheets_commands::sheets_stats,
