@@ -310,6 +310,20 @@ pub fn sheets_save(
     Ok(saved)
 }
 
+/// Save As › PDF: the workbook as it is now, through office or libreoffice.
+/// returns the converter's sentence.
+#[tauri::command(async)]
+pub fn sheets_export_pdf(
+    sheets: State<SheetsState>,
+    id: u64,
+    destination: String,
+) -> Result<String, CommandError> {
+    sheets
+        .sessions
+        .export_pdf(id, Path::new(&destination))
+        .map_err(failed)
+}
+
 /// what saving under `path` would leave out, said before saving.
 #[tauri::command(async)]
 pub fn sheets_save_losses(

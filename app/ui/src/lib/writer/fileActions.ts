@@ -2,7 +2,9 @@
 // formats), Export as PDF and Print. the screen calls these; they talk to
 // the shell through the session and writerApi.
 
-import { copySavedSentence, formatForPath, saveFilters } from "./formats";
+import { chooseSaveFormat } from "../export/saveAsFormat.svelte";
+import { suggestedPath } from "../export/convertFile";
+import { copySavedSentence, formatForPath } from "./formats";
 import { openPrintDialog, printPdfFile } from "./print";
 import * as api from "./writerApi";
 import { errorText, type WriterSession } from "./writerSession.svelte";
@@ -17,7 +19,14 @@ const SURFACE_PRINT_DELAY_MS = 300;
  */
 export async function saveAs(session: WriterSession, onError: (message: string) => void, askOdt: (question: { text: string; path: string }) => void): Promise<boolean> {
   const formats = await session.loadFormats();
-  const path = await api.chooseSaveLocationWithFilters(session.path, saveFilters(session.kind, formats));
+  // the format first: a mac's save panel has no format menu to pick it in
+  const chosen = await chooseSaveFormat(formats, session.kind);
+  if (!chosen) return false;
+  if (chosen.throughPrint) {
+    session.printToPdf();
+    return true;
+  }
+  const path = await api.chooseSaveLocationWithFilters(suggestedPath(session.path, chosen.extension), [{ name: chosen.label, extensions: [chosen.extension] }]);
   if (!path) return false;
   const format = formatForPath(path, formats);
   if (!format) {
@@ -53,6 +62,12 @@ async function saveCopy(session: WriterSession, onError: (message: string) => vo
 
 /** Export as PDF: asks where, beside the document by default. */
 export async function exportPdf(session: WriterSession) {
+  // without word or libreoffice the print dialog asks where, so no save panel first
+  const pdf = (await session.loadFormats()).find((format) => format.id === "pdf");
+  if (pdf?.throughPrint) {
+    session.printToPdf();
+    return;
+  }
   const path = await api.chooseSaveLocationFor(api.withExtension(session.path, "pdf"), "pdf");
   if (path) await session.exportPdf(path);
 }

@@ -538,6 +538,13 @@ export class WriterSession {
 
   // --- export
 
+  /** a pdf without word or libreoffice: Letters prints its own pages and the print dialog saves them. */
+  printToPdf(): void {
+    this.say("Word and LibreOffice aren’t installed, so Letters prints its own pages: in the print dialog choose “Save as PDF” (on Windows, “Microsoft Print to PDF”). Page breaks may differ from Word’s.");
+    // through the shell: a mac's web view ignores window.print()
+    setTimeout(() => void openPrintDialog(), 300);
+  }
+
   async exportPdf(path: string): Promise<void> {
     this.say("Exporting… Word or LibreOffice can take a few seconds.");
     try {
@@ -549,9 +556,7 @@ export class WriterSession {
           run: () => import("../api").then(({ newWindow }) => newWindow(exported.path)),
         });
       } else {
-        this.say("Word and LibreOffice aren’t installed, so Letters prints its own pages: in the print dialog choose “Save as PDF” (on Windows, “Microsoft Print to PDF”). Page breaks may differ from Word’s.");
-        // through the shell: a mac's web view ignores window.print()
-        setTimeout(() => void openPrintDialog(), 300);
+        this.printToPdf();
       }
     } catch (problem) {
       this.notice = null;

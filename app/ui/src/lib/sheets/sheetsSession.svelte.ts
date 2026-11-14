@@ -5,11 +5,15 @@
 // keeps what the screen shows about it.
 
 import { asCommandError } from "../api";
+import { convertFileChoices } from "../export/exportApi";
+import { chooseSaveFormat } from "../export/saveAsFormat.svelte";
 import { createSerialQueue } from "../documentState";
 import {
   applyEdits,
   autosaveWorkbook,
   chooseWorkbookSaveLocation,
+  exportWorkbookPdf,
+  workbookSaveFormats,
   discardWorkbookRecovery,
   formatCells,
   hideLines,
@@ -123,10 +127,29 @@ export class SheetsSession {
   }
 
   async saveAs(): Promise<boolean> {
-    const suggested = this.path ?? this.name;
-    const chosen = await chooseWorkbookSaveLocation(suggested, this.format === "csv" ? "xlsx" : this.format);
+    // pdf needs office or libreoffice: the converter's list says whether this computer has one
+    const pdf = (await convertFileChoices("Workbook.xlsx").catch(() => null))?.targets.find((target) => target.format === "pdf") ?? null;
+    // the format first: a mac's save panel has no format menu to pick it in
+    const format = await chooseSaveFormat(workbookSaveFormats(this.format, pdf), this.format === "csv" ? "xlsx" : this.format);
+    if (!format) return false;
+    const chosen = await chooseWorkbookSaveLocation(this.path ?? this.name, format.id);
     if (!chosen) return false;
+    if (format.id === "pdf") return this.exportPdf(chosen);
     return this.askBeforeLosing(chosen);
+  }
+
+  /** a pdf of the workbook as it is now; the workbook keeps its own file. */
+  private async exportPdf(path: string): Promise<boolean> {
+    this.notice = { text: "Making the PDF… Excel or LibreOffice can take a few seconds." };
+    try {
+      const made = await exportWorkbookPdf(this.id, path);
+      this.notice = { text: `Saved “${path.split(/[\\/]/).pop()}”. ${made} This workbook is still “${this.name}”.` };
+      return true;
+    } catch (problem) {
+      this.notice = null;
+      this.onError(asCommandError(problem).message);
+      return false;
+    }
   }
 
   private async askBeforeLosing(path: string): Promise<boolean> {

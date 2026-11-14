@@ -16,11 +16,17 @@ use serde::Serialize;
 
 use super::document::{EditOutcome, SheetDocument};
 use super::files::{
-    format_for_path, read_workbook, save_losses, save_workbook, with_sheet_extension, SheetFormat,
+    format_for_path, read_workbook, save_losses, save_workbook, with_sheet_extension,
+    workbook_bytes, SheetFormat,
 };
 use super::recovery::{SheetRecoveryInfo, SheetRecoveryStore};
 use super::tips::TipStore;
 use crate::disk_stamp::{changed_on_disk_message, DiskStamp};
+use crate::export::office::convert_to_pdf;
+use letters_convert::CancelFlag;
+
+/// numbers the temporary folders of Save As › PDF
+static NEXT_EXPORT: AtomicU64 = AtomicU64::new(0);
 use crate::session::file_name;
 
 /// what the ui gets when a workbook opens.
@@ -229,6 +235,38 @@ impl SheetSessions {
             let format = format_for_path(path).unwrap_or(document.format);
             Ok(save_losses(&document.book, format))
         })
+    }
+
+    /// Save As › PDF: the workbook as it is now, unsaved changes included,
+    /// laid out by microsoft office or libreoffice (letters has no page
+    /// layout for spreadsheets). the workbook goes to a temporary .xlsx,
+    /// which is removed afterwards; its own file isn't touched. returns
+    /// the converter's sentence, such as "Made with Microsoft Excel."
+    pub fn export_pdf(&self, id: u64, destination: &Path) -> Result<String, String> {
+        let (bytes, name) = self.with(id, |document| {
+            let bytes = workbook_bytes(&document.book, SheetFormat::Xlsx, 0, destination)?;
+            let name = document
+                .path
+                .as_deref()
+                .and_then(Path::file_stem)
+                .map(|stem| stem.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "Workbook".into());
+            Ok((bytes, name))
+        })?;
+        // a folder of its own, so two exports at once never share a file
+        let folder = std::env::temp_dir().join(format!(
+            "letters-sheet-pdf-{}-{id}-{}",
+            std::process::id(),
+            NEXT_EXPORT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&folder).map_err(|error| error.to_string())?;
+        // the converter names the pdf's title after the file, so it keeps the workbook's name
+        let workbook = folder.join(format!("{name}.xlsx"));
+        let made = std::fs::write(&workbook, bytes)
+            .map_err(|error| error.to_string())
+            .and_then(|_| convert_to_pdf(&workbook, destination, &CancelFlag::new()));
+        let _ = std::fs::remove_dir_all(&folder);
+        made.map(|done| done.summary)
     }
 
     /// writes a recovery copy when there are changes the last copy lacks.

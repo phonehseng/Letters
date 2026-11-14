@@ -3,6 +3,7 @@
 // shapes of the answers, so components never need command names.
 // rows and columns are zero based everywhere, as in the engine.
 
+import { suggestedPath } from "../export/convertFile";
 import { invoke } from "@tauri-apps/api/core";
 import { save as showSaveDialog } from "@tauri-apps/plugin-dialog";
 
@@ -331,15 +332,32 @@ export const friendlyFormats = () => invoke<FriendlyFormat[]>("sheets_friendly_f
 export const stylePresets = () => invoke<string[]>("sheets_style_presets");
 
 /** the save panel for Save As, offering the four formats Letters writes. */
-export async function chooseWorkbookSaveLocation(suggested: string, format: SheetFormat): Promise<string | null> {
-  const all = [
-    { name: "Excel Workbook", extensions: ["xlsx"] },
-    { name: "Excel Macro-Enabled Workbook", extensions: ["xlsm"] },
-    { name: "OpenDocument Spreadsheet", extensions: ["ods"] },
-    { name: "CSV (one sheet, values only)", extensions: ["csv"] },
+/** what Save As offers for a workbook (export/saveAsFormat.svelte.ts); pdf needs office or libreoffice. */
+export interface WorkbookSaveFormat {
+  id: SheetFormat | "pdf";
+  label: string;
+  extension: string;
+  available: boolean;
+  note: string;
+}
+
+export function workbookSaveFormats(current: SheetFormat, pdf: { available: boolean; note: string } | null): WorkbookSaveFormat[] {
+  return [
+    { id: "xlsx", label: "Excel workbook", extension: "xlsx", available: true, note: "Opens in Excel, Numbers and Google Sheets, with every sheet, formula and format." },
+    // macros are kept, never run; only a workbook that has them is offered this
+    ...(current === "xlsm" ? [{ id: "xlsm" as const, label: "Excel macro-enabled workbook", extension: "xlsm", available: true, note: "Keeps this workbook’s macros as they are. Letters never runs them." }] : []),
+    { id: "ods", label: "OpenDocument spreadsheet", extension: "ods", available: true, note: "Opens in LibreOffice Calc. Letters says before saving if anything can’t be kept." },
+    { id: "csv", label: "CSV, values only", extension: "csv", available: true, note: "The values of the sheet you are on, for other programs to read. Formulas become their results; formatting is left out." },
+    { id: "pdf", label: "PDF", extension: "pdf", available: pdf?.available ?? false, note: pdf?.note ?? "Needs Microsoft Office or the free LibreOffice." },
   ];
-  // the workbook's own format first, so Enter keeps it
-  const filters = [...all.filter((f) => f.extensions[0] === format), ...all.filter((f) => f.extensions[0] !== format)];
-  const chosen = await showSaveDialog({ defaultPath: suggested, filters });
+}
+
+/** the workbook as a pdf through office or libreoffice; returns the converter's sentence. */
+export const exportWorkbookPdf = (id: number, destination: string) => invoke<string>("sheets_export_pdf", { id, destination });
+
+/** the save panel for one format, suggested beside the workbook with that extension. */
+export async function chooseWorkbookSaveLocation(suggested: string, format: SheetFormat | "pdf"): Promise<string | null> {
+  const names: Record<SheetFormat | "pdf", string> = { xlsx: "Excel Workbook", xlsm: "Excel Macro-Enabled Workbook", ods: "OpenDocument Spreadsheet", csv: "CSV (one sheet, values only)", pdf: "PDF document" };
+  const chosen = await showSaveDialog({ defaultPath: suggestedPath(suggested, format), filters: [{ name: names[format], extensions: [format] }] });
   return typeof chosen === "string" ? chosen : null;
 }

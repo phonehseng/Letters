@@ -228,8 +228,9 @@ export class DeckSession {
     return this.writeTo(null);
   }
 
-  async saveAs(): Promise<boolean> {
-    const chosen = await chooseDeckSaveLocation(this.path, this.format);
+  /** saves in `format` where the person chooses; the screen asks for the format first. */
+  async saveAs(format: DeckFormat = this.format): Promise<boolean> {
+    const chosen = await chooseDeckSaveLocation(this.path, format);
     return chosen ? this.writeTo(chosen) : false;
   }
 

@@ -337,3 +337,24 @@ fn saving_over_a_workbook_changed_elsewhere_asks_first() {
     let again = sessions.open("main", &path, false).unwrap();
     assert_eq!(value(&sessions, again.id, 2, 0), Value::text("mine"));
 }
+
+#[test]
+fn a_pdf_of_the_workbook_leaves_its_file_alone_with_or_without_office() {
+    let dir = folder("pdf");
+    let path = two_and_triple(&dir);
+    let before = fs::read(&path).unwrap();
+    let sessions = sessions(&dir);
+    let opened = sessions.open("main", &path, false).unwrap();
+    // an unsaved change goes into the pdf, not into the file
+    sessions
+        .with(opened.id, |d| d.apply(&[typed(2, 0, "unsaved")], "Typing"))
+        .unwrap();
+    let pdf = dir.join("Grades.pdf");
+    match sessions.export_pdf(opened.id, &pdf) {
+        // this computer has microsoft office or libreoffice
+        Ok(_) => assert!(fs::read(&pdf).unwrap().starts_with(b"%PDF")),
+        // it hasn't: the sentence says what is needed
+        Err(problem) => assert!(problem.contains("LibreOffice"), "{problem}"),
+    }
+    assert_eq!(fs::read(&path).unwrap(), before);
+}
