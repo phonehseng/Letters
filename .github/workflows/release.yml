@@ -90,6 +90,30 @@ jobs:
             echo "END_OF_NOTES"
           } >> "$GITHUB_OUTPUT"
 
+      # in-app updates need the release key. a tag can't go out without it,
+      # or the update files would be missing; a run by hand without it builds
+      # the installers alone, so a test build never waits on the key. (an
+      # unset secret arrives as an empty key, which tauri reports as "missing
+      # comment in secret key", so it is checked here in plain words.)
+      - name: check for the update signing key
+        id: signing
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "args=" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "A release needs the TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets (Settings, Secrets and variables, Actions), so the app can check its updates." >&2
+            exit 1
+          else
+            # a forward-slash path on windows too (pwd -W), which tauri's --config reads
+            folder=$(cd "$RUNNER_TEMP" && (pwd -W 2>/dev/null || pwd))
+            echo '{"bundle":{"createUpdaterArtifacts":false}}' > "$folder/no-updater.json"
+            echo "args=--config $folder/no-updater.json" >> "$GITHUB_OUTPUT"
+            echo "::warning::There is no update signing key, so this build has the installers but no update files."
+          fi
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -101,7 +125,7 @@ jobs:
         with:
           projectPath: app/shell
           tauriScript: npx tauri
-          args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+          args: ${{ format('{0} {1}', matrix.target && format('--target {0}', matrix.target) || '', steps.signing.outputs.args) }}
           # a tag makes a draft release named after it; a run by hand only builds
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: Letters ${{ github.ref_name }}
